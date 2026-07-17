@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "와보랑께",
+    "slug": "waboranggae",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "waboranggae",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#F5F1E8",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "kr.co.waboranggae.app"
+    },
+    "android": {
+      "package": "kr.co.waboranggae.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D5C45"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "와보랑께"
+    }
+  }
+}
