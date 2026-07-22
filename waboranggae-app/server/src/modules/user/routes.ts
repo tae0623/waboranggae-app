@@ -6,29 +6,28 @@ import { travelPreferencesSchema } from '../shared/schemas';
 export const userRouter = Router();
 
 /**
- * 사용자 ID를 요청에서 추출하는 미들웨어 (간단한 버전)
- * 실제로는 JWT 토큰 검증이 필요합니다.
+ * JWT 미들웨어에서 설정한 req.user에서 사용자 ID 추출
  */
 function extractUserId(request: Request): string {
-  const userId = request.headers['x-user-id'] as string;
+  const userId = request.user?.userId;
   if (!userId) {
-    throw new Error('x-user-id header is required');
+    throw new Error('인증이 필요합니다');
   }
   return userId;
 }
 
 /**
- * POST /api/user/profile
- * 사용자 프로필 조회 또는 생성 (Upsert)
+ * PATCH /api/user/profile
+ * 현재 사용자 표시 이름 수정
  */
-userRouter.post('/user/profile', async (request: Request, response: Response, next: NextFunction) => {
+userRouter.patch('/user/profile', async (request: Request, response: Response, next: NextFunction) => {
   try {
+    const userId = extractUserId(request);
     const body = z.object({
-      email: z.string().email(),
-      displayName: z.string().optional(),
+      displayName: z.string().min(2).max(50),
     }).parse(request.body);
 
-    const user = await UserQueries.upsertUser(body.email, body.displayName);
+    const user = await UserQueries.updateDisplayName(userId, body.displayName);
     response.json(user);
   } catch (error) {
     next(error);
@@ -50,6 +49,20 @@ userRouter.get('/user/me', async (request: Request, response: Response, next: Ne
     }
 
     response.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/user/me
+ * 계정 삭제
+ */
+userRouter.delete('/user/me', async (request: Request, response: Response, next: NextFunction) => {
+  try {
+    const userId = extractUserId(request);
+    await UserQueries.deleteUser(userId);
+    response.json({ ok: true });
   } catch (error) {
     next(error);
   }

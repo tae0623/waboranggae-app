@@ -434,29 +434,29 @@ logger.warn('Failed login attempt', {
 
 ### Phase 1: 기본 인증 (필수)
 
-- [ ] Prisma 스키마에 password 필드 추가
-- [ ] bcrypt로 비밀번호 해싱
-- [ ] JWT 생성/검증 함수 구현
-- [ ] 로그인 엔드포인트 `/auth/login`
-- [ ] 회원가입 엔드포인트 `/auth/signup`
-- [ ] 토큰 검증 미들웨어
-- [ ] API 클라이언트에서 JWT 저장/사용
-- [ ] useUser hook JWT 통합
+- [x] Prisma 스키마에 password 필드 추가
+- [x] bcrypt로 비밀번호 해싱
+- [x] JWT 생성/검증 함수 구현
+- [x] 로그인 엔드포인트 `/auth/login`
+- [x] 회원가입 엔드포인트 `/auth/signup`
+- [x] 토큰 검증 미들웨어
+- [x] API 클라이언트에서 JWT 저장/사용
+- [x] useUser hook JWT 통합
 
 ### Phase 2: API 보안 (권장)
 
-- [ ] CORS 정책 제한
-- [ ] Rate Limiting 적용
-- [ ] Input Validation (Zod)
-- [ ] 에러 메시지 보안화
-- [ ] 민감 정보 필터링
-- [ ] 접근 제어 (Authorization)
+- [x] CORS 정책 제한
+- [x] Rate Limiting 적용
+- [x] Input Validation (Zod)
+- [x] 에러 메시지 보안화
+- [x] 민감 정보 필터링
+- [x] 접근 제어 (Authorization)
 
 ### Phase 3: 배포 준비 (권장)
 
 - [ ] 환경변수 외부 관리
 - [ ] HTTPS/SSL 설정
-- [ ] 보안 헤더 추가 (Helmet)
+- [x] 보안 헤더 추가 (Helmet)
 - [ ] 로깅 & 모니터링 (Winston/Sentry)
 - [ ] 보안 감사 (Snyk, npm audit)
 

@@ -58,6 +58,18 @@ export class UserQueries {
   }
 
   /**
+   * 표시 이름을 수정합니다.
+   */
+  static async updateDisplayName(userId: string, displayName: string): Promise<SafeUser> {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { displayName },
+    });
+    const { password, ...safeUser } = user;
+    return safeUser;
+  }
+
+  /**
    * 사용자를 삭제합니다 (모든 관련 데이터도 삭제됨).
    */
   static async deleteUser(userId: string) {

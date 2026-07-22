@@ -4,6 +4,7 @@ import { prisma } from '../db/client';
 import { hashPassword, verifyPassword, validatePasswordRequirements } from '../utils/crypto';
 import { generateTokenPair, verifyRefreshToken } from './jwt';
 import { authenticateToken } from '../middleware/auth';
+import { loginLimiter, signupLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -24,7 +25,7 @@ const refreshSchema = z.object({
 });
 
 // 회원가입
-router.post('/signup', async (req: Request, res: Response) => {
+router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
   try {
     const { email, displayName, password } = signupSchema.parse(req.body);
 
@@ -89,7 +90,7 @@ router.post('/signup', async (req: Request, res: Response) => {
 });
 
 // 로그인
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 

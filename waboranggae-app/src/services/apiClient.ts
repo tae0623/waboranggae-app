@@ -136,8 +136,8 @@ export const apiClient = {
    * 사용자 관련 API
    */
   user: {
-    profile: (body: { email: string; displayName?: string }) =>
-      fetchJson('/api/user/profile', { method: 'POST', body }),
+    updateProfile: (body: { displayName: string }) =>
+      fetchJson('/api/user/profile', { method: 'PATCH', body }),
 
     me: () =>
       fetchJson('/api/user/me', { method: 'GET' }),

@@ -1,59 +1,63 @@
-import { useState, useCallback, useEffect } from 'react';
-import { apiClient, ApiError } from '../services/apiClient';
+import { useState, useCallback } from 'react';
+import { apiClient, ApiError, tokenManager } from '../services/apiClient';
 
 interface User {
   id: string;
   email: string;
-  displayName?: string;
+  displayName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-interface UseUserState {
+interface AuthResponse {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface UseUserState {
   user: User | null;
   userId: string | null;
   loading: boolean;
   error: string | null;
+  isAuthenticated: boolean;
 }
 
-interface UseUserActions {
-  login: (email: string, displayName?: string) => Promise<void>;
-  logout: () => void;
+export interface UseUserActions {
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, displayName: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   fetchMe: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
 
 /**
- * 사용자 인증 및 프로필 관리 hook
+ * JWT 기반 사용자 인증 및 프로필 관리 hook
  *
  * 사용 예시:
  * ```tsx
- * const { user, userId, loading, error, login, logout } = useUser();
+ * const { user, userId, loading, error, login, signup, logout } = useUser();
  *
- * // 로그인
- * await login('user@example.com', '홍길동');
- *
- * // 현재 사용자 정보 조회
- * const user = user;
- *
- * // 로그아웃
+ * await login('user@example.com', 'Password1!');
+ * await signup('user@example.com', '홍길동', 'Password1!');
  * logout();
  * ```
  */
 export function useUser(): UseUserState & UseUserActions {
   const [user, setUser] = useState<User | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 로그인 (프로필 생성/수정)
-  const login = useCallback(async (email: string, displayName?: string) => {
+  const userId = user?.id ?? null;
+  const isAuthenticated = Boolean(userId && tokenManager.getAccessToken());
+
+  const login = useCallback(async (email: string, password: string) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.user.profile({ email, displayName });
-      setUser(response as User);
-      setUserId(response.id);
+      const response = (await apiClient.auth.login({ email, password })) as AuthResponse;
+      tokenManager.setTokens(response.accessToken, response.refreshToken);
+      setUser(response.user);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : '로그인 실패';
       setError(message);
@@ -63,18 +67,37 @@ export function useUser(): UseUserState & UseUserActions {
     }
   }, []);
 
-  // 현재 사용자 정보 조회
+  const signup = useCallback(async (email: string, displayName: string, password: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = (await apiClient.auth.signup({
+        email,
+        displayName,
+        password,
+      })) as AuthResponse;
+      tokenManager.setTokens(response.accessToken, response.refreshToken);
+      setUser(response.user);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : '회원가입 실패';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const fetchMe = useCallback(async () => {
-    if (!userId) {
-      setError('사용자 ID가 없습니다');
+    if (!tokenManager.getAccessToken()) {
+      setError('로그인이 필요합니다');
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.user.me(userId);
-      setUser(response as User);
+      const response = (await apiClient.user.me()) as User;
+      setUser(response);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : '사용자 정보 조회 실패';
       setError(message);
@@ -82,21 +105,20 @@ export function useUser(): UseUserState & UseUserActions {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
-  // 계정 삭제
   const deleteAccount = useCallback(async () => {
-    if (!userId) {
-      setError('사용자 ID가 없습니다');
+    if (!tokenManager.getAccessToken()) {
+      setError('로그인이 필요합니다');
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      await apiClient.user.deleteAccount(userId);
+      await apiClient.user.deleteAccount();
+      tokenManager.clearTokens();
       setUser(null);
-      setUserId(null);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : '계정 삭제 실패';
       setError(message);
@@ -104,13 +126,20 @@ export function useUser(): UseUserState & UseUserActions {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
-  // 로그아웃
-  const logout = useCallback(() => {
-    setUser(null);
-    setUserId(null);
-    setError(null);
+  const logout = useCallback(async () => {
+    try {
+      if (tokenManager.getAccessToken()) {
+        await apiClient.auth.logout().catch(() => {
+          // 서버 로그아웃 실패해도 로컬 로그아웃은 진행
+        });
+      }
+    } finally {
+      tokenManager.clearTokens();
+      setUser(null);
+      setError(null);
+    }
   }, []);
 
   return {
@@ -118,7 +147,9 @@ export function useUser(): UseUserState & UseUserActions {
     userId,
     loading,
     error,
+    isAuthenticated,
     login,
+    signup,
     fetchMe,
     deleteAccount,
     logout,

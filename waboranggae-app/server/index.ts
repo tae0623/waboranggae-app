@@ -10,7 +10,7 @@ import { explanationRouter } from './src/modules/explanation/routes';
 import { userRouter } from './src/modules/user/routes';
 import { authRouter } from './src/auth/routes';
 import { authenticateToken } from './src/middleware/auth';
-import { loginLimiter, signupLimiter, apiLimiter } from './src/middleware/rateLimiter';
+import { apiLimiter } from './src/middleware/rateLimiter';
 import { TourApiProvider } from './src/modules/recommendation/data/tour-api';
 
 export const app = express();
@@ -62,18 +62,16 @@ app.get('/health', async (_request, response) => {
   });
 });
 
-// 인증 라우팅 (공개)
-app.post('/auth/login', loginLimiter, authRouter);
-app.post('/auth/signup', signupLimiter, authRouter);
-app.post('/auth/refresh', authRouter);
-app.post('/auth/logout', authRouter);
+// 인증 라우팅 (공개) — rate limit은 auth/routes.ts에서 경로별 적용
+app.use('/auth', authRouter);
 
-// API 라우팅 (인증 필요)
-app.use('/api', authenticateToken);
+// 공개 API (비로그인 검색/추천 허용)
 app.use('/api', analysisRouter);
 app.use('/api', recommendationRouter);
 app.use('/api', explanationRouter);
-app.use('/api', apiLimiter, userRouter);
+
+// 사용자 API (JWT 인증 필요)
+app.use('/api', authenticateToken, apiLimiter, userRouter);
 
 // 에러 핸들링
 app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
