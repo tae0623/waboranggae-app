@@ -23,10 +23,12 @@ app.use(helmet());
 
 // CORS - 특정 도메인만 허용
 const ALLOWED_ORIGINS = [
-  'http://localhost:8081',              // 개발 (Expo)
+  'http://localhost:8081',              // Expo / Docker web
   'http://localhost:19000',             // Expo 개발 서버
   'http://127.0.0.1:8081',
   'http://127.0.0.1:19000',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
 ];
 
 app.use(cors({

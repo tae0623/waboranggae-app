@@ -211,6 +211,14 @@ export const apiClient = {
     fetchJson('/api/recommend', { method: 'POST', body }),
 
   /**
+   * 전남 시군구 목록 (TourAPI ldongCode2)
+   */
+  regions: {
+    jeonnamCities: () =>
+      fetchJson('/api/regions/jeonnam-cities', { method: 'GET' }),
+  },
+
+  /**
    * 설명 API
    */
   explain: (body: any) =>

@@ -1,4 +1,5 @@
-import { Course, Interest, Place, PlaceCategory, TravelPreferences, WalkabilityMetrics } from '../../../src/types/travel';
+import { Course, Interest, Place, PlaceCategory, TravelPreferences, WalkabilityMetrics } from '../../../../../src/types/travel';
+import { distanceKm as haversineKm, projectMapPoints } from '../../../utils/geo';
 import { DataProvider } from './provider';
 
 const apiBaseUrl = (process.env.TOUR_API_BASE_URL || 'https://apis.data.go.kr/B551011/KorService2').replace(/\/$/, '');
@@ -10,6 +11,7 @@ export interface TourApiItem {
   contentid?: string;
   contenttypeid?: string;
   firstimage?: string;
+  firstimage2?: string;
   lDongRegnCd?: string;
   lDongSignguCd?: string;
   mapx?: string;
@@ -27,6 +29,7 @@ interface Candidate {
   latitude: number;
   category: PlaceCategory;
   tags: Interest[];
+  imageUrl?: string;
 }
 
 interface CacheEntry {
@@ -35,6 +38,11 @@ interface CacheEntry {
 }
 
 const responseCache = new Map<string, CacheEntry>();
+
+export const JEONNAM_CITIES = [
+  '목포', '여수', '순천', '나주', '광양', '담양', '곡성', '구례', '고흥', '보성',
+  '화순', '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성', '완도', '진도', '신안',
+];
 
 function decodedServiceKey() {
   try {
@@ -78,7 +86,7 @@ async function requestItems(operation: string, params: Record<string, string>, t
   Object.entries(commonParams).forEach(([key, value]) => url.searchParams.set(key, value));
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
+  const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -103,6 +111,40 @@ function findArea(items: TourApiItem[], target: string) {
     const normalizedName = normalizeAreaName(name);
     return normalizedName === normalizedTarget || normalizedName.includes(normalizedTarget);
   });
+}
+
+export async function listJeonnamCities(): Promise<Array<{ name: string; code: string }>> {
+  if (!serviceKey) {
+    return JEONNAM_CITIES.map((name) => ({ name, code: name }));
+  }
+  try {
+    const regions = await requestItems('ldongCode2', {
+      numOfRows: '50',
+      pageNo: '1',
+      lDongListYn: 'N',
+    }, 24 * 60 * 60 * 1_000);
+    const regionItem = findArea(regions, '전라남도') || findArea(regions, '전남');
+    const regionCode = regionItem?.code || regionItem?.lDongRegnCd;
+    if (!regionCode) return JEONNAM_CITIES.map((name) => ({ name, code: name }));
+
+    const cities = await requestItems('ldongCode2', {
+      numOfRows: '100',
+      pageNo: '1',
+      lDongListYn: 'N',
+      lDongRegnCd: regionCode,
+    }, 24 * 60 * 60 * 1_000);
+
+    const mapped = cities
+      .map((item) => ({
+        name: (item.name || '').replace(/시$|군$|구$/, ''),
+        code: item.code || item.lDongSignguCd || '',
+      }))
+      .filter((item) => item.name && item.code);
+
+    return mapped.length ? mapped : JEONNAM_CITIES.map((name) => ({ name, code: name }));
+  } catch {
+    return JEONNAM_CITIES.map((name) => ({ name, code: name }));
+  }
 }
 
 async function resolveLegalArea(region: string, city: string) {
@@ -155,6 +197,20 @@ function tagsFor(item: TourApiItem): Interest[] {
   }
 }
 
+function interestToContentTypes(interests: Interest[]): number[] {
+  const types = new Set<number>();
+  for (const interest of interests) {
+    if (interest === 'nature') [12, 28].forEach((t) => types.add(t));
+    if (interest === 'history') [14, 25].forEach((t) => types.add(t));
+    if (interest === 'food') types.add(39);
+    if (interest === 'market') types.add(38);
+    if (interest === 'photo') [12, 14, 15].forEach((t) => types.add(t));
+    if (interest === 'cafe') types.add(39);
+  }
+  if (!types.size) [12, 14, 38, 39].forEach((t) => types.add(t));
+  return [...types];
+}
+
 function toCandidates(items: TourApiItem[]) {
   const supportedTypes = new Set([12, 14, 15, 25, 28, 38, 39]);
   return items.flatMap<Candidate>((item) => {
@@ -172,40 +228,70 @@ function toCandidates(items: TourApiItem[]) {
       latitude,
       category: categoryFor(item),
       tags: tagsFor(item),
+      imageUrl: item.firstimage || item.firstimage2 || undefined,
     }];
   });
 }
 
-function radians(value: number) {
-  return value * Math.PI / 180;
-}
-
 export function distanceKm(a: Pick<Candidate, 'latitude' | 'longitude'>, b: Pick<Candidate, 'latitude' | 'longitude'>) {
-  const earthRadiusKm = 6_371;
-  const latitudeDelta = radians(b.latitude - a.latitude);
-  const longitudeDelta = radians(b.longitude - a.longitude);
-  const sinLatitude = Math.sin(latitudeDelta / 2);
-  const sinLongitude = Math.sin(longitudeDelta / 2);
-  const h = sinLatitude ** 2
-    + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * sinLongitude ** 2;
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return haversineKm(a, b);
 }
 
 function matchScore(candidate: Candidate, preferences: TravelPreferences) {
-  return candidate.tags.filter((tag) => preferences.interests.includes(tag)).length;
+  let score = candidate.tags.filter((tag) => preferences.interests.includes(tag)).length;
+  if (preferences.preferLocal && (candidate.category === 'market' || candidate.category === 'food' || candidate.category === 'cafe')) {
+    score += 1.5;
+  }
+  return score;
 }
 
-function makeClusters(candidates: Candidate[], preferences: TravelPreferences) {
+async function fetchNearbyLinked(
+  seed: Candidate,
+  preferences: TravelPreferences,
+): Promise<Candidate[]> {
+  const contentTypes = interestToContentTypes(preferences.interests);
+  const pages = await Promise.all(
+    contentTypes.slice(0, 4).map((contentTypeId) =>
+      requestItems('locationBasedList2', {
+        numOfRows: '20',
+        pageNo: '1',
+        mapX: String(seed.longitude),
+        mapY: String(seed.latitude),
+        radius: '2000',
+        arrange: 'E',
+        contentTypeId: String(contentTypeId),
+      }).catch(() => [] as TourApiItem[]),
+    ),
+  );
+  const merged = toCandidates(pages.flat());
+  const unique = new Map<string, Candidate>();
+  for (const candidate of merged) {
+    if (candidate.id === seed.id) continue;
+    if (!unique.has(candidate.id)) unique.set(candidate.id, candidate);
+  }
+  return [...unique.values()]
+    .sort((a, b) => distanceKm(seed, a) - distanceKm(seed, b))
+    .slice(0, 6);
+}
+
+async function makeClusters(candidates: Candidate[], preferences: TravelPreferences) {
   const remaining = [...candidates].sort((a, b) => matchScore(b, preferences) - matchScore(a, preferences));
   const clusters: Candidate[][] = [];
 
-  while (remaining.length >= 3 && clusters.length < 3) {
+  while (remaining.length >= 1 && clusters.length < 3) {
     const seed = remaining.shift();
     if (!seed) break;
-    const nearest = [...remaining]
-      .sort((a, b) => distanceKm(seed, a) - distanceKm(seed, b))
-      .slice(0, Math.min(3, remaining.length));
-    const cluster = [seed, ...nearest];
+
+    let nearby = await fetchNearbyLinked(seed, preferences);
+    if (nearby.length < 2) {
+      nearby = [...remaining]
+        .sort((a, b) => distanceKm(seed, a) - distanceKm(seed, b))
+        .slice(0, Math.min(3, remaining.length));
+    } else {
+      nearby = nearby.slice(0, 3);
+    }
+
+    const cluster = [seed, ...nearby];
     clusters.push(cluster);
     const used = new Set(cluster.map((candidate) => candidate.id));
     for (let index = remaining.length - 1; index >= 0; index -= 1) {
@@ -244,22 +330,6 @@ function formatTime(minutesFromMidnight: number) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
-function mapPoints(cluster: Candidate[]) {
-  const longitudes = cluster.map((candidate) => candidate.longitude);
-  const latitudes = cluster.map((candidate) => candidate.latitude);
-  const minX = Math.min(...longitudes);
-  const maxX = Math.max(...longitudes);
-  const minY = Math.min(...latitudes);
-  const maxY = Math.max(...latitudes);
-  const xRange = maxX - minX;
-  const yRange = maxY - minY;
-
-  return cluster.map((candidate, index) => ({
-    x: xRange ? 40 + ((candidate.longitude - minX) / xRange) * 245 : 70 + index * 58,
-    y: yRange ? 225 - ((candidate.latitude - minY) / yRange) * 160 : 220 - index * 42,
-  }));
-}
-
 function routeDistances(cluster: Candidate[]) {
   return cluster.slice(1).map((candidate, index) => distanceKm(cluster[index] ?? candidate, candidate));
 }
@@ -271,7 +341,7 @@ function buildCourse(cluster: Candidate[], preferences: TravelPreferences, index
   const transitSegments = distances.filter((distance) => distance > 1.2);
   const walkMinutes = Math.round(walkingDistanceKm / 4.2 * 60);
   const transitMinutes = Math.round(transitSegments.reduce((sum, distance) => sum + distance / 18 * 60 + 8, 0));
-  const points = mapPoints(cluster);
+  const projected = projectMapPoints(cluster);
   let clock = 10 * 60;
 
   const places: Place[] = cluster.map((candidate, placeIndex) => {
@@ -293,13 +363,16 @@ function buildCourse(cluster: Candidate[], preferences: TravelPreferences, index
       stayMinutes: stay,
       arrival,
       moveLabel: placeIndex === 0
-        ? '코스 시작'
+        ? `${preferences.startLocation}에서 시작`
         : previousDistance !== undefined && previousDistance <= 1.2
-          ? `직선거리 약 ${previousDistance.toFixed(1)}km · 도보 경로 확인`
-          : `직선거리 약 ${(previousDistance ?? 0).toFixed(1)}km · 대중교통 경로 확인`,
-      description: `한국관광공사 관광정보에 등록된 ${categoryLabel(candidate.category)} 장소예요. 방문 전 운영정보를 확인하세요.`,
+          ? `직선거리 약 ${previousDistance.toFixed(1)}km · 도보 권장`
+          : `직선거리 약 ${(previousDistance ?? 0).toFixed(1)}km · 대중교통 권장`,
+      description: `한국관광공사 관광정보에 등록된 ${categoryLabel(candidate.category)} 장소예요.`,
       tags: candidate.tags,
-      mapPoint: points[placeIndex] ?? { x: 60 + placeIndex * 60, y: 220 - placeIndex * 35 },
+      mapPoint: projected[placeIndex] ?? { x: 60 + placeIndex * 60, y: 220 - placeIndex * 35 },
+      latitude: candidate.latitude,
+      longitude: candidate.longitude,
+      imageUrl: candidate.imageUrl,
     };
   });
 
@@ -328,7 +401,7 @@ function buildCourse(cluster: Candidate[], preferences: TravelPreferences, index
     id: `tour-${preferences.city}-${index + 1}-${cluster.map((candidate) => candidate.id).join('-')}`,
     city: preferences.city,
     title: `${preferences.city} ${theme} 뚜벅이 코스 ${index + 1}`,
-    subtitle: `한국관광공사 관광정보 ${places.length}곳 · 거리와 시간은 좌표 기반 추정`,
+    subtitle: `한국관광공사 기반 · ${places.length}곳 연계 · 좌표 기반 동선`,
     accent: palette.accent,
     softAccent: palette.softAccent,
     durationHours,
@@ -339,11 +412,6 @@ function buildCourse(cluster: Candidate[], preferences: TravelPreferences, index
     places,
     conveniences: [],
   };
-}
-
-function tourItemsToCourses(items: TourApiItem[], preferences: TravelPreferences) {
-  const candidates = toCandidates(items);
-  return makeClusters(candidates, preferences).map((cluster, index) => buildCourse(cluster, preferences, index));
 }
 
 export class TourApiProvider implements DataProvider {
@@ -359,13 +427,21 @@ export class TourApiProvider implements DataProvider {
     try {
       const { regionCode, cityCode } = await resolveLegalArea(preferences.region, preferences.city);
       const items = await requestItems('areaBasedList2', {
-        numOfRows: '60',
+        numOfRows: '80',
         pageNo: '1',
         arrange: 'A',
         lDongRegnCd: regionCode,
         lDongSignguCd: cityCode,
       });
-      return tourItemsToCourses(items, preferences);
+      const candidates = toCandidates(items)
+        .filter((candidate) => {
+          if (!preferences.interests.length) return true;
+          return candidate.tags.some((tag) => preferences.interests.includes(tag))
+            || matchScore(candidate, preferences) > 0;
+        });
+      const pool = candidates.length >= 3 ? candidates : toCandidates(items);
+      const clusters = await makeClusters(pool, preferences);
+      return clusters.map((cluster, index) => buildCourse(cluster, preferences, index));
     } catch (error) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류';
       console.warn(`[waboranggae] TourAPI 요청 실패, 시연 데이터로 전환합니다: ${message}`);

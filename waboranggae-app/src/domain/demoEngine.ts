@@ -71,9 +71,11 @@ export function parseTravelText(text: string): TravelPreferences {
     region: '전라남도',
     city,
     startLocation: startMatch?.[1] ?? `${city}역`,
+    startType: /터미널/.test(normalized) ? 'terminal' : /숙소|호텔|펜션/.test(normalized) ? 'lodging' : 'station',
     travelDate: null,
     durationHours: durationMatch ? Math.min(12, Math.max(2, Number(durationMatch[1]))) : 6,
     pace,
+    preferLocal: /로컬|골목|전통|시장/.test(normalized),
     interests: resolvedInterests,
     companions,
     lowMobility,
@@ -132,13 +134,17 @@ export function rankCourses(preferences: TravelPreferences, candidates: Course[]
     );
     const cityBonus = course.city === preferences.city ? 10 : 0;
     const interestBonus = Math.min(5, matchedInterests.length * 1.4);
+    const localBonus = preferences.preferLocal
+      && course.places.some((place) => place.category === 'market' || place.category === 'food' || place.category === 'cafe')
+      ? 4
+      : 0;
     const durationPenalty = Math.abs(course.durationHours - preferences.durationHours) * 1.5;
     const metricScore =
       course.metrics.transitAccess * weights.transitAccess +
       course.metrics.walkingEase * weights.walkingEase +
       course.metrics.nearbyLinks * weights.nearbyLinks +
       course.metrics.convenience * weights.convenience;
-    const fitScore = Math.round(Math.min(99, metricScore + cityBonus + interestBonus - durationPenalty));
+    const fitScore = Math.round(Math.min(99, metricScore + cityBonus + interestBonus + localBonus - durationPenalty));
 
     return {
       ...course,

@@ -7,6 +7,7 @@ describe('natural-language travel parser', () => {
 
     expect(result.city).toBe('순천');
     expect(result.startLocation).toBe('순천역');
+    expect(result.startType).toBe('station');
     expect(result.pace).toBe('easy');
     expect(result.interests).toEqual(expect.arrayContaining(['nature', 'food']));
     expect(result.wantsLuggageStorage).toBe(true);

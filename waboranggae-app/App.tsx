@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import { CoursesScreen } from './src/screens/CoursesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MapScreen } from './src/screens/MapScreen';
 import { colors } from './src/theme';
-import { RankedCourse } from './src/types/travel';
+import { RankedCourse, TravelPreferences } from './src/types/travel';
 import {
   useAnalysis,
   useRecommendation,
@@ -36,14 +36,24 @@ function AppShell() {
   const [query, setQuery] = useState(DEFAULT_QUERY);
   const [selectedCourseId, setSelectedCourseId] = useState(initialCourses[0]?.id ?? '');
   const [detailOpen, setDetailOpen] = useState(false);
+  const [manualPreferences, setManualPreferences] = useState<TravelPreferences>(initialPreferences);
 
-  // Hooks
-  const { preferences, source, loading, analyze } = useAnalysis();
-  const { courses, source: courseSource, recommend } = useRecommendation();
+  const { preferences, source, loading: analyzing, analyze } = useAnalysis();
+  const { courses, source: courseSource, loading: recommending, recommend } = useRecommendation();
   const { userId } = useUser();
   const { record: recordSearch } = useSearchHistory(userId);
 
+  const loading = analyzing || recommending;
+  const activePreferences = preferences || manualPreferences;
   const displayedCourses = courses.length > 0 ? courses : initialCourses;
+
+  useEffect(() => {
+    if (preferences) setManualPreferences(preferences);
+  }, [preferences]);
+
+  useEffect(() => {
+    if (courses[0]?.id) setSelectedCourseId(courses[0].id);
+  }, [courses]);
 
   const selectedCourse = useMemo(
     () => displayedCourses.find((course) => course.id === selectedCourseId) ?? displayedCourses[0],
@@ -54,26 +64,27 @@ function AppShell() {
     if (!query.trim() || loading) return;
 
     try {
-      // 1. 자연어 분석
-      await analyze(query);
-
-      // 2. 분석 후 preferences를 사용해 추천
-      const analyzedPrefs = preferences || parseTravelText(query);
+      const analyzedPrefs = await analyze(query);
+      setManualPreferences(analyzedPrefs);
       await recommend(analyzedPrefs);
-
-      // 3. 검색 이력 기록 (백그라운드)
       if (userId) {
-        recordSearch(query, analyzedPrefs).catch(() => {
-          // 조용히 실패
-        });
-      }
-
-      // 4. 첫 번째 코스 선택
-      if (courses.length > 0) {
-        setSelectedCourseId(courses[0].id);
+        recordSearch(query, analyzedPrefs).catch(() => undefined);
       }
     } catch (error) {
       console.warn('분석 또는 추천 실패:', error);
+    }
+  };
+
+  const handleRecommendByConditions = async () => {
+    if (loading) return;
+    try {
+      await recommend(manualPreferences);
+      if (userId) {
+        recordSearch(manualPreferences.summary, manualPreferences).catch(() => undefined);
+      }
+      setActiveTab('courses');
+    } catch (error) {
+      console.warn('조건 추천 실패:', error);
     }
   };
 
@@ -106,7 +117,9 @@ function AppShell() {
               onQueryChange={setQuery}
               onAnalyze={handleAnalyze}
               loading={loading}
-              preferences={preferences || initialPreferences}
+              preferences={activePreferences}
+              onPreferencesChange={setManualPreferences}
+              onRecommendByConditions={handleRecommendByConditions}
               recommendation={displayedCourses[0] ?? null}
               source={source || 'rules'}
               onOpenCourse={handleOpenCourse}

@@ -20,13 +20,17 @@ export type PlaceCategory =
   | 'history'
   | 'culture';
 
+export type StartLocationType = 'station' | 'terminal' | 'current' | 'lodging';
+
 export interface TravelPreferences {
   region: string;
   city: string;
   startLocation: string;
+  startType: StartLocationType;
   travelDate: string | null;
   durationHours: number;
   pace: Pace;
+  preferLocal: boolean;
   interests: Interest[];
   companions: string;
   lowMobility: boolean;
@@ -54,6 +58,9 @@ export interface Place {
   description: string;
   tags: Interest[];
   mapPoint: { x: number; y: number };
+  latitude?: number;
+  longitude?: number;
+  imageUrl?: string;
 }
 
 export interface ConvenienceSpot {
@@ -63,6 +70,10 @@ export interface ConvenienceSpot {
   distanceLabel: string;
   availabilityLabel: string;
   mapPoint: { x: number; y: number };
+  latitude?: number;
+  longitude?: number;
+  source?: 'live' | 'demo';
+  remaining?: number | null;
 }
 
 export interface Course {
@@ -109,4 +120,9 @@ export interface RecommendResponse {
 export interface ExplainRequest {
   preferences: TravelPreferences;
   course: RankedCourse;
+}
+
+export interface RegionCity {
+  name: string;
+  code: string;
 }

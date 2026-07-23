@@ -49,13 +49,17 @@ export function rankCourses(preferences: TravelPreferences, candidates: Course[]
     );
     const cityBonus = course.city === preferences.city ? 10 : 0;
     const interestBonus = Math.min(5, matchedInterests.length * 1.4);
+    const localBonus = preferences.preferLocal
+      && course.places.some((place) => place.category === 'market' || place.category === 'food' || place.category === 'cafe')
+      ? 4
+      : 0;
     const durationPenalty = Math.abs(course.durationHours - preferences.durationHours) * 1.5;
     const metricScore =
       course.metrics.transitAccess * weights.transitAccess +
       course.metrics.walkingEase * weights.walkingEase +
       course.metrics.nearbyLinks * weights.nearbyLinks +
       course.metrics.convenience * weights.convenience;
-    const fitScore = Math.round(Math.min(99, metricScore + cityBonus + interestBonus - durationPenalty));
+    const fitScore = Math.round(Math.min(99, metricScore + cityBonus + interestBonus + localBonus - durationPenalty));
 
     return {
       ...course,

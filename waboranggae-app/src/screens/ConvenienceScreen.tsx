@@ -63,7 +63,9 @@ export function ConvenienceScreen({ course }: { course: RankedCourse }) {
             <View style={styles.spotCopy}>
               <View style={styles.typeRow}>
                 <Text style={styles.typeLabel}>{labelByType[spot.type]}</Text>
-                <View style={styles.demoPill}><Text style={styles.demoText}>시연 정보</Text></View>
+                <View style={styles.demoPill}>
+                  <Text style={styles.demoText}>{spot.source === 'live' ? '실데이터' : '시연 정보'}</Text>
+                </View>
               </View>
               <Text style={styles.spotName}>{spot.name}</Text>
               <View style={styles.spotMeta}>
@@ -89,7 +91,7 @@ export function ConvenienceScreen({ course }: { course: RankedCourse }) {
         <Ionicons name="shield-checkmark-outline" size={20} color={colors.forest} />
         <View style={styles.dataNoticeCopy}>
           <Text style={styles.dataNoticeTitle}>데이터 신뢰 안내</Text>
-          <Text style={styles.dataNoticeText}>이 MVP의 잔여 수량은 시연값입니다. 운영 환경에서는 행정안전부·지자체 실시간 데이터의 갱신 시각과 출처를 함께 표시합니다.</Text>
+          <Text style={styles.dataNoticeText}>행정안전부 공영 물품보관함·공영자전거 API와 연동합니다. 키가 없거나 해당 지역 데이터가 없으면 데모 위치로 표시됩니다.</Text>
         </View>
       </View>
     </ScrollView>

@@ -11,8 +11,15 @@ export const INTEREST_LABELS: Record<Interest, string> = {
 
 export const PACE_LABELS: Record<Pace, string> = {
   easy: '적게 걷기',
-  balanced: '여유와 알참 사이',
+  balanced: '보통',
   full: '많이 보기',
+};
+
+export const START_TYPE_LABELS: Record<import('../types/travel').StartLocationType, string> = {
+  station: '역',
+  terminal: '터미널',
+  current: '현재 위치',
+  lodging: '숙소',
 };
 
 export const CATEGORY_LABELS: Record<PlaceCategory, string> = {

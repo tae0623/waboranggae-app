@@ -16,18 +16,12 @@ interface UseAnalysisState {
 }
 
 interface UseAnalysisActions {
-  analyze: (query: string) => Promise<void>;
+  analyze: (query: string) => Promise<TravelPreferences>;
   clear: () => void;
 }
 
 /**
  * 자연어 분석 hook (쿼리 → 여행 선호도)
- *
- * 사용 예시:
- * ```tsx
- * const { preferences, source, loading, error, analyze } = useAnalysis();
- * await analyze('순천역에서 정원을 보고 싶어요');
- * ```
  */
 export function useAnalysis(): UseAnalysisState & UseAnalysisActions {
   const [preferences, setPreferences] = useState<TravelPreferences | null>(null);
@@ -40,14 +34,16 @@ export function useAnalysis(): UseAnalysisState & UseAnalysisActions {
     setError(null);
     try {
       const response = await apiClient.analyze({ query });
-      setPreferences(response.preferences as TravelPreferences);
+      const next = response.preferences as TravelPreferences;
+      setPreferences(next);
       setSource(response.source as AnalysisSource);
+      return next;
     } catch (err) {
-      // 실패해도 기본 파서로 분석
       const fallback = parseTravelText(query);
       setPreferences(fallback);
       setSource('rules');
       console.warn('AI 분석 실패, 규칙 기반 파서 사용');
+      return fallback;
     } finally {
       setLoading(false);
     }

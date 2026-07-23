@@ -1,4 +1,4 @@
-import { Course, TravelPreferences } from '../../../src/types/travel';
+import { Course, TravelPreferences } from '../../../../../src/types/travel';
 
 /**
  * 여행 코스 데이터를 제공하는 provider 인터페이스

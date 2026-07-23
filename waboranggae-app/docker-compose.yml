@@ -1,0 +1,111 @@
+services:
+  db:
+    image: postgres:15
+    container_name: waboranggae-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: waboranggae
+    volumes:
+      - waboranggae_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d waboranggae"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - waboranggae
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: waboranggae-api
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      DATABASE_URL: postgresql://postgres:password@db:5432/waboranggae
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production-12345}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-key-change-in-production-12345}
+      TOUR_API_KEY: ${TOUR_API_KEY:-}
+      TOUR_API_BASE_URL: ${TOUR_API_BASE_URL:-https://apis.data.go.kr/B551011/KorService2}
+      BUS_STOP_API_KEY: ${BUS_STOP_API_KEY:-}
+      LOCKER_API_KEY: ${LOCKER_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - waboranggae
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+  ollama:
+    image: ollama/ollama:latest
+    container_name: waboranggae-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - waboranggae_ollama:/root/.ollama
+    networks:
+      - waboranggae
+
+  # Optional: pull default model after ollama starts
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: waboranggae-ollama-init
+    depends_on:
+      - ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "[ollama-init] waiting for ollama..."
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        echo "[ollama-init] pulling $${OLLAMA_MODEL:-qwen3:8b} (may take a while)..."
+        ollama pull $${OLLAMA_MODEL:-qwen3:8b} || true
+        echo "[ollama-init] done"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+    networks:
+      - waboranggae
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: waboranggae-web
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+      - "19000:19000"
+    environment:
+      EXPO_PUBLIC_API_BASE_URL: http://localhost:8787
+      EXPO_DEVTOOLS_LISTEN_ADDRESS: 0.0.0.0
+    depends_on:
+      - api
+    networks:
+      - waboranggae
+
+networks:
+  waboranggae:
+    driver: bridge
+
+volumes:
+  waboranggae_pgdata:
+  waboranggae_ollama:

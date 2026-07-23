@@ -3,6 +3,7 @@ import { Ionicons, MaterialCommunityIcons } from '../components/AppIcon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BrandMark } from '../components/BrandMark';
 import { CourseCard } from '../components/CourseCard';
+import { ConditionForm } from '../components/ConditionForm';
 import { SectionHeader } from '../components/SectionHeader';
 import { INTEREST_LABELS, PACE_LABELS } from '../domain/labels';
 import { colors, radii, shadows } from '../theme';
@@ -20,6 +21,8 @@ export function HomeScreen({
   onAnalyze,
   loading,
   preferences,
+  onPreferencesChange,
+  onRecommendByConditions,
   recommendation,
   source,
   onOpenCourse,
@@ -30,6 +33,8 @@ export function HomeScreen({
   onAnalyze: () => void;
   loading: boolean;
   preferences: TravelPreferences | null;
+  onPreferencesChange: (value: TravelPreferences) => void;
+  onRecommendByConditions: () => void;
   recommendation: RankedCourse | null;
   source: AnalysisSource | null;
   onOpenCourse: (course: RankedCourse) => void;
@@ -76,6 +81,15 @@ export function HomeScreen({
         </View>
       </LinearGradient>
 
+      {preferences ? (
+        <ConditionForm
+          value={preferences}
+          onChange={onPreferencesChange}
+          onSubmit={onRecommendByConditions}
+          loading={loading}
+        />
+      ) : null}
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.examples}>
         {EXAMPLES.map((example) => (
           <Pressable key={example} onPress={() => onQueryChange(`${example} 중심으로 6시간 여행하고 싶어요.`)} style={styles.exampleChip}>
@@ -89,12 +103,12 @@ export function HomeScreen({
         <View style={styles.analysisCard}>
           <View style={styles.analysisTop}>
             <View>
-              <Text style={styles.analysisEyebrow}>{source === 'ollama' ? '로컬 AI가 이렇게 이해했어요' : '기본 분석기가 이렇게 이해했어요'}</Text>
+              <Text style={styles.analysisEyebrow}>{source === 'ollama' ? '로컬 AI가 이렇게 이해했어요' : '선택한 조건으로 준비했어요'}</Text>
               <Text style={styles.analysisSummary}>{preferences.summary}</Text>
             </View>
             <View style={[styles.sourcePill, source === 'ollama' ? styles.sourceAi : styles.sourceDemo]}>
               <View style={[styles.sourceDot, source === 'ollama' && styles.sourceDotAi]} />
-              <Text style={styles.sourceText}>{source === 'ollama' ? 'Ollama 분석' : '기본 분석'}</Text>
+              <Text style={styles.sourceText}>{source === 'ollama' ? 'Ollama 분석' : '조건 선택'}</Text>
             </View>
           </View>
           <View style={styles.conditionGrid}>
@@ -109,16 +123,12 @@ export function HomeScreen({
               <Text style={styles.specialText}>물품보관함이 있는 동선을 우선 반영했어요.</Text>
             </View>
           ) : null}
-          <Pressable onPress={onAnalyze} style={styles.editRow}>
-            <Ionicons name="refresh" size={14} color={colors.forest} />
-            <Text style={styles.editText}>문장을 수정한 뒤 다시 분석할 수 있어요</Text>
-          </Pressable>
         </View>
       ) : (
         <View style={styles.guideRow}>
           <Guide icon="chatbubble-ellipses-outline" label="문장 입력" />
           <Ionicons name="arrow-forward" size={15} color="#9EAAA4" />
-          <Guide icon="options-outline" label="조건 분석" />
+          <Guide icon="options-outline" label="조건 선택" />
           <Ionicons name="arrow-forward" size={15} color="#9EAAA4" />
           <Guide icon="map-outline" label="코스 추천" />
         </View>

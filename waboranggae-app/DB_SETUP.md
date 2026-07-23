@@ -12,13 +12,20 @@ brew services start postgresql@15
 1. [PostgreSQL 다운로드](https://www.postgresql.org/download/windows/)
 2. 설치 후 pgAdmin 또는 psql로 접속
 
-### Docker
+### Docker (권장)
+
+전체 스택(DB + API + Ollama + Web)은 [DOCKER.md](./DOCKER.md)를 참고하세요.
+
+DB만 띄울 때:
+
 ```bash
-docker run --name waboranggae-db \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=waboranggae \
-  -p 5432:5432 \
-  -d postgres:15
+docker compose up -d db
+```
+
+`DATABASE_URL` (호스트에서 Prisma/서버 실행 시):
+
+```
+DATABASE_URL="postgresql://postgres:password@localhost:5432/waboranggae"
 ```
 
 ## 환경 설정

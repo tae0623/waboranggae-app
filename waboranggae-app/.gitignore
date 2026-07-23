@@ -40,6 +40,9 @@ lerna-debug.log*
 .expo-shared/
 dist/
 
+# Docker
+# (compose/Dockerfiles는 커밋 대상)
+
 # Testing
 coverage/
 .nyc_output/
