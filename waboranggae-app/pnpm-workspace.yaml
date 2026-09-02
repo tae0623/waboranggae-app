@@ -1,5 +1,9 @@
 allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  bcrypt: true
   esbuild: true
+  prisma: true
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.9'
   - '@expo/metro-config@57.0.6'

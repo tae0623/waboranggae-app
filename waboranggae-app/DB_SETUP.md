@@ -48,6 +48,14 @@ pnpm db:migrate
 ```
 → Prisma CLI가 자동으로 마이그레이션 파일을 생성하고 실행합니다.
 
+브랜치에 포함된 마이그레이션 적용 여부만 확인할 때는 다음 명령을 사용합니다.
+
+```bash
+pnpm db:validate
+pnpm db:check-files
+pnpm db:status
+```
+
 ### 스키마 수정 후 마이그레이션
 1. `prisma/schema.prisma` 수정
 2. 마이그레이션 실행:

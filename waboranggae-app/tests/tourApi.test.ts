@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseTravelText } from '../src/domain/demoEngine';
-import { distanceKm, tourItemsToCourses, TourApiItem } from '../server/providers/tourApi';
+import {
+  classifyTourItemCategory,
+  distanceKm,
+  filterJeonnamCityItems,
+  findRequestedTourRegion,
+  normalizeTourImageUrl,
+  TourApiItem,
+} from '../server/src/modules/recommendation/data/tour-api';
 
 const TOUR_ITEMS: TourApiItem[] = [
   { contentid: '1', contenttypeid: '12', title: '순천만습지', addr1: '전남 순천시', mapx: '127.509', mapy: '34.885' },
@@ -10,16 +16,10 @@ const TOUR_ITEMS: TourApiItem[] = [
 ];
 
 describe('TourAPI normalization', () => {
-  it('converts public tourism items into the app course model', () => {
-    const preferences = parseTravelText('순천에서 자연과 맛집 위주로 6시간 여행하고 싶어요.');
-    const courses = tourItemsToCourses(TOUR_ITEMS, preferences);
-
-    expect(courses).toHaveLength(1);
-    expect(courses[0]?.city).toBe('순천');
-    expect(courses[0]?.title).toContain('순천');
-    expect(courses[0]?.places).toHaveLength(4);
-    expect(courses[0]?.places.map((place) => place.name)).toContain('순천만습지');
-    expect(courses[0]?.subtitle).toContain('한국관광공사');
+  it('classifies public tourism content with the runtime provider rules', () => {
+    expect(TOUR_ITEMS.map(classifyTourItemCategory)).toEqual([
+      'nature', 'history', 'food', 'market',
+    ]);
   });
 
   it('calculates coordinate distance without calling an external API', () => {
@@ -30,5 +30,34 @@ describe('TourAPI normalization', () => {
     expect(distance).toBeGreaterThan(0.2);
     expect(distance).toBeLessThan(0.5);
   });
-});
 
+  it('uses the 2026 integrated legal-dong region for a Jeonnam request', () => {
+    const region = findRequestedTourRegion([
+      { name: '서울특별시', code: '11' },
+      { name: '전남광주통합특별시', code: '12' },
+    ], '전라남도');
+
+    expect(region?.code).toBe('12');
+  });
+
+  it('removes Gwangju districts from the Jeonnam city list', () => {
+    const cities = filterJeonnamCityItems([
+      { name: '순천시', code: '150' },
+      { name: '동구', code: '210' },
+      { name: '신안군', code: '870' },
+    ]);
+
+    expect(cities).toEqual([
+      { name: '순천', code: '150' },
+      { name: '신안', code: '870' },
+    ]);
+  });
+
+  it('keeps the original TourAPI image URL for the server-side proxy', () => {
+    expect(normalizeTourImageUrl('http://tong.visitkorea.or.kr/example.jpg'))
+      .toBe('http://tong.visitkorea.or.kr/example.jpg');
+    expect(normalizeTourImageUrl('https://tong.visitkorea.or.kr/example.jpg'))
+      .toBe('https://tong.visitkorea.or.kr/example.jpg');
+    expect(normalizeTourImageUrl('not-a-url')).toBeUndefined();
+  });
+});

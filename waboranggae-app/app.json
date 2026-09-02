@@ -2,30 +2,41 @@
   "expo": {
     "name": "와보랑께",
     "slug": "waboranggae",
-    "version": "0.1.0",
+    "version": "1.0.0",
+    "description": "전남 관광정보를 실제 이동 가능한 대중교통·도보 일정으로 연결하는 뚜벅이 여행 앱",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "waboranggae",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/splash-icon.png",
       "backgroundColor": "#F5F1E8",
       "resizeMode": "contain"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "kr.co.waboranggae.app"
+      "bundleIdentifier": "kr.co.waboranggae.app",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "kr.co.waboranggae.app",
+      "versionCode": 1,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D5C45"
       },
+      "permissions": ["INTERNET"],
       "edgeToEdgeEnabled": true
     },
     "web": {
       "bundler": "metro",
       "output": "single",
-      "name": "와보랑께"
+      "name": "와보랑께",
+      "favicon": "./assets/favicon.png"
     }
   }
 }

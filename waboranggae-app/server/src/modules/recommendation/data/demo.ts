@@ -1,6 +1,7 @@
 import { Course, TravelPreferences } from '../../../../../src/types/travel';
 import { COURSES } from '../../../../../src/data/courses';
 import { DataProvider } from './provider';
+import { adaptDemoCourseStart } from '../../../../../src/domain/startLocation';
 
 /** 데모 코스에 대략적인 GPS를 붙여 지도·정류장 연동이 동작하도록 함 */
 const DEMO_COORDS: Record<string, Array<{ latitude: number; longitude: number }>> = {
@@ -36,12 +37,6 @@ function withCoords(course: Course): Course {
       latitude: coords[index]?.latitude ?? place.latitude,
       longitude: coords[index]?.longitude ?? place.longitude,
     })),
-    conveniences: course.conveniences.map((spot, index) => ({
-      ...spot,
-      latitude: coords[Math.min(index, coords.length - 1)]?.latitude,
-      longitude: coords[Math.min(index, coords.length - 1)]?.longitude,
-      source: 'demo' as const,
-    })),
   };
 }
 
@@ -51,6 +46,6 @@ export class DemoProvider implements DataProvider {
   async fetchCourses(preferences: TravelPreferences): Promise<Course[]> {
     const matched = COURSES.filter((course) => course.city === preferences.city);
     const pool = matched.length ? matched : COURSES;
-    return pool.map(withCoords);
+    return pool.map(withCoords).map((course) => adaptDemoCourseStart(course, preferences));
   }
 }

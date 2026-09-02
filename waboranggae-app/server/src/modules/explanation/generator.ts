@@ -1,4 +1,4 @@
-import { ExplainRequest, RecommendationReason } from '../../../src/types/travel';
+import { ExplainRequest, RecommendationReason } from '../../../../src/types/travel';
 import { explainWithOllama } from '../analysis/ollama';
 
 /**

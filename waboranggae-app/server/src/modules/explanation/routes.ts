@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { ExplainRequest } from '../../../src/types/travel';
+import { ExplainRequest } from '../../../../src/types/travel';
 import { generateExplanation } from './generator';
 
 export const explanationRouter = Router();

@@ -46,6 +46,8 @@ const glyphMap: Record<string, string> = {
   'bicycle-outline': '⚙',
   'accessibility-outline': '♿',
   'shield-checkmark-outline': '✓',
+  'shield-checkmark': '✓',
+  'search-outline': '⌕',
   'checkmark': '✓',
 };
 

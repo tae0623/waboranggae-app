@@ -1,5 +1,5 @@
 import { prisma } from '../client';
-import { TravelPreferences } from '../../../src/types/travel';
+import { TravelPreferences } from '../../../../src/types/travel';
 
 export class SearchHistoryQueries {
   /**

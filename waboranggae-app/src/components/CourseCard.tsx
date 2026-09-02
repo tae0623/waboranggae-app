@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from './AppIcon';
 import { RankedCourse } from '../types/travel';
 import { colors, radii, shadows } from '../theme';
@@ -13,6 +13,7 @@ export function CourseCard({
   onPress: () => void;
   featured?: boolean;
 }) {
+  const coverImage = course.places.find((place) => place.imageUrl)?.imageUrl;
   return (
     <Pressable
       onPress={onPress}
@@ -34,6 +35,10 @@ export function CourseCard({
 
       <Text style={[styles.title, featured && styles.titleFeatured]}>{course.title}</Text>
       <Text style={[styles.subtitle, featured && styles.subtitleFeatured]}>{course.subtitle}</Text>
+
+      {coverImage ? (
+        <Image source={{ uri: coverImage }} style={styles.coverImage} resizeMode="cover" accessibilityLabel={`${course.title} 대표 관광 이미지`} />
+      ) : null}
 
       <View style={styles.metaRow}>
         <Meta icon="time-outline" text={`${course.durationHours}시간`} featured={featured} />
@@ -91,6 +96,7 @@ const styles = StyleSheet.create({
   titleFeatured: { color: colors.white, fontSize: 24, lineHeight: 31 },
   subtitle: { color: colors.muted, fontSize: 13, lineHeight: 19, fontWeight: '600', marginTop: 6 },
   subtitleFeatured: { color: '#CFE2DC' },
+  coverImage: { width: '100%', height: 118, borderRadius: 16, marginTop: 14, backgroundColor: '#DDE8DF' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metaText: { color: colors.muted, fontSize: 11, fontWeight: '800' },

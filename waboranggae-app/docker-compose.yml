@@ -36,10 +36,10 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production-12345}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-key-change-in-production-12345}
-      TOUR_API_KEY: ${TOUR_API_KEY:-}
+      DATA_GO_KR_KEY: ${DATA_GO_KR_KEY:-}
       TOUR_API_BASE_URL: ${TOUR_API_BASE_URL:-https://apis.data.go.kr/B551011/KorService2}
-      BUS_STOP_API_KEY: ${BUS_STOP_API_KEY:-}
-      LOCKER_API_KEY: ${LOCKER_API_KEY:-}
+      BUS_STOP_API_BASE_URL: ${BUS_STOP_API_BASE_URL:-https://apis.data.go.kr/1613000/BusSttnInfoInqireService}
+      BUS_ROUTE_API_BASE_URL: ${BUS_ROUTE_API_BASE_URL:-https://apis.data.go.kr/1613000/BusRouteInfoInqireService}
     depends_on:
       db:
         condition: service_healthy

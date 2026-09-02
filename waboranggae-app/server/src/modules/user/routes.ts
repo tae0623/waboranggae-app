@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { BookmarkQueries, SearchHistoryQueries, UserQueries } from '../../db/queries';
-import { travelPreferencesSchema } from '../shared/schemas';
+import { travelPreferencesSchema } from '../../shared/schemas';
 
 export const userRouter = Router();
 

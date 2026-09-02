@@ -20,6 +20,7 @@ export const START_TYPE_LABELS: Record<import('../types/travel').StartLocationTy
   terminal: '터미널',
   current: '현재 위치',
   lodging: '숙소',
+  custom: '직접 입력',
 };
 
 export const CATEGORY_LABELS: Record<PlaceCategory, string> = {

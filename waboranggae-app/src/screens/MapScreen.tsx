@@ -5,19 +5,55 @@ import { CATEGORY_LABELS } from '../domain/labels';
 import { colors, radii, shadows } from '../theme';
 import { RankedCourse } from '../types/travel';
 
-export function MapScreen({ course, onOpenDetail }: { course: RankedCourse; onOpenDetail: () => void }) {
-  const nextPlace = course.places[1] ?? course.places[0];
-  const hasGeo = course.places.some((place) => typeof place.latitude === 'number');
+export function MapScreen({
+  course,
+  courses,
+  onSelectCourse,
+  onOpenDetail,
+}: {
+  course: RankedCourse;
+  courses: RankedCourse[];
+  onSelectCourse: (course: RankedCourse) => void;
+  onOpenDetail: () => void;
+}) {
+  const nextPlace = course.places[0];
+  const hasGeo = Boolean(course.origin) || course.places.some((place) => typeof place.latitude === 'number');
+  const routeSourceLabel = course.routeSource === 'tmap-transit'
+    ? 'TMAP 실제 경로'
+    : course.routeSource === 'mixed'
+      ? '일부 실제 경로'
+      : '좌표 기반 예상';
 
   return (
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {courses.length > 1 ? (
+          <View style={styles.coursePickerWrap}>
+            <Text style={styles.coursePickerLabel}>지도에서 확인할 코스</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coursePicker}>
+              {courses.map((candidate, index) => {
+                const active = candidate.id === course.id;
+                return (
+                  <Pressable
+                    key={candidate.id}
+                    onPress={() => onSelectCourse(candidate)}
+                    style={[styles.courseChip, active && styles.courseChipActive]}
+                    accessibilityLabel={`${index + 1}번 코스 ${candidate.title}`}
+                  >
+                    <Text style={[styles.courseChipRank, active && styles.courseChipTextActive]}>코스 {index + 1}</Text>
+                    <Text numberOfLines={1} style={[styles.courseChipTitle, active && styles.courseChipTextActive]}>{candidate.title}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>{hasGeo ? 'MAP SDK · OPENSTREETMAP' : 'ROUTE PREVIEW'}</Text>
             <Text style={styles.title}>{course.title}</Text>
           </View>
-          <Pressable style={styles.moreButton}><Ionicons name="ellipsis-horizontal" size={20} color={colors.forest} /></Pressable>
+          <View style={styles.estimateBadge}><Ionicons name="navigate-outline" size={14} color={colors.forest} /><Text style={styles.estimateText}>{routeSourceLabel}</Text></View>
         </View>
 
         <View style={styles.mapWrap}>
@@ -32,7 +68,7 @@ export function MapScreen({ course, onOpenDetail }: { course: RankedCourse; onOp
               <Text style={styles.progressTitle}>{nextPlace?.name ?? course.title}</Text>
             </View>
             <View style={styles.timeBlock}>
-              <Text style={styles.timeValue}>{Math.max(5, Math.round(course.walkMinutes / Math.max(1, course.places.length)))}</Text>
+              <Text style={styles.timeValue}>{nextPlace?.moveMinutes ?? '-'}</Text>
               <Text style={styles.timeUnit}>분</Text>
             </View>
           </View>
@@ -49,10 +85,22 @@ export function MapScreen({ course, onOpenDetail }: { course: RankedCourse; onOp
         </View>
 
         <View style={styles.stops}>
+          {course.origin ? (
+            <View style={[styles.stop, styles.originStop]}>
+              <View style={[styles.number, styles.originNumber]}><Text style={styles.originNumberText}>출</Text></View>
+              <View style={styles.stopCopy}>
+                <View style={styles.stopTitleRow}>
+                  <Text style={styles.stopName}>{course.origin.name}</Text>
+                  <Text style={styles.stopArrival}>{course.places[0]?.moveLabel.match(/\d{2}:\d{2}/)?.[0] ?? '출발'}</Text>
+                </View>
+                <Text style={styles.stopMeta}>선택한 출발 거점 · {course.origin.address}</Text>
+              </View>
+            </View>
+          ) : null}
           {course.places.map((place, index) => (
-            <Pressable key={place.id} style={[styles.stop, index === 1 && styles.stopActive]}>
-              <View style={[styles.number, index === 0 && styles.numberDone, index === 1 && styles.numberActive]}>
-                {index === 0 ? <Ionicons name="checkmark" size={14} color={colors.white} /> : <Text style={[styles.numberText, index === 1 && styles.numberTextActive]}>{index + 1}</Text>}
+            <View key={place.id} style={[styles.stop, index === 0 && styles.stopActive]}>
+              <View style={[styles.number, index === 0 && styles.numberActive]}>
+                <Text style={[styles.numberText, index === 0 && styles.numberTextActive]}>{index + 1}</Text>
               </View>
               <View style={styles.stopCopy}>
                 <View style={styles.stopTitleRow}>
@@ -62,13 +110,13 @@ export function MapScreen({ course, onOpenDetail }: { course: RankedCourse; onOp
                 <Text style={styles.stopMeta}>{CATEGORY_LABELS[place.category]} · 머무름 {place.stayMinutes}분</Text>
               </View>
               <Ionicons name="chevron-forward" size={17} color={colors.muted} />
-            </Pressable>
+            </View>
           ))}
         </View>
 
         <View style={styles.legendCard}>
           <Text style={styles.legendTitle}>지도 범례</Text>
-          <Text style={styles.legendText}>초록/주황: 방문 순서 · 보관함/자전거 마커는 편의 탭 데이터와 동일</Text>
+          <Text style={styles.legendText}>주황 ‘출’: 선택한 출발 거점 · 초록 숫자: 방문 순서 · 점선은 좌표 기반 예상 구간</Text>
         </View>
       </ScrollView>
     </View>
@@ -78,10 +126,19 @@ export function MapScreen({ course, onOpenDetail }: { course: RankedCourse; onOp
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.cream },
   content: { paddingBottom: 28 },
+  coursePickerWrap: { paddingTop: 16 },
+  coursePickerLabel: { paddingHorizontal: 20, color: colors.muted, fontSize: 9, fontWeight: '900' },
+  coursePicker: { paddingHorizontal: 16, paddingTop: 8, gap: 8 },
+  courseChip: { width: 168, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
+  courseChipActive: { backgroundColor: colors.forest, borderColor: colors.forest },
+  courseChipRank: { color: colors.coral, fontSize: 8, fontWeight: '900' },
+  courseChipTitle: { color: colors.ink, fontSize: 10, fontWeight: '900', marginTop: 3 },
+  courseChipTextActive: { color: colors.white },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 15 },
   eyebrow: { color: colors.coral, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
   title: { color: colors.ink, fontSize: 19, fontWeight: '900', letterSpacing: -0.6, marginTop: 4, maxWidth: 310 },
-  moreButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
+  estimateBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
+  estimateText: { color: colors.forest, fontSize: 8, fontWeight: '900' },
   mapWrap: { marginHorizontal: 16 },
   progressCard: { marginHorizontal: 16, marginTop: 14, padding: 17, borderRadius: radii.lg, backgroundColor: colors.white, ...shadows.card },
   progressTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
@@ -102,8 +159,10 @@ const styles = StyleSheet.create({
   stops: { paddingHorizontal: 16, gap: 9 },
   stop: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: colors.paper, borderRadius: 17, padding: 13, borderWidth: 1, borderColor: '#E3E7DF' },
   stopActive: { borderColor: colors.forest, backgroundColor: '#F8FBF3' },
+  originStop: { borderColor: '#F1C5B7', backgroundColor: '#FFF7F2' },
   number: { width: 30, height: 30, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5EAE4' },
-  numberDone: { backgroundColor: colors.muted },
+  originNumber: { backgroundColor: colors.coral },
+  originNumberText: { color: colors.white, fontSize: 10, fontWeight: '900' },
   numberActive: { backgroundColor: colors.forest },
   numberText: { color: colors.muted, fontSize: 10, fontWeight: '900' },
   numberTextActive: { color: colors.white },

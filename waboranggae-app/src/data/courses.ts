@@ -16,7 +16,6 @@ export const COURSES: Course[] = [
       transitAccess: 94,
       walkingEase: 88,
       nearbyLinks: 92,
-      convenience: 86,
     },
     places: [
       {
@@ -80,32 +79,6 @@ export const COURSES: Course[] = [
         mapPoint: { x: 286, y: 126 },
       },
     ],
-    conveniences: [
-      {
-        id: 'suncheon-locker',
-        name: '순천역 물품보관함',
-        type: 'locker',
-        distanceLabel: '출발지 안',
-        availabilityLabel: '여유 12칸 · 데모',
-        mapPoint: { x: 52, y: 224 },
-      },
-      {
-        id: 'suncheon-bike',
-        name: '국가정원 자전거 대여소',
-        type: 'bike',
-        distanceLabel: '정원 동문 180m',
-        availabilityLabel: '대여 7대 · 데모',
-        mapPoint: { x: 126, y: 196 },
-      },
-      {
-        id: 'suncheon-restroom',
-        name: '문화의거리 공중화장실',
-        type: 'restroom',
-        distanceLabel: '코스에서 90m',
-        availabilityLabel: '상시 개방 · 데모',
-        mapPoint: { x: 229, y: 95 },
-      },
-    ],
   },
   {
     id: 'yeosu-sea-evening',
@@ -122,7 +95,6 @@ export const COURSES: Course[] = [
       transitAccess: 91,
       walkingEase: 77,
       nearbyLinks: 89,
-      convenience: 82,
     },
     places: [
       {
@@ -174,24 +146,6 @@ export const COURSES: Course[] = [
         mapPoint: { x: 236, y: 77 },
       },
     ],
-    conveniences: [
-      {
-        id: 'yeosu-locker',
-        name: '여수엑스포역 물품보관함',
-        type: 'locker',
-        distanceLabel: '출발지 안',
-        availabilityLabel: '여유 8칸 · 데모',
-        mapPoint: { x: 56, y: 213 },
-      },
-      {
-        id: 'yeosu-bike',
-        name: '해양공원 공영자전거',
-        type: 'bike',
-        distanceLabel: '코스에서 130m',
-        availabilityLabel: '대여 5대 · 데모',
-        mapPoint: { x: 118, y: 188 },
-      },
-    ],
   },
   {
     id: 'mokpo-history-taste',
@@ -208,7 +162,6 @@ export const COURSES: Course[] = [
       transitAccess: 95,
       walkingEase: 84,
       nearbyLinks: 94,
-      convenience: 79,
     },
     places: [
       {
@@ -270,24 +223,6 @@ export const COURSES: Course[] = [
         description: '근대 건축을 재해석한 카페가 모인 휴식 구간',
         tags: ['cafe', 'photo'],
         mapPoint: { x: 288, y: 132 },
-      },
-    ],
-    conveniences: [
-      {
-        id: 'mokpo-locker',
-        name: '목포역 물품보관함',
-        type: 'locker',
-        distanceLabel: '출발지 안',
-        availabilityLabel: '여유 10칸 · 데모',
-        mapPoint: { x: 58, y: 214 },
-      },
-      {
-        id: 'mokpo-restroom',
-        name: '근대역사문화공간 화장실',
-        type: 'restroom',
-        distanceLabel: '코스에서 70m',
-        availabilityLabel: '운영시간 내 · 데모',
-        mapPoint: { x: 121, y: 190 },
       },
     ],
   },

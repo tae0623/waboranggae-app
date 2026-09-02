@@ -20,7 +20,33 @@ export type PlaceCategory =
   | 'history'
   | 'culture';
 
-export type StartLocationType = 'station' | 'terminal' | 'current' | 'lodging';
+export type StartLocationType = 'station' | 'terminal' | 'current' | 'lodging' | 'custom';
+export type MealPreference = 'auto' | 'none' | 'lunch' | 'dinner' | 'both';
+export type CoursePlanningSource = 'ollama' | 'rules';
+export type RoutingSource = 'tmap-transit' | 'mixed' | 'estimated';
+
+export interface RouteCoordinate {
+  latitude: number;
+  longitude: number;
+}
+
+export interface RouteOrigin extends RouteCoordinate {
+  name: string;
+  address: string;
+  source: 'nominatim' | 'configured' | 'demo';
+}
+
+export interface RouteSegment {
+  fromName: string;
+  toName: string;
+  distanceKm: number;
+  totalMinutes: number;
+  walkMinutes: number;
+  transitMinutes: number;
+  modeLabel: string;
+  source: Exclude<RoutingSource, 'mixed'>;
+  geometry: RouteCoordinate[];
+}
 
 export interface TravelPreferences {
   region: string;
@@ -28,13 +54,14 @@ export interface TravelPreferences {
   startLocation: string;
   startType: StartLocationType;
   travelDate: string | null;
+  startTime: string;
   durationHours: number;
+  mealPreference: MealPreference;
   pace: Pace;
   preferLocal: boolean;
   interests: Interest[];
   companions: string;
   lowMobility: boolean;
-  wantsLuggageStorage: boolean;
   publicTransportOnly: boolean;
   summary: string;
   confidence: number;
@@ -44,7 +71,6 @@ export interface WalkabilityMetrics {
   transitAccess: number;
   walkingEase: number;
   nearbyLinks: number;
-  convenience: number;
 }
 
 export interface Place {
@@ -61,19 +87,33 @@ export interface Place {
   latitude?: number;
   longitude?: number;
   imageUrl?: string;
+  moveMinutes?: number;
+  walkMinutesFromPrevious?: number;
+  transitMinutesFromPrevious?: number;
+  routeSource?: Exclude<RoutingSource, 'mixed'>;
 }
 
 export interface ConvenienceSpot {
   id: string;
   name: string;
-  type: 'locker' | 'bike' | 'restroom';
+  type: 'locker';
   distanceLabel: string;
   availabilityLabel: string;
   mapPoint: { x: number; y: number };
-  latitude?: number;
-  longitude?: number;
-  source?: 'live' | 'demo';
-  remaining?: number | null;
+  latitude: number;
+  longitude: number;
+  source: 'live';
+}
+
+export interface TransitAccessEvidence {
+  placeId: string;
+  placeName: string;
+  stopName: string;
+  distanceMeters: number;
+  routeCount: number | null;
+  sampleRouteNumbers: string[];
+  typicalIntervalMinutes: number | null;
+  source: 'bus-stop' | 'bus-stop-and-route';
 }
 
 export interface Course {
@@ -89,7 +129,13 @@ export interface Course {
   transitMinutes: number;
   metrics: WalkabilityMetrics;
   places: Place[];
-  conveniences: ConvenienceSpot[];
+  conveniences?: ConvenienceSpot[];
+  transitAccessEvidence?: TransitAccessEvidence[];
+  planningSource?: CoursePlanningSource;
+  validationNotes?: string[];
+  origin?: RouteOrigin;
+  routeSource?: RoutingSource;
+  routeSegments?: RouteSegment[];
 }
 
 export interface RecommendationReason {
@@ -114,6 +160,7 @@ export interface AnalyzeResponse {
 export interface RecommendResponse {
   courses: RankedCourse[];
   source: CourseDataSource;
+  planningSource?: CoursePlanningSource;
   fetchedAt: string | null;
 }
 

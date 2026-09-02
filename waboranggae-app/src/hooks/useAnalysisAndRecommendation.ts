@@ -1,21 +1,22 @@
 import { useState, useCallback } from 'react';
-import { apiClient, ApiError } from '../services/apiClient';
+import { apiClient } from '../services/apiClient';
 import { parseTravelText, rankCourses } from '../domain/demoEngine';
 import {
   AnalysisSource,
+  CoursePlanningSource,
   CourseDataSource,
   RankedCourse,
   TravelPreferences,
 } from '../types/travel';
 
-interface UseAnalysisState {
+export interface UseAnalysisState {
   preferences: TravelPreferences | null;
   source: AnalysisSource | null;
   loading: boolean;
   error: string | null;
 }
 
-interface UseAnalysisActions {
+export interface UseAnalysisActions {
   analyze: (query: string) => Promise<TravelPreferences>;
   clear: () => void;
 }
@@ -34,14 +35,15 @@ export function useAnalysis(): UseAnalysisState & UseAnalysisActions {
     setError(null);
     try {
       const response = await apiClient.analyze({ query });
-      const next = response.preferences as TravelPreferences;
+      const next = response.preferences;
       setPreferences(next);
-      setSource(response.source as AnalysisSource);
+      setSource(response.source);
       return next;
     } catch (err) {
       const fallback = parseTravelText(query);
       setPreferences(fallback);
       setSource('rules');
+      setError(err instanceof Error ? err.message : 'AI 분석에 실패했습니다.');
       console.warn('AI 분석 실패, 규칙 기반 파서 사용');
       return fallback;
     } finally {
@@ -65,15 +67,16 @@ export function useAnalysis(): UseAnalysisState & UseAnalysisActions {
   };
 }
 
-interface UseRecommendationState {
+export interface UseRecommendationState {
   courses: RankedCourse[];
   source: CourseDataSource | null;
+  planningSource: CoursePlanningSource | null;
   loading: boolean;
   error: string | null;
 }
 
-interface UseRecommendationActions {
-  recommend: (preferences: TravelPreferences) => Promise<void>;
+export interface UseRecommendationActions {
+  recommend: (preferences: TravelPreferences) => Promise<RankedCourse[]>;
   clear: () => void;
 }
 
@@ -89,6 +92,7 @@ interface UseRecommendationActions {
 export function useRecommendation(): UseRecommendationState & UseRecommendationActions {
   const [courses, setCourses] = useState<RankedCourse[]>([]);
   const [source, setSource] = useState<CourseDataSource | null>(null);
+  const [planningSource, setPlanningSource] = useState<CoursePlanningSource | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,14 +101,19 @@ export function useRecommendation(): UseRecommendationState & UseRecommendationA
     setError(null);
     try {
       const response = await apiClient.recommend({ preferences });
-      setCourses(response.courses as RankedCourse[]);
-      setSource(response.source as CourseDataSource);
+      setCourses(response.courses);
+      setSource(response.source);
+      setPlanningSource(response.planningSource ?? response.courses[0]?.planningSource ?? 'rules');
+      return response.courses;
     } catch (err) {
       // 실패해도 기본 데모 데이터로 추천
       const fallback = rankCourses(preferences);
       setCourses(fallback);
       setSource('demo');
+      setPlanningSource('rules');
+      setError(err instanceof Error ? err.message : '추천 API 호출에 실패했습니다.');
       console.warn('API 추천 실패, 데모 데이터 사용');
+      return fallback;
     } finally {
       setLoading(false);
     }
@@ -113,12 +122,14 @@ export function useRecommendation(): UseRecommendationState & UseRecommendationA
   const clear = useCallback(() => {
     setCourses([]);
     setSource(null);
+    setPlanningSource(null);
     setError(null);
   }, []);
 
   return {
     courses,
     source,
+    planningSource,
     loading,
     error,
     recommend,

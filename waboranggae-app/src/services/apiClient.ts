@@ -3,7 +3,40 @@
  * JWT 기반 인증을 지원합니다.
  */
 
+import {
+  AnalyzeResponse,
+  ExplainRequest,
+  RecommendResponse,
+  RecommendationReason,
+  RegionCity,
+  TravelPreferences,
+} from '../types/travel';
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+
+export function resolveTourImageUrl(value?: string, apiBaseUrl = API_BASE_URL) {
+  if (!value || !apiBaseUrl) return value;
+  try {
+    const url = new URL(value);
+    if (url.hostname !== 'tong.visitkorea.or.kr') return value;
+    return `${apiBaseUrl}/api/media/tour-image?url=${encodeURIComponent(value)}`;
+  } catch {
+    return value;
+  }
+}
+
+function resolveRecommendationImages(response: RecommendResponse): RecommendResponse {
+  return {
+    ...response,
+    courses: response.courses.map((course) => ({
+      ...course,
+      places: course.places.map((place) => ({
+        ...place,
+        imageUrl: resolveTourImageUrl(place.imageUrl),
+      })),
+    })),
+  };
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -39,6 +72,7 @@ async function fetchJson<T>(
     body?: unknown;
     headers?: Record<string, string>;
     isAuth?: boolean; // 인증 엔드포인트는 토큰이 필요 없음
+    timeoutMs?: number;
   } = {},
 ): Promise<T> {
   if (!API_BASE_URL) {
@@ -46,7 +80,7 @@ async function fetchJson<T>(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 45_000);
 
   try {
     const headers: Record<string, string> = {
@@ -62,7 +96,7 @@ async function fetchJson<T>(
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: options.method || 'POST',
       headers,
-      ...(options.body && { body: JSON.stringify(options.body) }),
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
     });
 
@@ -86,12 +120,12 @@ async function fetchJson<T>(
         const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
           method: options.method || 'POST',
           headers,
-          ...(options.body && { body: JSON.stringify(options.body) }),
+          body: options.body === undefined ? undefined : JSON.stringify(options.body),
           signal: controller.signal,
         });
 
         if (!retryResponse.ok) {
-          const errorData = await retryResponse.json().catch(() => ({}));
+          const errorData = await retryResponse.json().catch(() => ({})) as { error?: string };
           throw new ApiError(retryResponse.status, errorData.error || `API error: ${retryResponse.status}`);
         }
 
@@ -104,11 +138,17 @@ async function fetchJson<T>(
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await response.json().catch(() => ({})) as { error?: string };
       throw new ApiError(response.status, errorData.error || `API error: ${response.status}`);
     }
 
     return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('추천 서버의 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+    }
+    throw new Error('추천 서버에 연결할 수 없습니다. 네트워크와 서버 상태를 확인해주세요.');
   } finally {
     clearTimeout(timeout);
   }
@@ -202,25 +242,28 @@ export const apiClient = {
    * 분석 API
    */
   analyze: (body: { query: string }) =>
-    fetchJson('/api/analyze', { method: 'POST', body }),
+    fetchJson<AnalyzeResponse>('/api/analyze', { method: 'POST', body, timeoutMs: 90_000 }),
 
   /**
    * 추천 API
    */
-  recommend: (body: { preferences: any }) =>
-    fetchJson('/api/recommend', { method: 'POST', body }),
+  recommend: async (body: { preferences: TravelPreferences }) =>
+    resolveRecommendationImages(await fetchJson<RecommendResponse>(
+      '/api/recommend',
+      { method: 'POST', body, timeoutMs: 130_000 },
+    )),
 
   /**
    * 전남 시군구 목록 (TourAPI ldongCode2)
    */
   regions: {
     jeonnamCities: () =>
-      fetchJson('/api/regions/jeonnam-cities', { method: 'GET' }),
+      fetchJson<{ region: string; cities: RegionCity[] }>('/api/regions/jeonnam-cities', { method: 'GET' }),
   },
 
   /**
    * 설명 API
    */
-  explain: (body: any) =>
-    fetchJson('/api/explain', { method: 'POST', body }),
+  explain: (body: ExplainRequest) =>
+    fetchJson<{ reason: RecommendationReason }>('/api/explain', { method: 'POST', body, timeoutMs: 90_000 }),
 };

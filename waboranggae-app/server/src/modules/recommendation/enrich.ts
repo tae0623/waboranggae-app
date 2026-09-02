@@ -1,7 +1,6 @@
-import { Course, ConvenienceSpot, Place } from '../../../../src/types/travel';
-import { transitScoreFromMeters } from '../../utils/geo';
-import { nearestBusStopDistanceMeters } from './data/bus-stops';
-import { fetchConveniencesAround } from './data/conveniences';
+import { Course, Place } from '../../../../src/types/travel';
+import { getBusAccessProfile } from './data/bus-stops';
+import { fetchLockersNear } from './data/conveniences';
 
 function courseCenter(course: Course): { latitude: number; longitude: number } | null {
   const coords = course.places.filter(
@@ -16,47 +15,48 @@ function courseCenter(course: Course): { latitude: number; longitude: number } |
 }
 
 /**
- * 버스정류장·물품보관함·자전거 데이터를 붙여 뚜벅이 지표를 보정합니다.
+ * 장소별 최근접 버스정류장 거리로 대중교통 접근성 지표를 보정합니다.
  */
 export async function enrichCourses(courses: Course[]): Promise<Course[]> {
   return Promise.all(courses.map(async (course) => {
-    const placeTransitScores: number[] = [];
-
-    for (const place of course.places) {
+    const placeTransitResults = await Promise.all(course.places.map(async (place) => {
       if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') {
-        placeTransitScores.push(course.metrics.transitAccess);
-        continue;
+        return { score: course.metrics.transitAccess, evidence: null };
       }
-      const { meters } = await nearestBusStopDistanceMeters(place.latitude, place.longitude);
-      placeTransitScores.push(transitScoreFromMeters(meters));
-    }
+      const profile = await getBusAccessProfile(place.latitude, place.longitude);
+      if (!profile) return { score: course.metrics.transitAccess, evidence: null };
+      return {
+        score: profile.score,
+        evidence: {
+          placeId: place.id,
+          placeName: place.name,
+          stopName: profile.stop.name,
+          distanceMeters: Math.round(profile.stop.distanceMeters),
+          routeCount: profile.routeCount,
+          sampleRouteNumbers: profile.sampleRouteNumbers,
+          typicalIntervalMinutes: profile.typicalIntervalMinutes,
+          source: profile.source,
+        },
+      };
+    }));
 
-    const transitAccess = placeTransitScores.length
-      ? Math.round(placeTransitScores.reduce((a, b) => a + b, 0) / placeTransitScores.length)
+    const transitAccess = placeTransitResults.length
+      ? Math.round(placeTransitResults.reduce((sum, item) => sum + item.score, 0) / placeTransitResults.length)
       : course.metrics.transitAccess;
-
+    const transitAccessEvidence = placeTransitResults
+      .map((item) => item.evidence)
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
     const center = courseCenter(course);
-    let conveniences: ConvenienceSpot[] = course.conveniences;
-    if (center) {
-      const live = await fetchConveniencesAround(course.city, center);
-      if (live.length) conveniences = live;
-    }
-
-    const lockerBonus = conveniences.some((spot) => spot.type === 'locker') ? 12 : 0;
-    const bikeBonus = conveniences.some((spot) => spot.type === 'bike') ? 8 : 0;
-    const convenience = Math.min(98, Math.round(55 + lockerBonus + bikeBonus));
+    const conveniences = center ? await fetchLockersNear(course.city, center) : [];
 
     return {
       ...course,
       conveniences,
+      transitAccessEvidence,
       metrics: {
         ...course.metrics,
         transitAccess,
-        convenience,
       },
-      subtitle: course.conveniences !== conveniences && conveniences.some((s) => s.source === 'live')
-        ? `${course.subtitle} · 편의시설 실데이터`
-        : course.subtitle,
     };
   }));
 }

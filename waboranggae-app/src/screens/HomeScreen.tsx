@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '../components/AppIcon';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -5,7 +6,6 @@ import { BrandMark } from '../components/BrandMark';
 import { CourseCard } from '../components/CourseCard';
 import { ConditionForm } from '../components/ConditionForm';
 import { SectionHeader } from '../components/SectionHeader';
-import { INTEREST_LABELS, PACE_LABELS } from '../domain/labels';
 import { colors, radii, shadows } from '../theme';
 import { AnalysisSource, RankedCourse, TravelPreferences } from '../types/travel';
 
@@ -40,46 +40,25 @@ export function HomeScreen({
   onOpenCourse: (course: RankedCourse) => void;
   onSeeAll: () => void;
 }) {
+  const [aiOpen, setAiOpen] = useState(false);
+
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <BrandMark />
-        <Pressable style={styles.profile} accessibilityLabel="내 여행 프로필">
-          <Ionicons name="person-outline" size={19} color={colors.forest} />
-        </Pressable>
+        <View style={styles.serviceMark} accessibilityLabel="전남 뚜벅이 여행 서비스">
+          <Ionicons name="walk-outline" size={19} color={colors.forest} />
+        </View>
       </View>
 
-      <LinearGradient colors={[colors.forestDark, colors.forest, '#17735A']} style={styles.hero}>
-        <View style={styles.heroDecorOne} />
-        <View style={styles.heroDecorTwo} />
-        <View style={styles.aiLabel}>
-          <MaterialCommunityIcons name="creation" size={14} color={colors.sun} />
-          <Text style={styles.aiLabelText}>AI 여행 조건 분석</Text>
+      <View style={styles.primaryIntro}>
+        <View style={styles.primaryBadge}>
+          <Ionicons name="options-outline" size={13} color={colors.forest} />
+          <Text style={styles.primaryBadgeText}>기본 추천 방식</Text>
         </View>
-        <Text style={styles.heroTitle}>하고 싶은 여행을{`\n`}말하듯 적어보세요</Text>
-        <Text style={styles.heroSub}>지역, 걷기 정도, 취향을 한 문장에서 알아들어요.</Text>
-
-        <View style={styles.inputShell}>
-          <TextInput
-            value={query}
-            onChangeText={onQueryChange}
-            multiline
-            maxLength={240}
-            style={styles.input}
-            placeholder="예: 순천역에서 많이 걷지 않고 정원과 맛집을 보고 싶어요"
-            placeholderTextColor="#87978F"
-            textAlignVertical="top"
-            accessibilityLabel="여행 조건 입력"
-          />
-          <View style={styles.inputFooter}>
-            <Text style={styles.counter}>{query.length}/240</Text>
-            <Pressable onPress={onAnalyze} disabled={loading || !query.trim()} style={({ pressed }) => [styles.analyzeButton, pressed && styles.pressed, (loading || !query.trim()) && styles.disabled]}>
-              {loading ? <ActivityIndicator size="small" color={colors.white} /> : <MaterialCommunityIcons name="creation" size={16} color={colors.white} />}
-              <Text style={styles.analyzeText}>{loading ? '읽는 중…' : '조건 읽기'}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </LinearGradient>
+        <Text style={styles.primaryTitle}>원하는 여행 조건을 골라주세요</Text>
+        <Text style={styles.primarySub}>선택한 조건을 직접 확인한 뒤 추천을 시작하므로 결과가 더 안정적이에요.</Text>
+      </View>
 
       {preferences ? (
         <ConditionForm
@@ -90,49 +69,80 @@ export function HomeScreen({
         />
       ) : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.examples}>
-        {EXAMPLES.map((example) => (
-          <Pressable key={example} onPress={() => onQueryChange(`${example} 중심으로 6시간 여행하고 싶어요.`)} style={styles.exampleChip}>
-            <Ionicons name="sparkles-outline" size={13} color={colors.coral} />
-            <Text style={styles.exampleText}>{example}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <Pressable onPress={() => setAiOpen((open) => !open)} style={styles.aiToggle}>
+        <View style={styles.aiToggleIcon}>
+          <MaterialCommunityIcons name="creation" size={19} color={colors.forest} />
+        </View>
+        <View style={styles.aiToggleCopy}>
+          <View style={styles.aiToggleTitleRow}>
+            <Text style={styles.aiToggleTitle}>AI로 조건 자동 채우기</Text>
+            <View style={styles.optionalPill}><Text style={styles.optionalText}>선택 기능</Text></View>
+          </View>
+          <Text style={styles.aiToggleText}>문장으로 입력하면 위 선택 항목에 자동으로 반영해요.</Text>
+        </View>
+        <Ionicons name={aiOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.forest} />
+      </Pressable>
 
-      {preferences ? (
-        <View style={styles.analysisCard}>
-          <View style={styles.analysisTop}>
-            <View>
-              <Text style={styles.analysisEyebrow}>{source === 'ollama' ? '로컬 AI가 이렇게 이해했어요' : '선택한 조건으로 준비했어요'}</Text>
-              <Text style={styles.analysisSummary}>{preferences.summary}</Text>
+      {aiOpen ? (
+        <>
+          <LinearGradient colors={[colors.forestDark, colors.forest, '#17735A']} style={styles.hero}>
+            <View style={styles.heroDecorOne} />
+            <View style={styles.heroDecorTwo} />
+            <View style={styles.aiLabel}>
+              <MaterialCommunityIcons name="creation" size={14} color={colors.sun} />
+              <Text style={styles.aiLabelText}>AI ASSISTANT</Text>
             </View>
-            <View style={[styles.sourcePill, source === 'ollama' ? styles.sourceAi : styles.sourceDemo]}>
-              <View style={[styles.sourceDot, source === 'ollama' && styles.sourceDotAi]} />
-              <Text style={styles.sourceText}>{source === 'ollama' ? 'Ollama 분석' : '조건 선택'}</Text>
+            <Text style={styles.heroTitle}>말하듯 적으면{`\n`}조건을 대신 채워드려요</Text>
+            <Text style={styles.heroSub}>자동 입력 후 위 조건을 확인하고 수정할 수 있어요.</Text>
+
+            <View style={styles.inputShell}>
+              <TextInput
+                value={query}
+                onChangeText={onQueryChange}
+                multiline
+                maxLength={240}
+                style={styles.input}
+                placeholder="예: 순천역에서 많이 걷지 않고 정원과 맛집을 보고 싶어요"
+                placeholderTextColor="#87978F"
+                textAlignVertical="top"
+                accessibilityLabel="AI 여행 조건 입력"
+              />
+              <View style={styles.inputFooter}>
+                <Text style={styles.counter}>{query.length}/240</Text>
+                <Pressable onPress={onAnalyze} disabled={loading || !query.trim()} style={({ pressed }) => [styles.analyzeButton, pressed && styles.pressed, (loading || !query.trim()) && styles.disabled]}>
+                  {loading ? <ActivityIndicator size="small" color={colors.white} /> : <MaterialCommunityIcons name="creation" size={16} color={colors.white} />}
+                  <Text style={styles.analyzeText}>{loading ? '분석 중…' : '조건 자동 채우기'}</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
-          <View style={styles.conditionGrid}>
-            <Condition icon="location-outline" label="출발" value={preferences.startLocation} />
-            <Condition icon="walk-outline" label="여행 스타일" value={PACE_LABELS[preferences.pace]} />
-            <Condition icon="time-outline" label="여행 시간" value={`${preferences.durationHours}시간`} />
-            <Condition icon="heart-outline" label="관심사" value={preferences.interests.slice(0, 3).map((item) => INTEREST_LABELS[item]).join(' · ')} />
-          </View>
-          {preferences.wantsLuggageStorage ? (
-            <View style={styles.specialCondition}>
-              <Ionicons name="briefcase-outline" size={15} color={colors.forest} />
-              <Text style={styles.specialText}>물품보관함이 있는 동선을 우선 반영했어요.</Text>
+          </LinearGradient>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.examples}>
+            {EXAMPLES.map((example) => (
+              <Pressable key={example} onPress={() => onQueryChange(`${example} 중심으로 6시간 여행하고 싶어요.`)} style={styles.exampleChip}>
+                <Ionicons name="sparkles-outline" size={13} color={colors.coral} />
+                <Text style={styles.exampleText}>{example}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {source && preferences ? (
+            <View style={styles.analysisCard}>
+              <View style={styles.analysisTop}>
+                <View style={styles.analysisCopy}>
+                  <Text style={styles.analysisEyebrow}>{source === 'ollama' ? 'AI가 조건을 자동으로 채웠어요' : '기본 분석기로 조건을 채웠어요'}</Text>
+                  <Text style={styles.analysisSummary}>{preferences.summary}</Text>
+                  <Text style={styles.analysisGuide}>위 선택 항목을 확인·수정한 뒤 “이 조건으로 추천받기”를 눌러주세요.</Text>
+                </View>
+                <View style={[styles.sourcePill, source === 'ollama' ? styles.sourceAi : styles.sourceDemo]}>
+                  <View style={[styles.sourceDot, source === 'ollama' && styles.sourceDotAi]} />
+                  <Text style={styles.sourceText}>{source === 'ollama' ? 'Ollama' : '규칙 분석'}</Text>
+                </View>
+              </View>
             </View>
           ) : null}
-        </View>
-      ) : (
-        <View style={styles.guideRow}>
-          <Guide icon="chatbubble-ellipses-outline" label="문장 입력" />
-          <Ionicons name="arrow-forward" size={15} color="#9EAAA4" />
-          <Guide icon="options-outline" label="조건 선택" />
-          <Ionicons name="arrow-forward" size={15} color="#9EAAA4" />
-          <Guide icon="map-outline" label="코스 추천" />
-        </View>
-      )}
+        </>
+      ) : null}
 
       {recommendation ? (
         <View style={styles.section}>
@@ -147,31 +157,10 @@ export function HomeScreen({
         </View>
         <View style={styles.trustCopy}>
           <Text style={styles.trustTitle}>근거가 보이는 추천</Text>
-          <Text style={styles.trustText}>관광공사 관광정보, 교통 접근성, 도보 부담, 주변 편의시설을 함께 점수화해요.</Text>
+          <Text style={styles.trustText}>관광공사 실제 장소를 바탕으로 AI가 일정을 구성하고, 서버가 출발 거점·식사 시간·식사 후 카페·소요시간을 다시 검증해요.</Text>
         </View>
       </View>
     </ScrollView>
-  );
-}
-
-function Condition({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
-  return (
-    <View style={styles.condition}>
-      <View style={styles.conditionIcon}><Ionicons name={icon} size={16} color={colors.forest} /></View>
-      <View style={styles.conditionCopy}>
-        <Text style={styles.conditionLabel}>{label}</Text>
-        <Text style={styles.conditionValue} numberOfLines={1}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
-function Guide({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
-  return (
-    <View style={styles.guideItem}>
-      <View style={styles.guideIcon}><Ionicons name={icon} size={18} color={colors.forest} /></View>
-      <Text style={styles.guideLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -179,7 +168,20 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.cream },
   content: { paddingBottom: 28 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16 },
-  profile: { width: 42, height: 42, borderRadius: 15, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
+  serviceMark: { width: 42, height: 42, borderRadius: 15, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
+  primaryIntro: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 2 },
+  primaryBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: '#E6F0DF' },
+  primaryBadgeText: { color: colors.forest, fontSize: 9, fontWeight: '900' },
+  primaryTitle: { color: colors.ink, fontSize: 25, lineHeight: 32, fontWeight: '900', letterSpacing: -0.9, marginTop: 11 },
+  primarySub: { color: colors.muted, fontSize: 11, lineHeight: 17, fontWeight: '700', marginTop: 5 },
+  aiToggle: { marginHorizontal: 16, marginTop: 16, padding: 14, borderRadius: radii.lg, backgroundColor: '#E8F0E2', flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: '#D9E5D2' },
+  aiToggleIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  aiToggleCopy: { flex: 1 },
+  aiToggleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  aiToggleTitle: { color: colors.forestDark, fontSize: 13, fontWeight: '900' },
+  optionalPill: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: '#DDF3A7' },
+  optionalText: { color: colors.forestDark, fontSize: 8, fontWeight: '900' },
+  aiToggleText: { color: colors.muted, fontSize: 9, lineHeight: 14, fontWeight: '700', marginTop: 3 },
   hero: { marginHorizontal: 16, borderRadius: radii.xl, padding: 22, overflow: 'hidden' },
   heroDecorOne: { position: 'absolute', right: -45, top: -35, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(221,243,167,0.08)' },
   heroDecorTwo: { position: 'absolute', right: 35, top: 78, width: 54, height: 54, borderRadius: 27, borderWidth: 12, borderColor: 'rgba(255,255,255,0.05)' },
@@ -200,8 +202,10 @@ const styles = StyleSheet.create({
   exampleText: { color: colors.muted, fontSize: 10, fontWeight: '800' },
   analysisCard: { marginHorizontal: 16, padding: 18, borderRadius: radii.lg, backgroundColor: colors.paper, borderWidth: 1, borderColor: '#E4E7DE', ...shadows.card },
   analysisTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  analysisCopy: { flex: 1 },
   analysisEyebrow: { color: colors.coral, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
   analysisSummary: { color: colors.ink, fontSize: 17, lineHeight: 23, fontWeight: '900', letterSpacing: -0.5, marginTop: 5, maxWidth: 250 },
+  analysisGuide: { color: colors.muted, fontSize: 9, lineHeight: 14, fontWeight: '700', marginTop: 8 },
   sourcePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, backgroundColor: '#EFEDE4', paddingHorizontal: 8, paddingVertical: 6 },
   sourceAi: { backgroundColor: '#E2F2D0' },
   sourceDemo: { backgroundColor: '#F0EDE3' },

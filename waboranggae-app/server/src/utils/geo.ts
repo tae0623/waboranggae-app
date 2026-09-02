@@ -48,6 +48,41 @@ export function transitScoreFromMeters(meters: number | null): number {
   return Math.max(40, Math.round(55 - (meters - 800) / 50));
 }
 
+/** 정류장을 지나는 고유 노선 수와 대표 평일 배차간격을 0~100점으로 표준화합니다. */
+export function busServiceScore(routeCount: number, typicalIntervalMinutes: number | null = null): number {
+  const count = Math.max(0, Math.floor(routeCount));
+  const countScore = count === 0 ? 25
+    : count === 1 ? 45
+      : count === 2 ? 55
+        : count <= 4 ? 68
+          : count <= 7 ? 78
+            : count <= 12 ? 88
+              : count <= 20 ? 95
+                : 100;
+
+  if (typicalIntervalMinutes == null || !Number.isFinite(typicalIntervalMinutes)) return countScore;
+  const interval = Math.max(0, typicalIntervalMinutes);
+  const intervalScore = interval <= 10 ? 100
+    : interval <= 15 ? 92
+      : interval <= 20 ? 84
+        : interval <= 30 ? 72
+          : interval <= 45 ? 58
+            : interval <= 60 ? 45
+              : 35;
+  return Math.round(countScore * 0.65 + intervalScore * 0.35);
+}
+
+/** 정류장까지 거리 70%, 실제 노선 공급 30%로 대중교통 접근성을 계산합니다. */
+export function transitAccessScore(
+  meters: number,
+  routeCount: number | null,
+  typicalIntervalMinutes: number | null = null,
+): number {
+  const distanceScore = transitScoreFromMeters(meters);
+  if (routeCount == null) return distanceScore;
+  return Math.round(distanceScore * 0.7 + busServiceScore(routeCount, typicalIntervalMinutes) * 0.3);
+}
+
 export function formatDistanceLabel(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)}m`;
   return `${(meters / 1000).toFixed(1)}km`;

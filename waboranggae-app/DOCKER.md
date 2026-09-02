@@ -79,4 +79,4 @@ docker compose down -v
 
 - 코드 변경 후 API 반영: `docker compose up -d --build api`
 - 호스트에서 Expo만 실행할 때: `EXPO_PUBLIC_API_BASE_URL=http://localhost:8787 pnpm start`
-- TourAPI 키는 `.env`의 `TOUR_API_KEY`에 넣으면 API 컨테이너에 전달됩니다
+- `apis.data.go.kr` 계열 서비스키는 `.env`의 `DATA_GO_KR_KEY` 하나로 TourAPI·정류장·공영 물품보관함 요청에 사용됩니다

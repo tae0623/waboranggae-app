@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 export const interestSchema = z.enum(['nature', 'food', 'cafe', 'photo', 'market', 'history']);
-export const startTypeSchema = z.enum(['station', 'terminal', 'current', 'lodging']);
+export const startTypeSchema = z.enum(['station', 'terminal', 'current', 'lodging', 'custom']);
+export const mealPreferenceSchema = z.enum(['auto', 'none', 'lunch', 'dinner', 'both']);
 
 export const travelPreferencesSchema = z.object({
   region: z.string().min(1),
@@ -9,13 +10,14 @@ export const travelPreferencesSchema = z.object({
   startLocation: z.string().min(1),
   startType: startTypeSchema.default('station'),
   travelDate: z.string().nullable(),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('10:00'),
   durationHours: z.number().min(2).max(12),
+  mealPreference: mealPreferenceSchema.default('auto'),
   pace: z.enum(['easy', 'balanced', 'full']),
   preferLocal: z.boolean().default(false),
   interests: z.array(interestSchema).min(1).max(6),
   companions: z.string().min(1),
   lowMobility: z.boolean(),
-  wantsLuggageStorage: z.boolean(),
   publicTransportOnly: z.boolean(),
   summary: z.string().min(1).max(120),
   confidence: z.number().min(0).max(1),

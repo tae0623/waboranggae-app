@@ -10,9 +10,17 @@ flowchart LR
   F --> P
   P --> R["POST /api/recommend"]
   R --> T["한국관광공사 TourAPI"]
-  T --> N["내부 Course 모델 정규화"]
+  T --> N["실제 장소 후보 정규화"]
   T -. "키 없음·실패" .-> D["시연 코스"]
-  N --> S["재현 가능한 점수 계산"]
+  N --> L["Ollama 후보 ID 일정 구성"]
+  L --> V["식사·중복·시간 검증"]
+  L -. "실패·규칙 위반" .-> B["결정적 시간 규칙 일정"]
+  B --> V
+  V --> G["선택 역·터미널 좌표 해석"]
+  G --> Q["TMAP Transit 구간 길찾기"]
+  Q -. "키 없음·구간 실패" .-> X["좌표 추정 구간"]
+  Q --> S["실제 이동시간 반영·점수 계산"]
+  X --> S
   D --> S
   S --> E["POST /api/explain"]
   E --> O
@@ -23,27 +31,32 @@ flowchart LR
 ## 책임 분리
 
 - 모바일 앱은 `EXPO_PUBLIC_API_BASE_URL`만 알고 외부 API 키를 보관하지 않습니다.
-- Express 서버가 TourAPI 키, 데이터 캐시, 오류 처리를 담당합니다.
-- Ollama는 문장 해석과 추천 이유만 생성합니다.
-- 관광지 선택과 적합도 점수는 동일 입력에서 동일 결과가 나오도록 프로그램 코드로 계산합니다.
-- LLM에는 이미 조회·계산된 값만 전달하여 존재하지 않는 장소나 운영정보 생성을 줄입니다.
+- Express 서버가 TourAPI·TMAP 키, 데이터 캐시, 오류 처리를 담당합니다.
+- Ollama는 문장 해석, 실제 후보 ID의 방문 순서 제안, 추천 이유를 담당합니다.
+- 서버는 LLM이 제안한 ID가 실제 후보인지 확인하고 출발 거점, 식사 시간, 식사 후 카페, 연속 음식점·카페, 중복 장소, 선택 시간 충족을 결정적으로 검증합니다.
+- 2~8시간 선택은 최대 30분 오차만 허용하며, 부족한 시간은 주변 관광 후보 보충과 종류별 체류시간 상한 안의 여유 관람으로 채웁니다.
+- LLM 결과가 없거나 검증에 실패하면 같은 후보를 시간 규칙으로 구성하므로 핵심 추천은 계속 동작합니다.
+- 적합도 점수와 검증 결과는 동일 입력에서 재현 가능하도록 프로그램 코드로 계산합니다.
 
 ## 데이터 소스 상태
 
 | 데이터 | 현재 상태 | 담당 파일 |
 |---|---|---|
-| 관광지명·주소·좌표 | TourAPI 연결 완료 | `server/providers/tourApi.ts` |
-| 자연어 조건 분석 | Ollama 연결 완료 | `server/providers/ollama.ts` |
-| 추천 이유 | Ollama 연결 완료 | `server/providers/ollama.ts` |
-| 코스 거리·시간 | 좌표 기반 MVP 추정 | `server/providers/tourApi.ts` |
-| 물품보관함·공공자전거 | 시연 데이터 | 향후 provider 추가 |
-| 버스·도보 실제 경로 | 미연결 | 향후 교통/지도 API 추가 |
+| 관광지명·주소·좌표 | TourAPI 연결 완료 | `server/src/modules/recommendation/data/tour-api.ts` |
+| 자연어 조건 분석 | Ollama + 규칙 폴백 | `server/src/modules/analysis` |
+| 코스 순서·식사 시간 | Ollama + 서버 검증 + 규칙 폴백 | `server/src/modules/recommendation/planner.ts` |
+| 추천 이유 | Ollama + 계산 설명 폴백 | `server/src/modules/explanation` |
+| 출발 역·터미널 좌표 | Nominatim 검색 + 7일 캐시 + 고정 좌표 설정 지원 | `server/src/modules/recommendation/data/geocoder.ts` |
+| 코스 거리·시간·경로선 | TMAP Transit 연결, 미설정/실패 구간만 좌표 추정 | `server/src/modules/recommendation/routing.ts` |
+| 공영 물품보관함 | `DATA_GO_KR_KEY`로 실데이터 조회, 반경 내 결과만 표시 | `server/src/modules/recommendation/data/conveniences.ts` |
+| 버스정류소 접근성 | TAGO 근접 정류소 거리·정류소별 고유 경유노선 수 | `server/src/modules/recommendation/data/bus-stops.ts` |
+| 버스노선 공급 보강 | 대표 노선의 배차간격·운행시간, 미승인/장애 시 정류소 데이터만 사용 | `server/src/modules/recommendation/data/bus-routes.ts` |
+| 지도 | Leaflet + OpenStreetMap, 네이티브 WebView | `src/components/CourseMap*` |
 
 ## 다음 데이터 제공처를 추가하는 방법
 
-1. `server/providers`에 제공처별 파일을 만듭니다.
+1. `server/src/modules/recommendation/data`에 제공처별 파일을 만듭니다.
 2. 제공처 응답을 앱 내부 타입으로 정규화합니다.
 3. API 키는 `.env`에서만 읽습니다.
 4. `server/index.ts` 또는 추천 서비스에서 데이터를 합칩니다.
 5. 앱은 외부 제공처가 아니라 우리 서버만 호출합니다.
-
