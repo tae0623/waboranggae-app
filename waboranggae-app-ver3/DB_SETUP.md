@@ -103,14 +103,27 @@ pnpm db:studio
 
 ## API 엔드포인트
 
-모든 사용자 관련 API는 `x-user-id` 헤더가 필수입니다:
+사용자 API는 JWT가 필요합니다. 먼저 `/auth/signup` 또는 `/auth/login`으로 토큰을 받은 뒤 `Authorization: Bearer`로 호출합니다.
+
 ```bash
-curl -H "x-user-id: user-123" http://localhost:8787/api/user/me
+curl -X POST http://localhost:8787/auth/login ^
+  -H "Content-Type: application/json" ^
+  -d "{\"email\":\"user@example.com\",\"password\":\"your-password\"}"
+
+curl -H "Authorization: Bearer ACCESS_TOKEN" http://localhost:8787/api/user/me
 ```
 
+공개 API(`/api/analyze`, `/api/recommend` 등)는 로그인 없이 호출할 수 있습니다.
+
+### 인증
+- `POST /auth/signup` - 회원가입
+- `POST /auth/login` - 로그인
+- `POST /auth/refresh` - 토큰 갱신
+
 ### 사용자
-- `POST /api/user/profile` - 프로필 생성/수정
+- `PATCH /api/user/profile` - 표시 이름 수정
 - `GET /api/user/me` - 현재 사용자 정보
+- `DELETE /api/user/me` - 계정 삭제
 
 ### 북마크
 - `POST /api/user/bookmarks/add` - 북마크 추가

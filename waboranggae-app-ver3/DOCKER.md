@@ -21,7 +21,7 @@ PostgreSQL · API · Ollama · Expo Web을 Docker Compose로 함께 실행합니
 2. `.env` 파일 확인 (없으면 `.env.example` 복사)
 
 ```powershell
-cd C:\project\waboranggae-app\waboranggae-app
+cd C:\project\waboranggae-app\waboranggae-app-ver3
 copy .env.example .env
 ```
 

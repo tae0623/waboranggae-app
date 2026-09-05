@@ -1,5 +1,7 @@
 # Waboranggae App 보안 설계 (Security Design)
 
+구현 기준: **ver3** (`waboranggae-app-ver3`). JWT·Helmet·rate limit·제한 CORS는 이미 코드에 반영되어 있습니다.
+
 ## 📋 목차
 1. [보안 위협 분석](#보안-위협-분석)
 2. [인증 시스템 (JWT)](#인증-시스템-jwt)
@@ -13,18 +15,18 @@
 
 ## 보안 위협 분석
 
-### 현재 문제점
+### 현재 상태 (ver3)
 
 | 위협 | 심각도 | 현재 상태 |
 |---|---|---|
-| **Authentication** | 🔴 높음 | x-user-id 헤더로 전달 (위변조 가능) |
-| **Password** | 🔴 높음 | 비밀번호 저장 안 함 |
-| **Authorization** | 🟡 중간 | 사용자 ID 검증 안 함 |
-| **CORS** | 🟡 중간 | 모두 허용 |
+| **Authentication** | 🟢 낮음 | JWT Bearer (`/auth/login`, `/auth/signup`). `x-user-id`는 사용하지 않음 |
+| **Password** | 🟢 낮음 | bcrypt 해싱, 요구사항 검증 (`server/src/utils/crypto.ts`) |
+| **Authorization** | 🟢 낮음 | `authenticateToken`이 `req.user.userId`로 사용자 API 보호 |
+| **CORS** | 🟢 낮음 | 로컬 origin + `CORS_ORIGINS`. production은 허용 목록만 |
 | **SQL Injection** | 🟢 낮음 | Prisma 사용 (자동 방어) |
-| **XSS** | 🟢 낮음 | React Native (브라우저 아님) |
-| **Data Exposure** | 🟡 중간 | 민감 정보 검증 부족 |
-| **Rate Limiting** | 🟡 중간 | 미구현 |
+| **XSS** | 🟢 낮음 | React Native / Expo (브라우저 아님) |
+| **Data Exposure** | 🟡 중간 | 비밀번호는 응답에서 제외. 운영 JWT 기본값·로그는 계속 점검 필요 |
+| **Rate Limiting** | 🟢 낮음 | 로그인/가입/일반 API/생성 API별 limiter 적용 |
 
 ---
 
@@ -66,13 +68,13 @@ JWT (JSON Web Tokens)를 사용한 토큰 기반 인증:
 ### 구현 구조
 
 ```
-server/src/
+waboranggae-app-ver3/server/src/
 ├── auth/
 │   ├── jwt.ts                 ✅ JWT 생성/검증
-│   └── routes.ts              ✅ /auth/login, /auth/refresh
+│   └── routes.ts              ✅ /auth/login, /auth/signup, /auth/refresh
 ├── middleware/
 │   ├── auth.ts                ✅ JWT 검증 미들웨어
-│   └── error.ts               ✅ 에러 핸들러
+│   └── rateLimiter.ts         ✅ 로그인·API 요청 제한
 └── utils/
     └── crypto.ts              ✅ bcrypt 해싱
 ```
