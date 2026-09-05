@@ -67,12 +67,47 @@ TourAPI 키가 없거나 실패하면 시연 코스로 넘어갑니다. 끄려�
                                             └─ Ollama (선택)
 ```
 
+```text
+waboranggae-app/                    git 루트 · 이 README
+└── waboranggae-app-ver3/           앱+서버 코드 (여기서 pnpm 실행)
+    ├── App.tsx                     화면 전환, 추천·로그인 상태
+    ├── src/
+    │   ├── screens/                홈·코스·지도·내 여행·상세
+    │   ├── components/             카드, 지도, 조건 폼, 탭바
+    │   ├── hooks/                  분석·추천·인증·북마크·검색이력
+    │   ├── domain/                 파서·점수·도시 목록 (서버와 공유)
+    │   ├── services/               apiClient (JWT 포함)
+    │   ├── data/                   시연용 하드코딩 코스
+    │   └── types/                  여행·코스 타입
+    ├── server/
+    │   ├── index.ts                Express 진입점, /health
+    │   └── src/
+    │       ├── auth/               회원가입·로그인·JWT
+    │       ├── middleware/         JWT 검증, rate limit
+    │       ├── db/                 Prisma 쿼리
+    │       ├── modules/
+    │       │   ├── analysis/       자연어 분석 (Ollama + 규칙)
+    │       │   ├── recommendation/ TourAPI·일정·길찾기·랭킹
+    │       │   ├── explanation/    추천 이유
+    │       │   ├── user/           프로필·북마크·검색이력 API
+    │       │   └── media/          TourAPI 이미지 프록시
+    │       ├── shared/             Zod 스키마
+    │       └── utils/              좌표, 비밀번호 해시
+    ├── prisma/                     DB 스키마·마이그레이션
+    ├── tests/                      Vitest
+    ├── scripts/                    TourAPI 등 연결 확인
+    ├── docker/                     API 컨테이너 시작 스크립트
+    ├── docs/SECURITY.md            보안 설계
+    ├── STORE.md                    스토어 제출
+    └── PRIVACY_POLICY.md           개인정보처리방침
+```
+
 | 데이터 | 담당 |
 |---|---|
 | 관광지명·좌표·이미지 | `server/src/modules/recommendation/data/tour-api.ts` |
 | 일정·식사 검증 | `server/src/modules/recommendation/planner.ts` |
 | 조건 파서·점수 | `src/domain/parseTravelText.ts`, `src/domain/rankCourses.ts` |
-| 길찾기 | `routing.ts` + TMAP |
+| 길찾기 | `server/src/modules/recommendation/routing.ts` + TMAP |
 
 ## 배포 요약
 
