@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { analyzeWithOllama } from './ollama';
-import { applyExplicitTravelSignals, parseTravelText } from './parser';
+import { applyExplicitTravelSignals, parseTravelText } from '../../../../src/domain/parseTravelText';
 import { travelPreferencesSchema } from '../../shared/schemas';
 import { normalizeTravelStart } from '../../../../src/domain/startLocation';
 

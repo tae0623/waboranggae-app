@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { parseTravelText, rankCourses } from '../src/domain/demoEngine';
 import {
   applyExplicitTravelSignals,
-  parseTravelText as parseServerTravelText,
-} from '../server/src/modules/analysis/parser';
+  parseTravelText as parseSharedTravelText,
+} from '../src/domain/parseTravelText';
 import { normalizeTravelStart } from '../src/domain/startLocation';
 
 describe('natural-language travel parser', () => {
@@ -38,12 +38,11 @@ describe('natural-language travel parser', () => {
 
   it('keeps a terminal request consistent even when the facility name is omitted', () => {
     const clientResult = parseTravelText('순천 터미널에서 오전 10시에 여행을 시작하고 싶어');
-    const serverResult = parseServerTravelText('순천 터미널에서 오전 10시에 여행을 시작하고 싶어');
+    const sharedResult = parseSharedTravelText('순천 터미널에서 오전 10시에 여행을 시작하고 싶어');
 
     expect(clientResult.startType).toBe('terminal');
     expect(clientResult.startLocation).toBe('순천 터미널');
-    expect(serverResult.startType).toBe('terminal');
-    expect(serverResult.startLocation).toBe('순천 터미널');
+    expect(sharedResult).toEqual(clientResult);
   });
 
   it('repairs an inconsistent AI start location and adapts demo courses', () => {
@@ -59,17 +58,16 @@ describe('natural-language travel parser', () => {
 
   it('uses a named port as a custom start in a region without a rail station', () => {
     const clientResult = parseTravelText('완도항에서 바다와 시장을 5시간 보고 싶어');
-    const serverResult = parseServerTravelText('완도항에서 바다와 시장을 5시간 보고 싶어');
+    const sharedResult = parseSharedTravelText('완도항에서 바다와 시장을 5시간 보고 싶어');
 
     expect(clientResult.startType).toBe('custom');
     expect(clientResult.startLocation).toBe('완도항');
-    expect(serverResult.startType).toBe('custom');
-    expect(serverResult.startLocation).toBe('완도항');
+    expect(sharedResult).toEqual(clientResult);
   });
 
   it('keeps explicit user signals when the LLM returns conflicting conditions', () => {
     const aiResult = {
-      ...parseServerTravelText('순천역에서 자연을 여유롭게 보고 싶어'),
+      ...parseSharedTravelText('순천역에서 자연을 여유롭게 보고 싶어'),
       city: '완도',
       startType: 'terminal' as const,
       startLocation: '완도 터미널',

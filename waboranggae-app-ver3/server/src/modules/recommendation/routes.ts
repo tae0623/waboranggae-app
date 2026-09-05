@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { rankCourses } from './ranker';
+import { rankCourses } from '../../../../src/domain/rankCourses';
 import { DemoProvider } from './data/demo';
 import { TourApiProvider, listJeonnamCities } from './data/tour-api';
 import { enrichCourses } from './enrich';
