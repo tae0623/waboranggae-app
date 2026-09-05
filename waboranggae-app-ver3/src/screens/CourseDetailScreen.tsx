@@ -14,6 +14,8 @@ export function CourseDetailScreen({
   explanationError = null,
   onBack,
   onOpenMap,
+  bookmarked = false,
+  onToggleBookmark,
 }: {
   course: RankedCourse;
   preferences: TravelPreferences;
@@ -21,6 +23,8 @@ export function CourseDetailScreen({
   explanationError?: string | null;
   onBack: () => void;
   onOpenMap: () => void;
+  bookmarked?: boolean;
+  onToggleBookmark?: () => void;
 }) {
   const coverImage = course.places.find((place) => place.imageUrl)?.imageUrl;
   const weights = WALKABILITY_WEIGHTS[preferences.pace];
@@ -40,6 +44,11 @@ export function CourseDetailScreen({
           <View style={styles.navRow}>
             <Pressable onPress={onBack} style={styles.iconButton}><Ionicons name="arrow-back" size={20} color={colors.white} /></Pressable>
             <View style={styles.navActions}>
+              {onToggleBookmark ? (
+                <Pressable onPress={onToggleBookmark} style={styles.iconButton} accessibilityLabel={bookmarked ? '북마크 해제' : '북마크'}>
+                  <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={19} color={colors.white} />
+                </Pressable>
+              ) : null}
               <Pressable onPress={shareCourse} style={styles.iconButton} accessibilityLabel="코스 공유"><Ionicons name="share-social-outline" size={19} color={colors.white} /></Pressable>
             </View>
           </View>

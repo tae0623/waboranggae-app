@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabBar, AppTab } from './src/components/TabBar';
 import { DEFAULT_QUERY, parseTravelText } from './src/domain/demoEngine';
+import { AccountScreen } from './src/screens/AccountScreen';
 import { CourseDetailScreen } from './src/screens/CourseDetailScreen';
 import { CoursesScreen } from './src/screens/CoursesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -13,7 +14,10 @@ import { RankedCourse, TravelPreferences } from './src/types/travel';
 import { apiClient } from './src/services/apiClient';
 import {
   useAnalysis,
+  useBookmarks,
   useRecommendation,
+  useSearchHistory,
+  useUser,
 } from './src/hooks';
 
 const initialPreferences = parseTravelText(DEFAULT_QUERY);
@@ -40,6 +44,18 @@ function AppShell() {
 
   const { preferences, source, loading: analyzing, analyze } = useAnalysis();
   const {
+    user,
+    userId,
+    isAuthenticated,
+    loading: authLoading,
+    error: authError,
+    login,
+    signup,
+    logout,
+  } = useUser();
+  const { bookmarks, add: addBookmark, remove: removeBookmark, fetchList: fetchBookmarks } = useBookmarks(userId);
+  const { history, record: recordSearch, fetch: fetchHistory } = useSearchHistory(userId);
+  const {
     courses,
     source: courseSource,
     planningSource,
@@ -49,6 +65,12 @@ function AppShell() {
     recommend,
     clear: clearRecommendations,
   } = useRecommendation();
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchBookmarks().catch(() => undefined);
+    fetchHistory(8).catch(() => undefined);
+  }, [userId, fetchBookmarks, fetchHistory]);
 
   const loading = analyzing || recommending;
   // AI 분석 결과도 수동 선택 폼에 복사합니다. 이후 사용자가 수정한 값이 항상 최종값입니다.
@@ -100,8 +122,26 @@ function AppShell() {
     try {
       setReasonOverrides({});
       await recommend(manualPreferences);
+      if (userId) {
+        recordSearch(manualPreferences.summary, manualPreferences).catch(() => undefined);
+      }
     } catch (error) {
       console.warn('조건 추천 실패:', error);
+    }
+  };
+
+  const handleToggleBookmark = async (course: RankedCourse) => {
+    if (!userId) {
+      setActiveTab('account');
+      setDetailOpen(false);
+      return;
+    }
+    const saved = bookmarks.some((item) => item.courseId === course.id);
+    try {
+      if (saved) await removeBookmark(course.id);
+      else await addBookmark(course.id, course.title, course.city);
+    } catch {
+      // hook error state에 보관
     }
   };
 
@@ -134,6 +174,10 @@ function AppShell() {
 
   const handleTabChange = async (tab: AppTab) => {
     setDetailOpen(false);
+    if (tab === 'account') {
+      setActiveTab('account');
+      return;
+    }
     if (tab !== 'home' && !courses.length && !recommending) {
       setActiveTab('courses');
       await recommend(activePreferences);
@@ -157,6 +201,8 @@ function AppShell() {
                 setDetailOpen(false);
                 setActiveTab('map');
               }}
+              bookmarked={bookmarks.some((item) => item.courseId === selectedCourse.id)}
+              onToggleBookmark={() => handleToggleBookmark(selectedCourse)}
             />
           ) : activeTab === 'home' ? (
             <HomeScreen
@@ -190,6 +236,24 @@ function AppShell() {
               courses={displayedCourses}
               onSelectCourse={(course) => setSelectedCourseId(course.id)}
               onOpenDetail={() => setDetailOpen(true)}
+            />
+          ) : activeTab === 'account' ? (
+            <AccountScreen
+              userName={user?.displayName}
+              userEmail={user?.email}
+              isAuthenticated={isAuthenticated}
+              authLoading={authLoading}
+              authError={authError}
+              bookmarks={bookmarks}
+              history={history}
+              onLogin={login}
+              onSignup={signup}
+              onLogout={logout}
+              onOpenBookmark={(courseId) => {
+                const course = displayedCourses.find((item) => item.id === courseId);
+                if (course) handleOpenCourse(course);
+                else setActiveTab('courses');
+              }}
             />
           ) : null}
         </View>

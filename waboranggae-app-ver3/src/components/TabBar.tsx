@@ -2,12 +2,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from './AppIcon';
 import { colors, shadows } from '../theme';
 
-export type AppTab = 'home' | 'courses' | 'map';
+export type AppTab = 'home' | 'courses' | 'map' | 'account';
 
 const TABS: Array<{ key: AppTab; label: string; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'home', label: '홈', icon: 'home-outline', activeIcon: 'home' },
   { key: 'courses', label: '코스', icon: 'map-outline', activeIcon: 'map' },
   { key: 'map', label: '동선', icon: 'navigate-circle-outline', activeIcon: 'navigate-circle' },
+  { key: 'account', label: '내 여행', icon: 'person-outline', activeIcon: 'person' },
 ];
 
 export function TabBar({ active, onChange }: { active: AppTab; onChange: (tab: AppTab) => void }) {
