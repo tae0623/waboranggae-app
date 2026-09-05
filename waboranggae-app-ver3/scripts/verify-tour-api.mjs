@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const JEONNAM_CITIES = new Set([
-  '목포', '여수', '순천', '나주', '광양', '담양', '곡성', '구례', '고흥', '보성',
-  '화순', '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성', '완도', '진도', '신안',
-]);
+const JEONNAM_CITIES = new Set(
+  JSON.parse(
+    await readFile(join(dirname(fileURLToPath(import.meta.url)), '../src/domain/jeonnamCities.json'), 'utf8'),
+  ),
+);
 
 async function readLocalEnv() {
   try {

@@ -1,4 +1,5 @@
 import { Course, Interest, Place, PlaceCategory, TravelPreferences, WalkabilityMetrics } from '../../../../../src/types/travel';
+import { JEONNAM_CITIES } from '../../../../../src/domain/jeonnamCities';
 import { distanceKm as haversineKm, projectMapPoints } from '../../../utils/geo';
 import { DataProvider } from './provider';
 import { desiredStopCount } from '../planner';
@@ -46,10 +47,7 @@ interface CacheEntry {
 
 const responseCache = new Map<string, CacheEntry>();
 
-export const JEONNAM_CITIES = [
-  '목포', '여수', '순천', '나주', '광양', '담양', '곡성', '구례', '고흥', '보성',
-  '화순', '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성', '완도', '진도', '신안',
-];
+export { JEONNAM_CITIES };
 
 function decodedServiceKey() {
   try {

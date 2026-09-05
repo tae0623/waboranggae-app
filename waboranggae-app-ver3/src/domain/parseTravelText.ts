@@ -1,4 +1,5 @@
 import { INTEREST_LABELS, PACE_LABELS } from './labels';
+import { JEONNAM_CITIES_BY_LENGTH } from './jeonnamCities';
 import { normalizeStartLocation } from './startLocation';
 import {
   Interest,
@@ -7,11 +8,6 @@ import {
   StartLocationType,
   TravelPreferences,
 } from '../types/travel';
-
-const CITY_NAMES = [
-  '순천', '여수', '목포', '담양', '광양', '나주', '보성', '해남', '강진', '고흥', '곡성',
-  '구례', '무안', '영광', '영암', '완도', '장성', '장흥', '진도', '함평', '화순', '신안',
-];
 
 const INTEREST_KEYWORDS: Record<Interest, string[]> = {
   nature: ['자연', '정원', '바다', '숲', '풍경', '산책'],
@@ -57,7 +53,7 @@ function withObjectParticle(value: string) {
 /** 규칙 기반 자연어 → TravelPreferences (클라이언트·서버 공통) */
 export function parseTravelText(text: string): TravelPreferences {
   const normalized = text.trim();
-  const city = CITY_NAMES.find((name) => normalized.includes(name)) ?? '순천';
+  const city = JEONNAM_CITIES_BY_LENGTH.find((name) => normalized.includes(name)) ?? '순천';
   const startMatch = normalized.match(/([가-힣A-Za-z0-9]+(?:역|터미널|정류장|선착장|항|숙소))/);
   const durationMatch = normalized.match(/(\d+(?:\.\d+)?)\s*시간/);
 

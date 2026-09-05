@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { JEONNAM_CITIES } from '../domain/jeonnamCities';
 import { INTEREST_LABELS, PACE_LABELS, START_TYPE_LABELS } from '../domain/labels';
 import { apiClient } from '../services/apiClient';
 import { defaultStartLocation } from '../domain/startLocation';
@@ -27,10 +28,7 @@ const MEAL_LABELS: Record<MealPreference, string> = {
   both: '점심+저녁',
 };
 const COMPANIONS = ['혼자', '친구와 함께', '연인과 함께', '가족과 함께', '부모님과 함께', '아이와 함께'];
-const FALLBACK_CITIES = [
-  '목포', '여수', '순천', '나주', '광양', '담양', '곡성', '구례', '고흥', '보성', '화순',
-  '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성', '완도', '진도', '신안',
-];
+const FALLBACK_CITIES = [...JEONNAM_CITIES];
 
 export function ConditionForm({
   value,
