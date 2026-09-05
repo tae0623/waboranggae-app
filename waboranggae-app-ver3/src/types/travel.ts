@@ -162,6 +162,8 @@ export interface RecommendResponse {
   source: CourseDataSource;
   planningSource?: CoursePlanningSource;
   fetchedAt: string | null;
+  fallbackReason?: string | null;
+  tourApiConfigured?: boolean;
 }
 
 export interface ExplainRequest {

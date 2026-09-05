@@ -15,19 +15,30 @@ export const recommendationRouter = Router();
 const demoProvider = new DemoProvider();
 const tourApiProvider = new TourApiProvider();
 const RECOMMENDATION_CACHE_TTL_MS = 15 * 60 * 1_000;
+
+function isDemoCourseFallbackAllowed() {
+  const raw = (process.env.ALLOW_DEMO_COURSE_FALLBACK ?? 'true').trim().toLowerCase();
+  return !['0', 'false', 'off'].includes(raw);
+}
+
 type RecommendationPayload = {
   courses: ReturnType<typeof rankCourses>;
   source: 'tour-api' | 'demo';
   planningSource: 'ollama' | 'rules';
   fetchedAt: string;
+  fallbackReason: string | null;
+  tourApiConfigured: boolean;
 };
 const recommendationCache = new Map<string, { expiresAt: number; value: RecommendationPayload }>();
 const pendingRecommendations = new Map<string, Promise<RecommendationPayload>>();
 
 async function createRecommendation(preferences: z.infer<typeof travelPreferencesSchema>): Promise<RecommendationPayload> {
+  const tourApiConfigured = tourApiProvider.isConfigured();
+  const allowDemo = isDemoCourseFallbackAllowed();
   const tourCourses = await tourApiProvider.fetchCourses(preferences);
   let plannedCourses = tourCourses;
   let source: 'tour-api' | 'demo' = tourCourses.length ? 'tour-api' : 'demo';
+  let fallbackReason: string | null = null;
 
   if (tourCourses.length) {
     const candidates = collectPlanningCandidates(tourCourses);
@@ -38,8 +49,18 @@ async function createRecommendation(preferences: z.infer<typeof travelPreference
   }
 
   if (!plannedCourses.length) {
-    plannedCourses = await demoProvider.fetchCourses(preferences);
-    source = 'demo';
+    fallbackReason = tourApiConfigured
+      ? 'TourAPI 결과가 비어 있습니다.'
+      : 'DATA_GO_KR_KEY가 없어 TourAPI를 호출하지 못했습니다.';
+    if (allowDemo) {
+      plannedCourses = await demoProvider.fetchCourses(preferences);
+      source = 'demo';
+      fallbackReason += ' 시연 코스로 대체했습니다.';
+    } else {
+      source = 'demo';
+      plannedCourses = [];
+      fallbackReason += ' ALLOW_DEMO_COURSE_FALLBACK=false라 시연 코스는 쓰지 않습니다.';
+    }
   }
 
   plannedCourses = await attachRoutingToCourses(preferences, plannedCourses);
@@ -50,6 +71,8 @@ async function createRecommendation(preferences: z.infer<typeof travelPreference
     source,
     planningSource: ranked[0]?.planningSource ?? 'rules',
     fetchedAt: new Date().toISOString(),
+    fallbackReason,
+    tourApiConfigured,
   };
 }
 

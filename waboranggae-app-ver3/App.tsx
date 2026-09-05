@@ -45,6 +45,7 @@ function AppShell() {
     planningSource,
     loading: recommending,
     error: recommendationError,
+    fallbackReason,
     recommend,
     clear: clearRecommendations,
   } = useRecommendation();
@@ -179,6 +180,7 @@ function AppShell() {
               preferences={activePreferences}
               loading={recommending}
               error={recommendationError}
+              fallbackReason={fallbackReason}
               onRetry={() => recommend(activePreferences)}
               onOpenCourse={handleOpenCourse}
             />

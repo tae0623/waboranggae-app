@@ -67,10 +67,16 @@ export function useAnalysis(): UseAnalysisState & UseAnalysisActions {
   };
 }
 
+function isClientDemoFallbackAllowed() {
+  const raw = (process.env.EXPO_PUBLIC_ALLOW_DEMO_COURSE_FALLBACK ?? 'true').trim().toLowerCase();
+  return !['0', 'false', 'off'].includes(raw);
+}
+
 export interface UseRecommendationState {
   courses: RankedCourse[];
   source: CourseDataSource | null;
   planningSource: CoursePlanningSource | null;
+  fallbackReason: string | null;
   loading: boolean;
   error: string | null;
 }
@@ -93,6 +99,7 @@ export function useRecommendation(): UseRecommendationState & UseRecommendationA
   const [courses, setCourses] = useState<RankedCourse[]>([]);
   const [source, setSource] = useState<CourseDataSource | null>(null);
   const [planningSource, setPlanningSource] = useState<CoursePlanningSource | null>(null);
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,16 +111,24 @@ export function useRecommendation(): UseRecommendationState & UseRecommendationA
       setCourses(response.courses);
       setSource(response.source);
       setPlanningSource(response.planningSource ?? response.courses[0]?.planningSource ?? 'rules');
+      setFallbackReason(response.fallbackReason ?? null);
       return response.courses;
     } catch (err) {
-      // 실패해도 기본 데모 데이터로 추천
-      const fallback = rankCourses(preferences);
-      setCourses(fallback);
-      setSource('demo');
+      const message = err instanceof Error ? err.message : '추천 API 호출에 실패했습니다.';
+      setError(message);
       setPlanningSource('rules');
-      setError(err instanceof Error ? err.message : '추천 API 호출에 실패했습니다.');
-      console.warn('API 추천 실패, 데모 데이터 사용');
-      return fallback;
+      if (isClientDemoFallbackAllowed()) {
+        const fallback = rankCourses(preferences);
+        setCourses(fallback);
+        setSource('demo');
+        setFallbackReason('서버 연결 실패 · 로컬 시연 코스를 사용합니다.');
+        console.warn('API 추천 실패, 시연 코스 사용');
+        return fallback;
+      }
+      setCourses([]);
+      setSource(null);
+      setFallbackReason('서버 연결 실패 · 시연 폴백이 꺼져 있습니다.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -123,6 +138,7 @@ export function useRecommendation(): UseRecommendationState & UseRecommendationA
     setCourses([]);
     setSource(null);
     setPlanningSource(null);
+    setFallbackReason(null);
     setError(null);
   }, []);
 
@@ -130,6 +146,7 @@ export function useRecommendation(): UseRecommendationState & UseRecommendationA
     courses,
     source,
     planningSource,
+    fallbackReason,
     loading,
     error,
     recommend,

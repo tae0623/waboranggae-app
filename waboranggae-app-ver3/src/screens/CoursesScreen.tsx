@@ -17,6 +17,7 @@ export function CoursesScreen({
   preferences,
   loading = false,
   error = null,
+  fallbackReason = null,
   onRetry,
   onOpenCourse,
 }: {
@@ -26,6 +27,7 @@ export function CoursesScreen({
   preferences: TravelPreferences;
   loading?: boolean;
   error?: string | null;
+  fallbackReason?: string | null;
   onRetry?: () => void;
   onOpenCourse: (course: RankedCourse) => void;
 }) {
@@ -77,7 +79,7 @@ export function CoursesScreen({
       ) : error ? (
         <Pressable style={styles.apiStatus} onPress={onRetry}>
           <Ionicons name="refresh-outline" size={17} color={colors.coral} />
-          <Text style={styles.apiStatusText}>실제 관광정보 추천을 불러오지 못해 시연 코스를 표시합니다. 눌러서 다시 시도하세요.</Text>
+          <Text style={styles.apiStatusText}>{fallbackReason || '실제 관광정보 추천을 불러오지 못했습니다. 눌러서 다시 시도하세요.'}</Text>
         </Pressable>
       ) : null}
 
@@ -123,7 +125,7 @@ export function CoursesScreen({
         <Text style={styles.noticeText}>
           {source === 'tour-api'
             ? `관광지는 한국관광공사 TourAPI에서 조회했습니다. ${routingNotice} 운영시간은 방문 전에 확인하세요.`
-            : '관광정보 연결이 원활하지 않아 시연 코스를 표시하고 있습니다. 잠시 후 다시 시도해 주세요.'}
+            : fallbackReason || 'TourAPI를 쓰지 못해 시연 코스를 표시합니다. .env의 DATA_GO_KR_KEY를 확인하세요.'}
         </Text>
       </View> : null}
     </ScrollView>
