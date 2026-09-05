@@ -15,6 +15,7 @@ import { explanationRouter } from './src/modules/explanation/routes';
 import { userRouter } from './src/modules/user/routes';
 import { authRouter } from './src/auth/routes';
 import { authenticateToken } from './src/middleware/auth';
+import { assertJwtSecrets } from './src/auth/jwt';
 import { apiLimiter, generationLimiter } from './src/middleware/rateLimiter';
 import { TourApiProvider } from './src/modules/recommendation/data/tour-api';
 import { getTmapTransitStatus, isTmapTransitConfigured } from './src/modules/recommendation/data/tmap-transit';
@@ -26,13 +27,7 @@ import { mediaRouter } from './src/modules/media/routes';
 export const app = express();
 const port = Number(process.env.PORT || 8787);
 
-if (process.env.NODE_ENV === 'production') {
-  const unsafeSecrets = [
-    process.env.JWT_SECRET,
-    process.env.JWT_REFRESH_SECRET,
-  ].some((value) => !value || value.includes('change-this') || value.includes('replace-with'));
-  if (unsafeSecrets) throw new Error('운영 환경의 JWT 비밀키를 안전한 값으로 설정해야 합니다.');
-}
+assertJwtSecrets();
 
 app.disable('x-powered-by');
 

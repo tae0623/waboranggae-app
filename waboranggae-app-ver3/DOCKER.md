@@ -25,6 +25,9 @@ cd C:\project\waboranggae-app\waboranggae-app-ver3
 copy .env.example .env
 ```
 
+`JWT_SECRET` / `JWT_REFRESH_SECRET`는 `.env`에서 읽습니다. compose에 약한 기본값을 넣지 않습니다.  
+운영으로 올릴 때는 `NODE_ENV=production`과 32자 이상 무작위 키를 쓰세요. placeholder(`change-this`, `change-in-production` 등)는 기동을 막습니다.
+
 Docker 네트워크 안에서는 compose가 `DATABASE_URL` / `OLLAMA_URL`을 컨테이너 주소로 덮어씁니다.
 
 ## 실행

@@ -1,7 +1,32 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-key-change-in-production';
+const PLACEHOLDER_MARKERS = [
+  'change-this',
+  'replace-with',
+  'change-in-production',
+  'dev-secret',
+];
+
+function isPlaceholderSecret(value: string | undefined) {
+  if (!value?.trim()) return true;
+  const normalized = value.toLowerCase();
+  return PLACEHOLDER_MARKERS.some((marker) => normalized.includes(marker));
+}
+
+/** production에서는 placeholder·짧은 키를 거부합니다. */
+export function assertJwtSecrets() {
+  const access = process.env.JWT_SECRET;
+  const refresh = process.env.JWT_REFRESH_SECRET;
+  if (process.env.NODE_ENV !== 'production') return;
+
+  const unsafe = [access, refresh].some((value) => isPlaceholderSecret(value) || (value?.length ?? 0) < 32);
+  if (unsafe) {
+    throw new Error('운영 환경의 JWT_SECRET / JWT_REFRESH_SECRET를 32자 이상의 무작위 값으로 설정해야 합니다.');
+  }
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-this-local-only';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-key-change-this-local-only';
 
 export interface JWTPayload {
   userId: string;

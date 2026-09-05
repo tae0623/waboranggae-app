@@ -28,14 +28,14 @@ services:
     ports:
       - "8787:8787"
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 8787
       DATABASE_URL: postgresql://postgres:password@db:5432/waboranggae
       OLLAMA_URL: http://ollama:11434
       OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production-12345}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-key-change-in-production-12345}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET를 .env에 설정하세요}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET를 .env에 설정하세요}
       DATA_GO_KR_KEY: ${DATA_GO_KR_KEY:-}
       TOUR_API_BASE_URL: ${TOUR_API_BASE_URL:-https://apis.data.go.kr/B551011/KorService2}
       BUS_STOP_API_BASE_URL: ${BUS_STOP_API_BASE_URL:-https://apis.data.go.kr/1613000/BusSttnInfoInqireService}
