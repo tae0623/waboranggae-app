@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Prisma
+/prisma/.env
+/prisma/.env.local
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+web/dist/
+build/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+
+# Docker
+# (compose/Dockerfiles는 커밋 대상)
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.lock
+yarn.lock
+package-lock.json

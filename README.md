@@ -1,6 +1,6 @@
 # 와보랑께
 
-전남 뚜벅이(대중교통·도보) 여행 코스를 추천하는 Expo + Express 앱입니다. **현재 작업 브랜치는 `ver3`이고, 앱 코드는 `waboranggae-app-ver3/`입니다.**
+전남 뚜벅이(대중교통·도보) 여행 코스를 추천하는 Expo + Express 앱입니다. **현재 작업 브랜치는 `ver4`이고, 앱 코드는 `waboranggae/`입니다.**
 
 - 홈에서 지역·시간·식사·관심사·걷기 강도를 고른 뒤 추천
 - 서버가 한국관광공사 TourAPI 실제 장소를 조회하고 일정을 검증
@@ -12,7 +12,7 @@ API 키는 앱에 넣지 않습니다. `DATA_GO_KR_KEY`, `TMAP_TRANSIT_API_KEY`,
 ## 실행 (로컬)
 
 ```powershell
-cd waboranggae-app-ver3
+cd waboranggae
 pnpm install
 Copy-Item .env.example .env
 # DATA_GO_KR_KEY, JWT_SECRET 등을 채웁니다.
@@ -39,7 +39,7 @@ ollama pull qwen3:8b
 ### Docker로 DB + Ollama만
 
 ```powershell
-cd waboranggae-app-ver3
+cd waboranggae
 docker compose up -d db ollama ollama-init
 pnpm server
 pnpm start
@@ -60,7 +60,7 @@ TourAPI 키가 없거나 실패하면 시연 코스로 넘어갑니다. 끄려�
 ## 구조
 
 ```text
-앱 (Expo)  --EXPO_PUBLIC_API_BASE_URL-->  Express (waboranggae-app-ver3/server)
+앱 (Expo)  --EXPO_PUBLIC_API_BASE_URL-->  Express (waboranggae/server)
                                             ├─ TourAPI / TAGO / 보관함
                                             ├─ Nominatim · TMAP Transit
                                             ├─ PostgreSQL (Prisma)
@@ -69,7 +69,7 @@ TourAPI 키가 없거나 실패하면 시연 코스로 넘어갑니다. 끄려�
 
 ```text
 waboranggae-app/                    git 루트 · 이 README
-└── waboranggae-app-ver3/           앱+서버 코드 (여기서 pnpm 실행)
+└── waboranggae/                    앱+서버 코드 (여기서 pnpm 실행)
     ├── App.tsx                     화면 전환, 추천·로그인 상태
     ├── src/
     │   ├── screens/                홈·코스·지도·내 여행·상세
@@ -121,12 +121,12 @@ waboranggae-app/                    git 루트 · 이 README
 
 ## 스토어·심사
 
-체크리스트와 스토어 문안은 [waboranggae-app-ver3/STORE.md](./waboranggae-app-ver3/STORE.md)입니다.  
-개인정보처리방침은 [waboranggae-app-ver3/PRIVACY_POLICY.md](./waboranggae-app-ver3/PRIVACY_POLICY.md)입니다.  
-보안 설계는 [waboranggae-app-ver3/docs/SECURITY.md](./waboranggae-app-ver3/docs/SECURITY.md)입니다.
+체크리스트와 스토어 문안은 [waboranggae/STORE.md](./waboranggae/STORE.md)입니다.  
+개인정보처리방침은 [waboranggae/PRIVACY_POLICY.md](./waboranggae/PRIVACY_POLICY.md)입니다.  
+보안 설계는 [waboranggae/docs/SECURITY.md](./waboranggae/docs/SECURITY.md)입니다.
 
 ```powershell
-cd waboranggae-app-ver3
+cd waboranggae
 pnpm typecheck
 pnpm test
 ```
