@@ -1,19 +1,29 @@
 import { useEffect, useState } from 'react';
-import { api } from './api';
-export function useWeather(point?: { latitude?: number; longitude?: number }) {
-  const [tip, setTip] = useState({ icon: '🌦️', condition: '현재 날씨', msg: '코스를 선택하면 출발지의 기상청 관측 날씨를 표시합니다.' });
-  useEffect(() => {
-    let active = true;
-    if (!point || point.latitude == null || point.longitude == null) { setTip({ icon: '🌦️', condition: '현재 날씨', msg: '코스를 선택하면 출발지의 기상청 관측 날씨를 표시합니다.' }); return; }
-    setTip({ icon: '🌦️', condition: '현재 날씨', msg: '기상청 관측 정보를 불러오는 중입니다.' });
-    api.weather(point.latitude, point.longitude).then(result => {
-      if (!active) return;
-      setTip(result.available ? { icon: result.condition === '강수 없음' ? '🌡️' : '🌧️',
-        condition: result.temperature + '°C · ' + result.condition,
-        msg: result.advice + ' (기상청 ' + result.observedAt + ' 관측 · 여행일 예보가 아닙니다.)',
-      } : { icon: '🌦️', condition: '날씨 확인 필요', msg: result.reason });
-    }).catch(() => { if (active) setTip({ icon: '🌦️', condition: '날씨 확인 필요', msg: '관측 정보를 불러오지 못했습니다. 출발 전 최신 예보를 확인해 주세요.' }); });
-    return () => { active = false; };
-  }, [point?.latitude, point?.longitude]);
+import { api, type RankedCourse, type TravelPreferences } from './api';
+import { minutes } from './parity';
+export function forecastWindow(course?:RankedCourse, preferences?:TravelPreferences|null) {
+  const point=course?.places[0],date=preferences?.travelDate;
+  if(!point || !date || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude))return null;
+  const start=preferences?.startTime||'10:00';
+  const total=course?.timeBreakdown?.totalMinutes ?? Math.round((course?.durationHours||6)*60);
+  const endMinute=Math.min(1439,minutes(start)+total);
+  const end=String(Math.floor(endMinute/60)).padStart(2,'0')+':'+String(endMinute%60).padStart(2,'0');
+  return {lat:point.latitude!,lng:point.longitude!,date,start,end};
+}
+export function useWeather(course?:RankedCourse, preferences?:TravelPreferences|null) {
+  const [tip,setTip]=useState({icon:'🌦️',condition:'여행일 날씨',msg:'여행 날짜와 코스를 선택해 주세요.'});
+  const window=forecastWindow(course,preferences);
+  useEffect(()=>{
+    let active=true;
+    if(!window){setTip({icon:'🌦️',condition:'여행일 날씨',msg:'여행 날짜와 코스를 선택해 주세요.'});return;}
+    setTip({icon:'🌦️',condition:window.date+' 예보',msg:'예보 확인 중…'});
+    api.forecast(window.lat,window.lng,window.date,window.start,window.end).then(result=>{
+      if(!active)return;
+      setTip(result.available?{icon:/비|눈|소나기/.test(result.condition)?'🌧️':'🌤️',condition:result.requestedDate+' · '+result.condition,
+        msg:result.minTemperature+'~'+result.maxTemperature+'°C'+(result.maxRainProbability==null?'':' · 강수확률 '+result.maxRainProbability+'%')+' · 기상청 '+result.issuedAt+' 발표',
+      }:{icon:'🌦️',condition:result.requestedDate+' 예보',msg:result.reason});
+    }).catch(()=>{if(active)setTip({icon:'🌦️',condition:window.date+' 예보',msg:'예보를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.'});});
+    return()=>{active=false;};
+  },[window?.lat,window?.lng,window?.date,window?.start,window?.end]);
   return tip;
 }

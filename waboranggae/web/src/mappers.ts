@@ -1,23 +1,12 @@
 import type { Condition, Course, Place, PlaceCat, TransitStep } from './App';
 import type { RankedCourse, TravelPreferences } from './api';
-
-const WALK_TO_PACE: Record<string, TravelPreferences['pace']> = {
-  '적게 걷기': 'easy',
-  '보통': 'balanced',
-  '많이 걷기': 'full',
-};
-
-const COMPANION_TO_API: Record<string, string> = {
-  '혼자': '혼자',
-  '친구와': '친구와 함께',
-  '연인과': '연인과 함께',
-  '가족과': '가족과 함께',
-  '부모님과': '부모님과 함께',
-  '아이와': '아이와 함께',
-};
+import { conditionError, normalizeMeals } from './parity';
+import { mediaUrl } from './runtime';
 
 const PURPOSE_TO_INTEREST: Record<string, TravelPreferences['interests'][number]> = {
   '자연·풍경': 'nature',
+  '자연 명소': 'nature',
+  '맛집 탐방': 'food',
   '맛집': 'food',
   '카페': 'cafe',
   '역사·문화': 'history',
@@ -26,10 +15,10 @@ const PURPOSE_TO_INTEREST: Record<string, TravelPreferences['interests'][number]
 };
 
 const INTEREST_TO_PURPOSE: Record<TravelPreferences['interests'][number], string> = {
-  nature: '자연·풍경',
-  food: '맛집',
+  nature: '자연 명소',
+  food: '맛집 탐방',
   cafe: '카페',
-  photo: '자연·풍경',
+  photo: '자연 명소',
   market: '시장·골목',
   history: '역사·문화',
 };
@@ -97,11 +86,12 @@ function interestsFromCondition(cond: Condition): TravelPreferences['interests']
 }
 
 export function conditionToPreferences(cond: Condition): TravelPreferences {
+  const invalid = conditionError(cond); if (invalid) throw new Error(invalid);
   const automaticMeals=cond.meals.includes('자동');
-  const meals = mealsFromCondition(cond.meals);
+  const meals = mealsFromCondition(normalizeMeals(cond));
   const interests = interestsFromCondition(cond);
-  const pace = WALK_TO_PACE[cond.walkLevel] ?? 'balanced';
-  const companions = COMPANION_TO_API[cond.companion] ?? cond.companion;
+  const pace: TravelPreferences['pace'] = cond.pace === '여유롭게' ? 'easy' : cond.pace === '알차게' ? 'full' : 'balanced';
+  const companions = '혼자';
   const durationHours = cond.endTimeLimited ? wallClockHours({...cond,endDate:cond.date}) : 6;
   const dateLabel = `${cond.date} ${cond.startTime} 시작${cond.endTimeLimited ? ` · ${cond.endTime}까지` : ''}`;
   const summary = [
@@ -109,19 +99,20 @@ export function conditionToPreferences(cond: Condition): TravelPreferences {
     dateLabel,
     cond.departure,
     cond.walkLevel,
-    companions,
+    cond.pace,
     cond.purpose.slice(0, 3).join('·'),
     meals.map((meal) => MEAL_API_TO_KO[meal]).join('·'),
-    cond.lodging ? `숙소 ${cond.lodging}` : '',
-    cond.transitModes.length ? cond.transitModes.join('/') : '',
+
   ].filter(Boolean).join(' · ');
 
   return {
     scheduleMode: 'course-first',
+    requiredContentId: cond.requiredContentId,
+    requiredPlaceName: cond.requiredPlaceName,
     timeBudgetMode: 'local',
     region: '전라남도',
     city: cond.region || '순천',
-    startLocation: cond.departure || `${cond.region || '순천'}역`,
+    startLocation: cond.departure,
     startType: inferStartType(cond.departure),
     startAddress: cond.departureAddress,
     startLatitude: cond.departureLat,
@@ -139,19 +130,14 @@ export function conditionToPreferences(cond: Condition): TravelPreferences {
     companions,
     lowMobility: cond.walkLevel === '적게 걷기',
     publicTransportOnly: true,
-    preferredTransit: cond.transitModes.length ? cond.transitModes : ['bus'],
-    lodgingName: cond.lodging || undefined,
-    lodgingAddress: cond.lodgingAddress,
-    lodgingLatitude: cond.lodgingLat,
-    lodgingLongitude: cond.lodgingLng,
+    preferredTransit: ['bus'],
     summary: summary.slice(0, 120),
     confidence: 0.8,
   };
 }
 
 export function preferencesToCondition(prefs: TravelPreferences, fallback?: Condition): Condition {
-  const walkLevel = prefs.pace === 'easy' ? '적게 걷기' : prefs.pace === 'full' ? '많이 걷기' : '보통';
-  const companion = Object.entries(COMPANION_TO_API).find(([, value]) => value === prefs.companions)?.[0] ?? prefs.companions;
+  const walkLevel = prefs.lowMobility ? '적게 걷기' : '보통';
   const meals: string[] = (prefs.meals?.length
     ? prefs.meals
     : prefs.mealPreference === 'none'
@@ -170,7 +156,9 @@ export function preferencesToCondition(prefs: TravelPreferences, fallback?: Cond
     departureLng: prefs.startLongitude,
     region: prefs.city,
     date: prefs.travelDate ?? localISODate(),
-    endDate: prefs.travelEndDate ?? prefs.travelDate ?? localISODate(),
+    endDate: prefs.travelDate ?? localISODate(),
+    requiredContentId: prefs.requiredContentId,
+    requiredPlaceName: prefs.requiredPlaceName,
     startTime: prefs.startTime,
     endTime: prefs.endTime ?? '16:00',
     endTimeLimited: Boolean(prefs.endTime),
@@ -178,18 +166,14 @@ export function preferencesToCondition(prefs: TravelPreferences, fallback?: Cond
     meal: prefs.mealPreference==='auto'&&prefs.meals===undefined ? '자동' : meals.length ? meals.join('+') : '식사 제외',
     meals: prefs.mealPreference==='auto'&&prefs.meals===undefined ? ['자동'] : meals,
     walkLevel,
-    companion,
+    companion: '혼자',
     interests: fallback?.interests ?? [],
     purpose: purpose.length ? purpose : fallback?.purpose ?? [],
     atmosphere: fallback?.atmosphere ?? [],
-    pace: fallback?.pace ?? '적당히',
+    pace: prefs.pace === 'easy' ? '여유롭게' : prefs.pace === 'full' ? '알차게' : '적당히',
     isLocal: prefs.preferLocal,
     transitOnly: prefs.publicTransportOnly,
     transitModes: prefs.preferredTransit?.length ? prefs.preferredTransit : fallback?.transitModes ?? ['bus'],
-    lodging: prefs.lodgingName,
-    lodgingAddress: prefs.lodgingAddress,
-    lodgingLat: prefs.lodgingLatitude,
-    lodgingLng: prefs.lodgingLongitude,
   };
 }
 
@@ -232,10 +216,8 @@ export function rankedToUiCourse(course: RankedCourse): Course {
   const transferCount = course.scoreFacts?.transferCount
     ?? Math.max(0, course.places.filter((place) => (place.transitMinutesFromPrevious ?? 0) > 0).length - 1);
   const walking = course.walkingScore ?? course.scoreBreakdown.walkingEase;
-  const preference = course.preferenceScore
-    ?? Math.round((course.matchedInterests.length / Math.max(course.places.length, 1)) * 100)
-    ?? course.fitScore;
-  const timeFit = course.timeFitScore ?? Math.min(100, Math.round(100 - Math.abs(course.durationHours - 6) * 6));
+  const preference = course.preferenceScore ?? 0;
+  const timeFit = course.timeFitScore ?? 0;
   const quality = course.courseQualityScore ?? course.scoreBreakdown.nearbyLinks;
   const walkMinutes = course.scoreFacts?.walkMinutes ?? course.walkMinutes;
   const stayRatio = course.scoreFacts?.stayRatio ?? 0;
@@ -265,7 +247,7 @@ export function rankedToUiCourse(course: RankedCourse): Course {
       walking >= 80 || walkMinutes <= 60 ? '적게 걷기' : '',
     ].filter(Boolean),
     reason: course.reason.summary,
-    dataSource: course.id.startsWith('tour-') || course.id.startsWith('planned-') ? 'real' : 'demo',
+    dataSource: 'real',
     routeSource: course.routeSource === 'kakao' ? 'kakao' : course.routeSource === 'mixed' ? 'mixed' : 'estimated',
     places: (() => {
       const mapped = course.places.map((place) => ({
@@ -273,6 +255,7 @@ export function rankedToUiCourse(course: RankedCourse): Course {
         category: PLACE_CAT[place.category] ?? 'culture',
         name: place.name,
         address: place.address,
+        imageUrl: mediaUrl(place.imageUrl) || undefined,
         arriveAt: place.arrival,
         stayMin: place.stayMinutes,
         description: place.description,
@@ -305,11 +288,13 @@ export function rankedToUiCourse(course: RankedCourse): Course {
       { label: '시간 적합도', value: timeFit, weight: 15 },
       { label: '코스 완성도', value: quality, weight: 10 },
     ],
-    walkBreakdown: [
-      { label: '도보 부담', stars: starsFromScore(course.walkingBreakdown?.walk ?? course.scoreBreakdown.walkingEase), detail: `총 도보 ${walkMinutes}분` },
-      { label: '대중교통 접근성', stars: starsFromScore(course.walkingBreakdown?.transit ?? course.scoreBreakdown.transitAccess), detail: stopDistance == null ? `대중교통 ${course.transitMinutes}분` : `정류장 평균 ${stopDistance}m` },
-      { label: '환승 편의성', stars: starsFromScore(course.walkingBreakdown?.transfer ?? Math.max(20, 100 - transferCount * 20)), detail: `환승 ${transferCount}회` },
-      { label: '이동 효율', stars: starsFromScore(course.walkingBreakdown?.efficiency ?? Math.round(stayRatio * 125)), detail: `체류 ${Math.round(stayRatio * 100)}% · 평균 이동 ${course.scoreFacts?.averageMoveMinutes ?? course.transitMinutes}분` },
-    ],
+    walkBreakdown: ([
+      ['walk','도보 부담',`총 도보 ${walkMinutes}분`],
+      ['transit','대중교통 접근성',stopDistance==null?'정류장 거리 미확인':`정류장 평균 ${stopDistance}m`],
+      ['time','시간 적합도','현지 일정 기준'],
+      ['transfer','환승 편의성',`환승 ${transferCount}회`],
+      ['distance','이동 거리',`${course.distanceKm}km`],
+      ['efficiency','이동 효율',`체류 ${Math.round(stayRatio*100)}%`],
+    ] as const).map(([key,label,detail])=>({label,detail,value:course.walkingBreakdown?.[key] ?? 0,stars:starsFromScore(course.walkingBreakdown?.[key] ?? 0)})),
   };
 }

@@ -1,3 +1,4 @@
+import { browserSessionCapability, browserSessionProxy } from './browser-session';
 import { isTeamWebRoute } from '../../src/domain/teamWebRoutes';
 
 export const API_BASE = 'https://drtxexwznmpmiclvrjji.supabase.co/functions/v1/waboranggae-api';
@@ -38,7 +39,7 @@ function settingsValid(env: PagesEnv) {
     && new Set([env.TEAM_WEB_PASSWORD, env.TEAM_WEB_SESSION_SECRET, env.TEAM_WEB_API_KEY]).size === 3
     && Date.parse(env.TEAM_WEB_API_EXPIRES_AT || '') > Date.now();
 }
-function decorate(response: Response, map = false, cookie?: string) {
+function decorate(response: Response, map = false, cookie?: string, browserCookie?: string) {
   const headers = new Headers(response.headers);
   headers.set('Cache-Control', 'private, no-store');
   headers.set('X-Content-Type-Options', 'nosniff');
@@ -53,6 +54,7 @@ function decorate(response: Response, map = false, cookie?: string) {
     + "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' https: data:;");
   for (const name of ['access-control-allow-origin', 'access-control-allow-credentials', 'server', 'x-powered-by', 'set-cookie']) headers.delete(name);
   if (cookie) headers.set('Set-Cookie', `${COOKIE}=${cookie}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
+  if (browserCookie) headers.append('Set-Cookie',browserCookie);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 function error(status: number, message: string, challenge = false) {
@@ -126,7 +128,9 @@ export async function handlePagesRequest(request: Request, env: PagesEnv, upstre
     const response = await env.ASSETS.fetch(new Request(url.href, { method: request.method }));
     return decorate(response, false, admission.cookie);
   }
-  if (!isTeamWebRoute(request.method, url.pathname)) return error(404, '허용되지 않은 API 경로입니다.');
+  const browserSession = url.pathname === '/auth/web-session' && ['GET','POST','DELETE'].includes(request.method);
+  if (browserSession && request.method === 'GET') return decorate(await browserSessionCapability(request,env),false,admission.cookie);
+  if (!browserSession && !isTeamWebRoute(request.method, url.pathname)) return error(404, '허용되지 않은 API 경로입니다.');
   const contentType = request.headers.get('content-type') || '';
   if (request.body && !/^application\/json(?:\s*;|$)/i.test(contentType)) return error(415, 'JSON 요청만 지원합니다.');
   if (request.headers.has('content-encoding') && request.headers.get('content-encoding') !== 'identity') return error(415, '압축된 요청은 지원하지 않습니다.');
@@ -137,9 +141,7 @@ export async function handlePagesRequest(request: Request, env: PagesEnv, upstre
   if (auth?.startsWith('Bearer ') && auth.length <= 16384) headers.set('Authorization', auth);
   if (body !== undefined) headers.set('Content-Type', 'application/json');
   try {
-    const response = await upstream(API_BASE + url.pathname + url.search, {
-      method: request.method, headers, body, redirect: 'manual', signal: AbortSignal.timeout(140_000),
-    });
+    const response = await browserSessionProxy(request,env,url.pathname,body,headers,upstream,API_BASE);
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel(); return error(502, '서버의 예상하지 못한 이동 응답을 차단했습니다.');
     }
@@ -152,7 +154,7 @@ export async function handlePagesRequest(request: Request, env: PagesEnv, upstre
     for (const name of ['retry-after', 'ratelimit-limit', 'ratelimit-remaining', 'ratelimit-reset']) {
       const value = response.headers.get(name); if (value) outputHeaders.set(name, value);
     }
-    return decorate(new Response(response.body, { status: response.status, headers: outputHeaders }), url.pathname === '/maps/embed', admission.cookie);
+    return decorate(new Response(response.body, { status: response.status, headers: outputHeaders }), url.pathname === '/maps/embed', admission.cookie, request.headers.get('x-web-session')==='cookie'||browserSession ? response.headers.get('set-cookie')||undefined : undefined);
   } catch { return error(502, '서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.'); }
 }
 // Cloudflare supplies an ExecutionContext as its third argument, not a fetcher.

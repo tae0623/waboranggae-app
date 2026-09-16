@@ -6,6 +6,22 @@ const REFRESH_KEY = 'waboranggae.refreshToken';
 let nativeTokens: { access: string; refresh: string } | null = null;
 let sessionVersion = 0;
 let refreshInFlight: Promise<string | null> | null = null;
+let browserSessionSupported=false;
+let autoLogin=false;
+let browserRestoreInFlight:Promise<boolean>|null=null;
+export function setAutoLogin(value:boolean){autoLogin=value;}
+export async function browserSessionStatus(){
+  if(getWebRuntime().nativeRequest || getWebRuntime().apiBaseUrl)return {supported:false,persistent:false};
+  try{const response=await apiFetch('/auth/web-session',{method:'GET'},10000);const result=await response.json();browserSessionSupported=response.ok&&result.supported===true;return {supported:browserSessionSupported,persistent:result.persistent===true};}catch{return {supported:false,persistent:false};}
+}
+export function restoreBrowserLogin(){
+  if(browserRestoreInFlight)return browserRestoreInFlight;
+  const version=tokenStore.version();
+  browserRestoreInFlight=(async()=>{const status=await browserSessionStatus();if(!status.supported||!status.persistent||version!==tokenStore.version())return false;
+    const result=await request<{accessToken:string;refreshToken:string}>('/auth/web-session',{method:'POST',body:{},auth:false});
+    if(version!==tokenStore.version())return false;await tokenStore.set(result.accessToken,result.refreshToken);return true;
+  })().finally(()=>{browserRestoreInFlight=null;});return browserRestoreInFlight;
+}
 
 function refreshSession(headers: Record<string, string>, signal: AbortSignal): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight;
@@ -50,6 +66,7 @@ export const tokenStore = {
     if (!refreshOnly) sessionVersion++;
   },
   async clear() {
+    const clearCookie=browserSessionSupported||tokenStore.getRefresh()==='__httpOnly';
     sessionVersion++;
     nativeTokens = null;
     if (!getWebRuntime().persistSession) {
@@ -57,6 +74,7 @@ export const tokenStore = {
       sessionStorage.removeItem(REFRESH_KEY);
     }
     await getWebRuntime().persistSession?.(null);
+    if(clearCookie)await apiFetch('/auth/web-session',{method:'DELETE',headers:{'X-Web-Session':'cookie'}},10000).catch(()=>undefined);
   },
 };
 
@@ -67,6 +85,7 @@ async function request<T>(path: string, options: {
   timeoutMs?: number;
 } = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if(browserSessionSupported||tokenStore.getRefresh()==='__httpOnly'){headers['X-Web-Session']='cookie';headers['X-Web-Auto-Login']=autoLogin?'1':'0';}
   if (getWebRuntime().devAccessKey) headers['X-Dev-Access-Key'] = getWebRuntime().devAccessKey!;
   const access = tokenStore.getAccess();
   if (options.auth !== false && access) headers.Authorization = `Bearer ${access}`;
@@ -132,6 +151,8 @@ export interface AuthResponse {
 
 export interface TravelPreferences {
   scheduleMode?: 'fixed' | 'course-first';
+  requiredContentId?: string;
+  requiredPlaceName?: string;
   timeBudgetMode?: 'local' | 'door-to-door';
   region: string;
   city: string;
@@ -218,6 +239,10 @@ export interface HotPlace {
   isTrending?: boolean;
   source?: 'demand' | 'visitors' | 'festival' | 'tour-api';
   address?: string;
+  eventStartDate?: string;
+  eventEndDate?: string;
+  imageCredit?: string;
+  imageContentId?: string;
   periodLabel?: string;
   periodShort?: string;
   statusLabel?: string;
@@ -233,7 +258,12 @@ export interface HotPlace {
   homepage?: string;
 }
 
+export type ForecastResult = {available:false;source:'kma';requestedDate:string;reason:string;code:string}
+  | {available:true;source:'kma';requestedDate:string;issuedAt:string;condition:string;minTemperature:number;maxTemperature:number;maxRainProbability:number|null;hours:{time:string;temperature:number;condition:string;rainProbability:number|null}[]};
+
 export const api = {
+  refreshRoute: (preferences: TravelPreferences, course: RankedCourse) => request<{course:RankedCourse}>('/api/recommend/refresh-route', {method:'POST',body:{preferences,courseId:course.id,placeIds:course.places.map(p=>p.id)},timeoutMs:130000}),
+  forecast: (lat:number,lng:number,date:string,startTime:string,endTime:string) => request<ForecastResult>('/api/weather/forecast?' + new URLSearchParams({lat:String(lat),lng:String(lng),date,startTime,endTime}),{auth:false,timeoutMs:15000}),
   editCourse: (preferences: TravelPreferences, courseId: string, placeIds: string[]) =>
     request<{ course: RankedCourse }>('/api/recommend/edit', { method: 'POST', body: { preferences, courseId, placeIds }, timeoutMs: 130000 }),
   socialProviders: () => request<{ providers: Array<{ id: string; enabled: boolean; reason: string }> }>('/auth/social/providers', { auth: false }),
@@ -249,7 +279,7 @@ export const api = {
     request<AuthResponse>('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
   signup: (email: string, displayName: string, password: string) =>
     request<AuthResponse>('/auth/signup', { method: 'POST', body: { email, displayName, password, privacyConsent: true, consentVersion: PRIVACY_NOTICE_VERSION }, auth: false }),
-  logout: () => request('/auth/logout', { method: 'POST' }).catch(() => undefined),
+  logout: () => request('/auth/logout/current', { method: 'POST', body: {refreshToken:tokenStore.getRefresh()} }),
   me: () => request<AuthUser>('/api/user/me'),
   updateProfile: (displayName: string) =>
     request<AuthUser>('/api/user/profile', { method: 'PATCH', body: { displayName } }),
