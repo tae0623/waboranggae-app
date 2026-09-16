@@ -7,10 +7,11 @@ import { generateTokenPair } from './jwt';
 import { consentSchema, PRIVACY_NOTICE_VERSION } from '../privacy';
 import { flowStore } from './flow-store';
 import { EDGE_PUBLIC_PATH } from '../runtime/edge-path';
+import { socialReturnUrl, type SocialClient } from '../../../src/domain/socialReturn';
 
 type Provider = 'kakao' | 'google';
 type PendingIdentity = { subject: string; name: string };
-type Flow = { provider: Provider; secretHash: string; expires: number; stage: 'pending' | 'exchanging' | 'consent' | 'complete' | 'failed'; userId?: string; identity?: PendingIdentity; verifier: string; redirectUri: string };
+type Flow = { provider: Provider; client?: SocialClient; secretHash: string; expires: number; stage: 'pending' | 'exchanging' | 'consent' | 'complete' | 'failed'; userId?: string; identity?: PendingIdentity; verifier: string; redirectUri: string };
 const hash = (value: string) => createHash('sha256').update(value).digest();
 export function socialConfiguration(provider: Provider) {
   const prefix = provider.toUpperCase();
@@ -26,12 +27,12 @@ export function socialConfiguration(provider: Provider) {
     :'이 서버의 소셜 로그인이 비활성화되어 있습니다.';
   return { clientId, clientSecret, redirectUri: base + '/auth/social/' + provider + '/callback', enabled, reason };
 }
-export async function createSocialFlow(provider: Provider) {
+export async function createSocialFlow(provider: Provider, client: SocialClient = 'legacy') {
   const config = socialConfiguration(provider);
   if (!config.enabled) throw new Error('소셜 로그인 설정이 아직 완료되지 않았습니다.');
   const flowId = randomBytes(32).toString('hex'), pollSecret = randomBytes(32).toString('hex'), verifier = randomBytes(32).toString('base64url');
   const expires = Date.now() + 5 * 60_000;
-  await flowStore.create(flowId, { provider, secretHash: hash(pollSecret).toString('hex'), expires, stage: 'pending', verifier, redirectUri: config.redirectUri }, new Date(expires));
+  await flowStore.create(flowId, { provider, client, secretHash: hash(pollSecret).toString('hex'), expires, stage: 'pending', verifier, redirectUri: config.redirectUri }, new Date(expires));
   const url = new URL(provider === 'kakao' ? 'https://kauth.kakao.com/oauth/authorize' : 'https://accounts.google.com/o/oauth2/v2/auth');
   url.search = new URLSearchParams({ client_id: config.clientId, redirect_uri: config.redirectUri, response_type: 'code', state: flowId,
     ...(provider === 'google' ? { scope: 'openid profile', code_challenge: hash(verifier).toString('base64url'), code_challenge_method: 'S256' } : {}),
@@ -94,21 +95,23 @@ socialRouter.get('/providers', (_req, res) => res.json({ providers: (['kakao','g
   const {enabled,reason}=socialConfiguration(id);return {id,enabled,reason};
 }) }));
 socialRouter.post('/:provider/start', startLimiter, async (req, res, next) => {
-  try { const provider = z.enum(['kakao', 'google']).parse(req.params.provider); res.setHeader('Cache-Control', 'no-store'); res.json(await createSocialFlow(provider)); }
+  try { const provider = z.enum(['kakao', 'google']).parse(req.params.provider);
+    const { client } = z.object({ client: z.enum(['web','android','legacy']).default('legacy') }).strict().parse(req.body || {});
+    res.setHeader('Cache-Control', 'no-store'); res.json(await createSocialFlow(provider, client)); }
   catch (error) { next(error); }
 });
 socialRouter.get('/:provider/callback', async (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Referrer-Policy', 'no-referrer');
   const parsed = z.object({ state: z.string().regex(/^[a-f0-9]{64}$/), code: z.string().min(1).max(4096).optional(), error: z.string().max(200).optional() }).safeParse(req.query);
-  if (!parsed.success) { res.status(400).type('text').send('잘못된 로그인 요청입니다.'); return; }
+  if (!parsed.success) { res.redirect(303, socialReturnUrl('legacy', 'expired')); return; }
   let stored;
   try { stored = await flowStore.get<Flow>(parsed.data.state); } catch(error) { next(error); return; }
   const flow = stored?.value;
-  if (!stored || !flow || flow.expires <= Date.now() || flow.stage !== 'pending' || flow.provider !== req.params.provider) { res.status(400).type('text').send('로그인 요청이 만료되었거나 이미 처리되었습니다. 앱에서 다시 시작해 주세요.'); return; }
+  if (!stored || !flow || flow.expires <= Date.now() || flow.stage !== 'pending' || flow.provider !== req.params.provider) { res.redirect(303, socialReturnUrl('legacy', 'expired')); return; }
   try {
     flow.stage = 'exchanging';
-    if (!await flowStore.update(parsed.data.state, stored.revision, flow)) { res.status(409).type('text').send('이미 처리 중인 로그인입니다. 앱으로 돌아가 주세요.'); return; }
+    if (!await flowStore.update(parsed.data.state, stored.revision, flow)) { res.redirect(303, socialReturnUrl(flow.client, 'expired')); return; }
     if (!parsed.data.code || parsed.data.error) throw new Error('Authorization cancelled');
     const identity = await identityForCode(flow.provider, parsed.data.code, flow);
     const existing = await prisma.oAuthIdentity.findUnique({ where: { provider_subject: { provider: flow.provider, subject: identity.subject } }, include: { user: true } });
@@ -117,9 +120,11 @@ socialRouter.get('/:provider/callback', async (req, res, next) => {
     if (existing) { flow.userId = existing.userId; flow.stage = 'complete'; }
     else { flow.identity = identity; flow.stage = 'consent'; }
     if (!await flowStore.update(parsed.data.state, stored.revision + 1, flow)) throw new Error('OAuth request expired');
-    if (process.env.API_RUNTIME === 'supabase-edge') res.type('text').send('뚜버기 로그인 인증이 완료되었습니다.\n이 창을 닫고 뚜버기 앱으로 돌아가 주세요.');
-    else res.type('html').send('<!doctype html><html lang="ko"><meta name="viewport" content="width=device-width"><meta charset="utf-8"><title>뚜버기 로그인</title><body><h1>로그인이 완료되었습니다.</h1><p>이 창을 닫고 뚜버기 앱으로 돌아가 주세요.</p></body></html>');
-  } catch { flow.stage = 'failed'; await flowStore.update(parsed.data.state, stored.revision + 1, flow).catch(()=>false); res.status(400).type('text').send('로그인을 완료하지 못했습니다. 앱으로 돌아가 다시 시도해 주세요.'); }
+    // Supabase serves GET HTML as plain text. Redirect to a static branded page;
+    // keep every authentication credential and provider response on this server.
+    res.redirect(303, socialReturnUrl(flow.client, 'ready'));
+  } catch { flow.stage = 'failed'; await flowStore.update(parsed.data.state, stored.revision + 1, flow).catch(()=>false);
+    res.redirect(303, socialReturnUrl(flow.client, parsed.data.error ? 'cancelled' : 'failed')); }
 });
 socialRouter.post('/consent', async (req, res, next) => {
   try {

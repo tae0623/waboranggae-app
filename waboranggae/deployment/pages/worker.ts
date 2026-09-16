@@ -1,5 +1,7 @@
 import { browserSessionCapability, browserSessionProxy } from './browser-session';
 import { isTeamWebRoute } from '../../src/domain/teamWebRoutes';
+import { SOCIAL_RETURN_ORIGIN, SOCIAL_RETURN_PATH } from '../../src/domain/socialReturn';
+import { socialCompletionPage } from './social-completion';
 
 export const API_BASE = 'https://drtxexwznmpmiclvrjji.supabase.co/functions/v1/waboranggae-api';
 const COOKIE = '__Host-ddubugi_team';
@@ -105,11 +107,14 @@ async function readBoundedBody(request: Request) {
   return bytes.buffer;
 }
 export async function handlePagesRequest(request: Request, env: PagesEnv, upstream: Fetcher = fetch) {
-  if (!settingsValid(env)) return error(503, '팀 웹 접속 설정을 준비 중입니다.');
   const url = new URL(request.url);
+  if (request.url.length > 16384) return error(414, '요청 주소가 너무 깁니다.');
+  // Exactly one credential-free landing page is public on the canonical host.
+  // It never reaches ASSETS/upstream or grants a team/account session.
+  if (url.origin === SOCIAL_RETURN_ORIGIN && url.pathname === SOCIAL_RETURN_PATH && ['GET','HEAD'].includes(request.method)) return socialCompletionPage(request);
+  if (!settingsValid(env)) return error(503, '팀 웹 접속 설정을 준비 중입니다.');
   // Preview deployments cannot use production bindings on another hostname.
   if (url.origin !== env.TEAM_WEB_ORIGIN) return error(403, '등록된 팀 웹 주소로 접속해 주세요.');
-  if (request.url.length > 16384) return error(414, '요청 주소가 너무 깁니다.');
   const topNavigation = request.method === 'GET' && request.headers.get('sec-fetch-mode') === 'navigate'
     && request.headers.get('sec-fetch-dest') === 'document';
   if (request.headers.get('sec-fetch-site') === 'cross-site' && !topNavigation) return error(403, '다른 사이트에서의 요청은 허용하지 않습니다.');

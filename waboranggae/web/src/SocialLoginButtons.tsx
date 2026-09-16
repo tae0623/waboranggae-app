@@ -16,7 +16,7 @@ export function SocialLoginButtons({ onAuthenticated }: { onAuthenticated: (resu
     if (!flow || needsConsent) return;
     let active = true, running = false;
     const deadline = Date.now() + 5 * 60_000;
-    const timer = setInterval(async () => {
+    const poll = async () => {
       if (running || !active) return;
       if (Date.now() > deadline) { setFlow(null); setMessage('로그인 시간이 만료되었습니다. 다시 시작해 주세요.'); return; }
       running = true;
@@ -26,14 +26,23 @@ export function SocialLoginButtons({ onAuthenticated }: { onAuthenticated: (resu
         if (active && result.status === 'complete') { clearInterval(timer); setFlow(null); await authenticated.current(result); }
       } catch (error) { if (active) { setFlow(null); setMessage(error instanceof Error ? error.message : '로그인 실패'); } }
       finally { running = false; }
-    }, 3000);
-    return () => { active = false; clearInterval(timer); };
+    };
+    const timer = setInterval(() => void poll(), 3000);
+    const onReturn = () => void poll();
+    window.addEventListener('focus', onReturn);
+    let channel: BroadcastChannel | undefined;
+    try { channel = new BroadcastChannel('ddubugi-social-return');
+      // This is only a wake-up signal. The polling secret and server response
+      // remain mandatory; a completion page cannot sign the browser in.
+      channel.onmessage = event => { if (event.data === 'check-pending-login') void poll(); };
+    } catch { /* Polling also works without BroadcastChannel. */ }
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', onReturn); channel?.close(); };
   }, [flow, needsConsent]);
   async function start(id: 'kakao' | 'google') {
     const config = providers.find(item => item.id === id);
     if (!config?.enabled) { setMessage(config?.reason || '서버의 소셜 로그인 설정 확인이 필요합니다.'); return; }
     setBusy(true); setMessage('');
-    try { setFlow(await api.socialStart(id)); setMessage('인증 창에서 로그인한 뒤 이 앱으로 돌아오세요.'); }
+    try { setFlow(await api.socialStart(id)); setMessage('인증 창에서 로그인을 진행해 주세요.'); }
     catch (error) { setMessage(error instanceof Error ? error.message : '로그인 시작 실패'); }
     finally { setBusy(false); }
   }

@@ -96,10 +96,10 @@ class AccountViewModel(private val repository:TravelRepository):ViewModel() {
     fun social(provider:String) {
         task {
             require(provider in listOf("google","kakao"))
-            val flow=repository.api("/auth/social/$provider/start","POST",buildJsonObject{}).jsonObject
+            val flow=repository.api("/auth/social/$provider/start","POST",buildJsonObject{put("client","android")}).jsonObject
             val url=java.net.URI(flow.text("authorizationUrl"))
             require(url.scheme=="https" && url.host==if(provider=="google")"accounts.google.com" else "kauth.kakao.com") {"로그인 주소를 확인하지 못했습니다."}
-            mutable.update{it.copy(authorizationUrl=url.toString(),message="인증 창에서 로그인한 뒤 앱으로 돌아와 주세요.")}
+            mutable.update{it.copy(authorizationUrl=url.toString(),message="인증 창에서 로그인을 진행해 주세요.")}
             repeat(100){
                 delay(3000)
                 val result=repository.api("/auth/social/result","POST",buildJsonObject{put("flowId",flow.text("flowId"));put("pollSecret",flow.text("pollSecret"))}).jsonObject

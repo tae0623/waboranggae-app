@@ -56,16 +56,18 @@ function card(p,label){
   return box;
 }
 function fallback(text){
+  clearTimeout(timer);
   document.getElementById('message').textContent=text;document.getElementById('map').style.display='none';document.getElementById('source').style.display='none';
   const list=document.getElementById('fallback');list.style.display='block';list.replaceChildren();
+  if(origin)list.appendChild(card(origin,'출발 · '+origin.name));
   places.forEach((p,i)=>list.appendChild(card(p,(i+1)+'. '+p.name)));
 }
 let ready=false;
 const timer=setTimeout(()=>{if(!ready)fallback('지도를 불러오지 못했습니다. 장소 정보와 카카오맵 바로가기를 이용해 주세요.');},12000);
 function init(){
  try{
-  if(!places.length){fallback('좌표가 있는 관광지가 없습니다.');return;}
-  ready=true;clearTimeout(timer);document.getElementById('message').style.display='none';
+  if(!origin&&!places.length){fallback('지도에 표시할 장소를 선택해 주세요.');return;}
+  document.getElementById('message').style.display='none';
   document.getElementById('fallback').style.display='none';document.getElementById('map').style.display='block';document.getElementById('source').style.display='block';
   const point=p=>new kakao.maps.LatLng(p.latitude,p.longitude);
   const map=new kakao.maps.Map(document.getElementById('map'),{center:point(origin||places[0]),level:5});
@@ -87,14 +89,16 @@ function init(){
   }
   if(origin)marker(origin,'출발 · '+origin.name,'출','origin');
   places.forEach((p,i)=>marker(p,(i+1)+'. '+p.name,String(i+1),''));
-  (data.conveniences||[]).filter(valid).forEach(p=>marker(p,'물품보관함 · '+p.name,'짐','locker'));
+  (Array.isArray(data.conveniences)?data.conveniences:[]).filter(valid).forEach(p=>marker(p,'물품보관함 · '+p.name,'짐','locker'));
   const points=[...(origin?[origin]:[]),...places];
-  const lines=data.routeSegments?.length?data.routeSegments:[{source:'estimated',geometry:points}];
+  const lines=Array.isArray(data.routeSegments)&&data.routeSegments.length?data.routeSegments:[{source:'estimated',geometry:points}];
   lines.forEach(line=>{const coords=(line.geometry||[]).filter(valid);if(coords.length<2)return;
     const live=line.source==='kakao';
     new kakao.maps.Polyline({map,path:coords.map(point),strokeWeight:5,strokeColor:live?'#0D5C45':'#85968c',strokeOpacity:0.85,strokeStyle:live?'solid':'shortdash'});});
-  map.setBounds(bounds,35,35,35,35);
-  window.addEventListener('resize',()=>{map.relayout();map.setBounds(bounds,35,35,35,35)});
+  // A single departure marker needs a useful street-scale zoom, not empty bounds.
+  const fit=()=>{if(points.length>1)map.setBounds(bounds,35,35,35,35);else{map.setCenter(point(points[0]));map.setLevel(4);}};
+  fit();ready=true;clearTimeout(timer);
+  window.addEventListener('resize',()=>{map.relayout();fit()});
  }catch{fallback('카카오 지도 설정을 확인해 주세요. 카카오맵 바로가기는 계속 사용할 수 있습니다.');}
 }
 if(!${safeKey}){clearTimeout(timer);fallback('카카오 지도 키 설정 대기 중 · 장소 정보와 바로가기를 이용할 수 있습니다.');}

@@ -270,7 +270,7 @@ export const api = {
   editCourse: (preferences: TravelPreferences, courseId: string, placeIds: string[]) =>
     request<{ course: RankedCourse }>('/api/recommend/edit', { method: 'POST', body: { preferences, courseId, placeIds }, timeoutMs: 130000 }),
   socialProviders: () => request<{ providers: Array<{ id: string; enabled: boolean; reason: string }> }>('/auth/social/providers', { auth: false }),
-  socialStart: (provider: 'kakao' | 'google') => request<{ flowId: string; pollSecret: string; authorizationUrl: string }>(`/auth/social/${provider}/start`, { method: 'POST', auth: false, body: {} }),
+  socialStart: (provider: 'kakao' | 'google') => request<{ flowId: string; pollSecret: string; authorizationUrl: string }>(`/auth/social/${provider}/start`, { method: 'POST', auth: false, body: { client: 'web' } }),
   socialResult: (flowId: string, pollSecret: string) => request<({ status: 'pending' | 'consent_required' } | (AuthResponse & { status: 'complete' }))>('/auth/social/result', { method: 'POST', auth: false, body: { flowId, pollSecret } }),
   socialConsent: (flowId: string, pollSecret: string) => request('/auth/social/consent', { method: 'POST', auth: false, body: { flowId, pollSecret, privacyConsent: true, consentVersion: PRIVACY_NOTICE_VERSION } }),
   acceptPrivacy: () => request<AuthUser>('/auth/consent', { method: 'POST', body: { privacyConsent: true, consentVersion: PRIVACY_NOTICE_VERSION } }),

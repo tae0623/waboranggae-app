@@ -29,7 +29,7 @@ beforeEach(()=>{
   vi.stubGlobal('fetch',vi.fn(async(url:any)=>new Response(JSON.stringify(String(url).includes('/token')?{access_token:'fixture-provider-token'}:{sub:'fixture-subject',name:'가상 계정'}),{status:200})));
 });
 async function send(path:string,body?:any,auth=false){const r=await httpFetch(base+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(auth?{Authorization:'Bearer fixture-access'}:{})},body:body?JSON.stringify(body):undefined});return {status:r.status,body:await r.json()};}
-async function socialCallback(flowId:string){return httpFetch(base+'/auth/social/google/callback?state='+flowId+'&code=fixture-code');}
+async function socialCallback(flowId:string){return httpFetch(base+'/auth/social/google/callback?state='+flowId+'&code=fixture-code',{redirect:'manual'});}
 describe('이메일·소셜 최초 동의 API 계약',()=>{
   it('비공개 계정 테스트도 JWT를 대체하지 않고 콜백은 일회성 state로 검증한다',async()=>{
     vi.stubEnv('API_RUNTIME','supabase-edge');vi.stubEnv('EDGE_VALIDATION_MODE','true');
@@ -39,12 +39,14 @@ describe('이메일·소셜 최초 동의 API 계약',()=>{
     const headers={'Content-Type':'application/json','X-Dev-Access-Key':token};
     expect((await httpFetch(base+'/auth/consent',{method:'POST',headers,body:'{}'})).status).toBe(401);
     expect((await httpFetch(base+'/auth/social/google/start',{method:'POST'})).status).toBe(403);
-    expect((await httpFetch(base+'/auth/social/google/callback?state='+('f'.repeat(64))+'&code=fixture')).status).toBe(400);
+    const unknown=await httpFetch(base+'/auth/social/google/callback?state='+('f'.repeat(64))+'&code=fixture',{redirect:'manual'});
+    expect(unknown.status).toBe(303);expect(unknown.headers.get('location')).toContain('result=expired');
     const started=await httpFetch(base+'/auth/social/google/start',{method:'POST',headers,body:'{}'});expect(started.status).toBe(200);
     const flow=await started.json() as {flowId:string;pollSecret:string};
-    expect((await httpFetch(base+'/auth/social/kakao/callback?state='+flow.flowId+'&code=fixture')).status).toBe(400);
-    expect((await socialCallback(flow.flowId)).status).toBe(200);
-    expect((await socialCallback(flow.flowId)).status).toBe(400);
+    const mismatch=await httpFetch(base+'/auth/social/kakao/callback?state='+flow.flowId+'&code=fixture',{redirect:'manual'});
+    expect(mismatch.status).toBe(303);expect(mismatch.headers.get('location')).toContain('result=expired');
+    expect((await socialCallback(flow.flowId)).headers.get('location')).toContain('result=ready');
+    expect((await socialCallback(flow.flowId)).headers.get('location')).toContain('result=expired');
     expect((await httpFetch(base+'/auth/social/result',{method:'POST',headers,body:JSON.stringify({flowId:flow.flowId,pollSecret:'x'.repeat(64)})})).status).toBe(400);
     const poll=await httpFetch(base+'/auth/social/result',{method:'POST',headers,body:JSON.stringify(flow)});
     expect(poll.status).toBe(200);expect((await poll.json() as {status:string}).status).toBe('consent_required');expect(state.creates).toBe(0);
@@ -57,7 +59,7 @@ describe('이메일·소셜 최초 동의 API 계약',()=>{
     const again=await send('/auth/consent',{privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION},true);expect(again.body.consentedAt).toBe(accepted.body.consentedAt);expect(state.updates).toBe(1);
   });
   it('신규 소셜 계정은 동의 전 DB 등록/토큰 발급이 없고 동의 후 한 번만 결과를 받는다',async()=>{
-    const flow=await createSocialFlow('google');expect((await socialCallback(flow.flowId)).status).toBe(200);
+    const flow=await createSocialFlow('google');expect((await socialCallback(flow.flowId)).status).toBe(303);
     const identity={flowId:flow.flowId,pollSecret:flow.pollSecret};const pending=await send('/auth/social/result',identity);expect(pending.body.status).toBe('consent_required');expect(pending.body.accessToken).toBeUndefined();expect(state.creates).toBe(0);
     expect((await send('/auth/social/consent',identity)).status).toBe(400);expect(state.creates).toBe(0);
     expect((await send('/auth/social/consent',{...identity,pollSecret:'x'.repeat(64),privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION})).status).toBe(400);
@@ -83,5 +85,26 @@ describe('이메일·소셜 최초 동의 API 계약',()=>{
   });
   it('동의가 오래된 소셜 계정도 계정 삭제를 위한 인증은 허용한다',async()=>{
     state.existing=true;const flow=await createSocialFlow('google');await socialCallback(flow.flowId);const r=await send('/auth/social/result',{flowId:flow.flowId,pollSecret:flow.pollSecret});expect(r.body.status).toBe('complete');expect(r.body.user.consentVersion).toBeNull();expect(state.updates).toBe(0);
+  });
+  it.each(['web','android'] as const)('returns %s to the fixed branded page without credentials',async client=>{
+    const flow=await createSocialFlow('google',client);const r=await socialCallback(flow.flowId);
+    expect(r.status).toBe(303);
+    expect(r.headers.get('location')).toBe('https://waboranggae-app.pages.dev/auth/complete?client='+client+'&result=ready');
+    expect(r.headers.get('referrer-policy')).toBe('no-referrer');expect(r.headers.get('cache-control')).toBe('no-store');
+    const output=r.headers.get('location')!+await r.text();
+    for(const secret of [flow.flowId,flow.pollSecret,'fixture-code','fixture-provider-token'])expect(output).not.toContain(secret);
+    expect(state.creates).toBe(0);
+    expect((await send('/auth/social/result',{flowId:flow.flowId,pollSecret:'wrong'.repeat(13).slice(0,64)})).status).toBe(400);
+  });
+  it('cancellation uses a branded failure state, never creates an account or calls the provider',async()=>{
+    const flow=await createSocialFlow('google','web');
+    const r=await httpFetch(base+'/auth/social/google/callback?state='+flow.flowId+'&error=access_denied',{redirect:'manual'});
+    expect(r.headers.get('location')).toContain('result=cancelled');expect(state.creates).toBe(0);expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect((await send('/auth/social/result',{flowId:flow.flowId,pollSecret:flow.pollSecret})).status).toBe(400);
+  });
+  it('rejects caller-selected redirect addresses and invalid client types',async()=>{
+    for(const body of [{client:'web',returnUrl:'https://attacker.example'},{client:'https://attacker.example'}]){
+      expect((await send('/auth/social/google/start',body)).status).toBe(400);
+    }
   });
 });
