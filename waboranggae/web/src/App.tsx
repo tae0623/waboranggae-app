@@ -6,6 +6,7 @@ import { useWeather } from './useWeather'
 import { SocialLoginButtons } from './SocialLoginButtons'
 import { AccountActions } from './AccountActions'
 import { PrivacyConsent } from './PrivacyConsent'
+import brandMark from './assets/brand-mark.svg'
 import { ACCOUNT_CONSENT_TEXT, needsPrivacyConsent } from '../../src/domain/privacyNotice'
 
 // ── Design tokens (clean white-first, reference-matched) ──────────────────────
@@ -1430,7 +1431,7 @@ function HomeScreen({ onPlan, courses }: { onPlan: (seed?: Partial<Condition>) =
         {/* 앱 로고 */}
         <div style={{ position: 'absolute', top: 52, left: 20, right: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🚶</div>
+            <img data-testid="home-brand-mark" src={brandMark} alt="전남 지도를 걷는 사람" width={40} height={40} style={{ display: 'block', borderRadius: 12, background: '#F0FDF4', flexShrink: 0 }} />
             <span style={{ fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", letterSpacing: '-0.02em' }}>뚜버기</span>
           </div>
           <button aria-label="알림 준비 상태" onClick={()=>window.alert('푸시 알림은 아직 제공하지 않습니다. 여행 정보는 앱에서 직접 확인해 주세요.')} style={{ width: 38, height: 38, borderRadius: L.rFull, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
