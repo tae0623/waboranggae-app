@@ -37,7 +37,8 @@ class TravelViewModelTest {
             requests++
             requestedPreferences.add(preferences)
             if(failure) throw ApiFailure("네트워크 오류")
-            return Json{ignoreUnknownKeys=true}.decodeFromString(javaClass.getResourceAsStream("/recommend-response.json")!!.bufferedReader().use{it.readText()})
+            val payload=Json{ignoreUnknownKeys=true}.decodeFromString<RecommendPayload>(javaClass.getResourceAsStream("/recommend-response.json")!!.bufferedReader().use{it.readText()})
+            return payload.copy(courses=payload.courses.map{c->c.copy(id=c.id+"-"+preferences.travelDate,places=c.places.map{it.copy(id=it.id+"-"+preferences.travelDate,name=it.name+"-"+preferences.travelDate)})})
         }
         override fun imageUrl(value:String?)=value
     }
@@ -169,17 +170,21 @@ class TravelViewModelTest {
         assertFalse(vm.state.value.weather!!["available"]!!.jsonPrimitive.boolean)
         assertFalse(vm.state.value.weatherLoading)
     }
-    @Test fun nextDayIsLazyIndependentAndCachedAndLogoutClearsIt()=runTest {
+    @Test fun allDaysAreGeneratedAtOnceIndependentAndExcludedAndLogoutClearsIt()=runTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
         vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2026-10-01",endDate="2026-10-03")}
-        vm.recommend();advanceUntilIdle();assertEquals(1,repo.requests)
+        vm.recommend();advanceUntilIdle();assertEquals(3,repo.requests)
+        assertEquals(3,vm.state.value.tripDays.size);assertEquals(3,vm.state.value.courses.size)
         val local=requireNotNull(vm.state.value.courses.first().origin)
-        vm.confirmTravel(vm.state.value.courses.first().id);advanceUntilIdle();assertNotNull(vm.state.value.confirmedId)
-        vm.selectDay("2026-10-02");advanceUntilIdle()
-        val second=repo.requestedPreferences.last();assertEquals(2,repo.requests)
+        val second=repo.requestedPreferences[1];val third=repo.requestedPreferences[2]
         assertEquals("2026-10-02",second.travelDate);assertEquals(second.travelDate,second.travelEndDate)
-        assertEquals(local.name,second.startLocation);assertEquals(local.latitude,second.startLatitude,0.0);assertNull(vm.state.value.confirmedId)
-        vm.selectDay("2026-10-01");advanceUntilIdle();assertEquals(2,repo.requests);assertEquals("2026-10-01",vm.state.value.preferences?.travelDate)
-        vm.clearPersonalTravel();vm.selectDay("2026-10-02");advanceUntilIdle();assertEquals(2,repo.requests);assertTrue(vm.state.value.courses.isEmpty());assertNull(vm.state.value.activeDay)
+        assertEquals(local.name,second.startLocation);assertEquals(local.latitude,second.startLatitude,0.0)
+        assertTrue(second.visitedPlaces.isNotEmpty());assertTrue(third.visitedPlaces.size>second.visitedPlaces.size)
+        vm.selectDay("2026-10-02");assertEquals(3,repo.requests)
+        vm.confirmTravel(vm.state.value.courses[1].id);advanceUntilIdle()
+        assertEquals(3,vm.state.value.tripDays.size);assertEquals("2026-10-02",vm.state.value.preferences?.travelDate)
+        vm.clearPersonalTravel();vm.selectDay("2026-10-02");advanceUntilIdle()
+        assertEquals(3,repo.requests);assertTrue(vm.state.value.courses.isEmpty());assertTrue(vm.state.value.tripDays.isEmpty())
     }
+
 }

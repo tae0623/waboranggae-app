@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Condition } from './App';
 import { api, type PlaceSuggestion } from './api';
 import { getWebRuntime } from './runtime';
+import { ExpandableMap } from './ExpandableMap';
 import { Modal } from './Dialogs';
 import { availableMeals, conditionError, normalizeMeals, PURPOSES, todayKorea } from './parity';
 
@@ -59,7 +60,7 @@ function DepartureSearch({condition,onChange}:{condition:Condition;onChange:(v:P
   // This map receives only the user's explicit search selection, never device location.
   const mapUrl=preview?(getWebRuntime().mapBaseUrl||window.location.origin)+'/maps/embed#'+encodeURIComponent(JSON.stringify({origin:preview,places:[],routeSegments:[],conveniences:[],selectDeparture:true,parentOrigin:window.location.origin})):null;
   return <><label className="field-label" htmlFor="departure">출발지</label><div className="departure-field"><input id="departure" role="combobox" aria-controls="departure-results" aria-expanded={results.length>0} aria-autocomplete="list" aria-activedescendant={highlight>=0?'departure-option-'+highlight:undefined}
-    autoComplete="off" placeholder="장소명 또는 주소 검색" value={condition.departure}
+    autoComplete="off" placeholder="출발지 검색" value={condition.departure}
     onChange={e=>onChange({departure:e.target.value,departureAddress:undefined,departureLat:undefined,departureLng:undefined})}
     onKeyDown={e=>{if(e.key==='ArrowDown'){e.preventDefault();setHighlight(v=>Math.min(v+1,results.length-1));}if(e.key==='ArrowUp'){e.preventDefault();setHighlight(v=>Math.max(v-1,0));}if(e.key==='Enter'&&highlight>=0&&results[highlight]){e.preventDefault();select(results[highlight]!);}if(e.key==='Escape'){setResults([]);}}}/>
     {condition.departure&&<button aria-label="출발지 지우기" onClick={()=>onChange({departure:'',departureAddress:undefined,departureLat:undefined,departureLng:undefined})}>×</button>}</div>
@@ -68,7 +69,7 @@ function DepartureSearch({condition,onChange}:{condition:Condition;onChange:(v:P
     <div id="departure-results" role="listbox" aria-label="출발지 검색 결과" className="search-results">{results.map((p,i)=><button key={p.id} id={'departure-option-'+i} role="option" aria-selected={highlight===i} onClick={()=>select(p)}><strong>{p.name}</strong><small>{p.address}</small></button>)}</div>
     {!busy&&!error&&condition.departure.trim()&&!chosen&&!results.length&&<p className="muted">검색 결과가 없어요. 장소명이나 주소를 다시 확인해 주세요.</p>}
     {chosen&&<p className="muted">{condition.departureAddress}</p>}
-    {mapUrl?<iframe ref={frame} className="departure-map" title="검색한 출발지 지도" src={mapUrl}/>:<div className="departure-map placeholder">검색한 장소를 지도에서 확인하세요</div>}
+    {mapUrl?<ExpandableMap frame={frame} title="출발지 지도" src={mapUrl} collapseKey={mapChoice}/>:<div className="departure-map placeholder">검색한 장소를 지도에서 확인하세요</div>}
     {mapBusy&&<p role="status" className="muted">선택한 위치 확인 중…</p>}
     {mapChoice&&<Modal title="출발 장소" onClose={()=>setMapChoice(null)}><h3>{mapChoice.name}</h3><p>{mapChoice.address}</p><div className="dialog-actions"><button onClick={()=>setMapChoice(null)}>취소</button><button className="primary" onClick={()=>{select(mapChoice);setMapChoice(null)}}>여기서 출발</button></div></Modal>}
   </>;
@@ -87,7 +88,7 @@ export function PlanWizard({initial,onClose,onComplete}:{initial?:Partial<Condit
   return <div className="travel-wizard" role="dialog" aria-modal="true" aria-label="여행 조건">
     <header><button aria-label="이전 단계" onClick={()=>step>1?setStep(step-1):onClose()}>‹</button><span>코스 만들기</span><button aria-label="조건 선택 닫기" onClick={onClose}>×</button></header>
     <div className="wizard-progress" aria-label={step+' / 4단계'}>{[1,2,3,4].map(i=><span key={i} className={i<=step?'active':''}/>)}</div>
-    <div className="wizard-body" ref={body}><span className="step-label">STEP 0{step}</span><h1>{TITLES[step-1]}</h1><p className="wizard-subtitle">{SUBTITLES[step-1]}</p>
+    <div className="wizard-body" ref={body}><span className="step-label">STEP 0{step}</span><h1>{TITLES[step-1]}</h1>{step!==1&&<p className="wizard-subtitle">{SUBTITLES[step-1]}</p>}
       {cond.requiredContentId&&<div className="required-place"><div><small>코스에 포함할 장소</small><strong>{cond.requiredPlaceName}</strong>{cond.requiredPlace?.periodLabel&&<small>{cond.requiredPlace.periodLabel}</small>}</div><button aria-label="포함 장소 해제" onClick={()=>update({requiredContentId:undefined,requiredPlaceName:undefined,requiredPlace:undefined})}>×</button></div>}
       {step===1&&<DepartureSearch condition={cond} onChange={update}/>}
       {step===2&&<><button className="destination-card" onClick={()=>setRegionOpen(true)} aria-label="여행지 선택"><small>전라남도</small><strong>{cond.region||'여행지 선택'} <span>⌄</span></strong></button>

@@ -56,7 +56,7 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
             Text("추천에 필요한 장소·좌표·여행 조건은 서버, 관광·지도·날씨·교통 서비스로 전송됩니다. 보조 AI는 서버의 Ollama를 이용합니다. 선택적 가까운 순 검색은 대략적인 단말기 위치를 기기 안에서만 사용합니다. 좌표는 서버·카카오에 전송하거나 저장하지 않으며 화면 종료 시 해제됩니다. 동의 여부만 이 기기에 저장하고 내 여행에서 변경할 수 있습니다. 지도·이미지·소셜 로그인 및 개발용 Cloudflare 중계 사업자는 접속 IP 등 통신 정보를 처리할 수 있습니다.")
             if(BuildConfig.API_BASE_URL.startsWith("https://drtxexwznmpmiclvrjji.supabase.co/"))Text("현재 클라우드 검증 앱은 PC·Cloudflare 중계를 거치지 않고 Supabase Edge Functions와 PostgreSQL DB를 사용합니다. 계정 정보·동의 기록·직접 저장한 여행 정보가 Supabase에 저장됩니다. DB 설정 리전은 ap-northeast-2이며, API 실행·접속 로그 등 모든 처리가 같은 국가에서만 이루어진다는 보장은 아닙니다. 이 서버에서는 Ollama를 사용하지 않습니다. 외부 사업자 로그·백업 보관 및 국외 처리 세부사항은 출시 전 확정 대상입니다.")
             Text("한국관광공사 TourAPI·포토코리아 / 공공데이터포털 / 기상청 / 카카오맵 / 버스 공공데이터. 사진별 권리자·공공누리 유형은 원 제공처의 조건을 따릅니다. 출처 표기만으로 모든 사진의 이용 허락이 완료되는 것은 아닙니다.")
-            Text("글꼴: Pretendard (SIL OFL 1.1). 앱 아이콘: 기존 웹 지도 도형과 새로 그린 걷는 사람 실루엣. 지도·발자국 원화는 팀 원저작물 여부 확인이 필요합니다. 기존 Noto Emoji 자산의 라이선스는 보관합니다.")
+            Text("글꼴: Pretendard (SIL OFL 1.1). 앱 아이콘: 기존 웹 지도 도형과 새로 그린 발자국 도형. 지도·발자국 원화는 팀 원저작물 여부 확인이 필요합니다. 기존 Noto Emoji 자산의 라이선스는 보관합니다.")
             TextButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.API_BASE_URL+"/legal/privacy")))}){Text("전체 개인정보 안내 · 운영자 연락처")}
             TextButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.API_BASE_URL+"/legal/attributions")))}){Text("데이터·오픈소스 출처 및 이용 조건")}
         }

@@ -93,8 +93,8 @@ function init(){
     button.addEventListener('mouseenter',open);button.addEventListener('mouseleave',close);button.addEventListener('click',open);
     return open;
   }
-  if(origin)marker(origin,'출발 · '+origin.name,'출','origin');
-  places.forEach((p,i)=>openPlace.push(marker(p,(i+1)+'. '+p.name,String(i+1),'')));
+  if(origin)marker(origin,(data.accessTrip?'1. 현지 도착 · ':'출발 · ')+origin.name,data.accessTrip?'1':'출','origin');
+  places.forEach((p,i)=>{const n=i+(data.accessTrip?2:1);openPlace.push(marker(p,n+'. '+p.name,String(n),''));});
   (Array.isArray(data.conveniences)?data.conveniences:[]).filter(valid).forEach(p=>marker(p,'물품보관함 · '+p.name,'짐','locker'));
   const points=[...(origin?[origin]:[]),...places];
   const lines=Array.isArray(data.routeSegments)&&data.routeSegments.length?data.routeSegments:[{source:'estimated',geometry:points}];
@@ -117,7 +117,7 @@ function init(){
   // A single departure marker needs a useful street-scale zoom, not empty bounds.
   const fit=()=>{if(points.length>1)map.setBounds(bounds,35,35,35,35);else{map.setCenter(point(points[0]));map.setLevel(4);}};
   fit();ready=true;clearTimeout(timer);
-  window.addEventListener('resize',()=>{map.relayout();fit()});
+  window.addEventListener('resize',()=>{const center=map.getCenter();map.relayout();map.setCenter(center)});
  }catch{fallback('카카오 지도 설정을 확인해 주세요. 카카오맵 바로가기는 계속 사용할 수 있습니다.');}
 }
 if(!${safeKey}){clearTimeout(timer);fallback('카카오 지도 키 설정 대기 중 · 장소 정보와 바로가기를 이용할 수 있습니다.');}

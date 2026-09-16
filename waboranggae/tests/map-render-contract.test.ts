@@ -9,7 +9,7 @@ function render(data:unknown, fail=false){
   const elements:Record<string,any>={};const scripts:any[]=[];const events:Record<string,Function>={};const mapEvents:Record<string,Function>={};const parent={postMessage:vi.fn()};
   const element=()=>({remove:vi.fn(),style:{},children:[] as any[],textContent:'',appendChild(child:any){this.children.push(child);},replaceChildren(...children:any[]){this.children=children;},setAttribute:vi.fn(),addEventListener:vi.fn()});
   for(const id of ['map','message','source','detail','fallback'])elements[id]=element();
-  const map={panTo:vi.fn(),addControl:vi.fn(),setBounds:vi.fn(),setCenter:vi.fn(),setLevel:vi.fn(),relayout:vi.fn()};
+  const map={getCenter:vi.fn(()=>({lat:35.1,lng:127.1})),panTo:vi.fn(),addControl:vi.fn(),setBounds:vi.fn(),setCenter:vi.fn(),setLevel:vi.fn(),relayout:vi.fn()};
   const Map=vi.fn(function(){if(fail)throw Error('SDK_ERROR');return map;});
   const Overlay=vi.fn(function(){});const clearTimeout=vi.fn();
   const kakao={maps:{event:{addListener:(_map:unknown,name:string,callback:Function)=>{mapEvents[name]=callback}},Map,CustomOverlay:Overlay,Polyline:vi.fn(function(_options:unknown){}),LatLng:vi.fn(function(lat:number,lng:number){return {lat,lng};}),
@@ -22,6 +22,17 @@ function render(data:unknown, fail=false){
   return {elements,map,Map,Overlay,clearTimeout,events,mapEvents,parent,Polyline:kakao.maps.Polyline};
 }
 describe('departure and course map initialization',()=>{
+  it('preserves user center instead of fitting bounds again on resize',()=>{
+    const r=render({origin,places:[place]});r.map.setBounds.mockClear();r.map.setCenter.mockClear();
+    r.events.resize!();r.events.resize!();
+    expect(r.map.setBounds).not.toHaveBeenCalled();expect(r.map.setCenter).toHaveBeenLastCalledWith({lat:35.1,lng:127.1});
+    expect(r.Map).toHaveBeenCalledOnce();
+  });
+  it('numbers the local arrival first and places next, not transit legs',()=>{
+    const r=render({origin,places:[place],accessTrip:{origin:{...origin,name:'광주'},segment:{geometry:[]}}});
+    const labels=r.Overlay.mock.calls.map(c=>(c as any)[0].content.textContent);
+    expect(labels).toEqual(['1','2','출']);
+  });
   it('sends only explicit map taps to the exact parent origin',()=>{
     const r=render({origin,places:[],selectDeparture:true,parentOrigin:'https://team.example'});
     r.mapEvents.click!({latLng:{getLat:()=>35,getLng:()=>127}});

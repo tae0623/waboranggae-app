@@ -35,7 +35,7 @@ import kr.co.waboranggae.nativepilot.data.*
 import kr.co.waboranggae.nativepilot.data.Coordinate
 import kotlinx.coroutines.delay
 
-@Composable fun NativeCourseMap(course: Course, selected: MapStop?, onSelect: (MapStop)->Unit, modifier: Modifier = Modifier,onMapPoint:((Coordinate,String?)->Unit)?=null) {
+@Composable fun NativeCourseMap(course: Course, selected: MapStop?, onSelect: (MapStop)->Unit, modifier: Modifier = Modifier,onMapPoint:((Coordinate,String?)->Unit)?=null,cameraMemory:MapCameraMemory?=null) {
     if (BuildConfig.KAKAO_NATIVE_APP_KEY.isBlank()) {
         Box(modifier.background(Color(0xFFEDE9FE)).testTag("map-key-missing"),contentAlignment=Alignment.Center) {
             Column(Modifier.padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -107,7 +107,8 @@ import kotlinx.coroutines.delay
                         }
                         map.setOnLabelClickListener { _,_,label -> stops.find{it.id==label.tag}?.let(select); true }
                         if(pointSelected!=null)map.setOnMapClickListener { _,position,_,poi->pointSelected?.invoke(Coordinate(position.latitude,position.longitude),poi?.takeIf{it.isPoi}?.name) }
-                        if(stops.size==1) map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(stops.first().coordinate.latitude,stops.first().coordinate.longitude)))
+                        if(cameraMemory?.position!=null)map.moveCamera(CameraUpdateFactory.newCameraPosition(cameraMemory.position!!))
+                        else if(stops.size==1) map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(stops.first().coordinate.latitude,stops.first().coordinate.longitude)))
                         else {
                             val bounds=stops.map{it.coordinate}+(course.routeSegments+listOfNotNull(course.accessTrip?.segment)).flatMap{it.geometry}.filter(Coordinate::valid)
                             map.moveCamera(CameraUpdateFactory.fitMapPoints(bounds.map{LatLng.from(it.latitude,it.longitude)}.toTypedArray(),160))
@@ -116,10 +117,10 @@ import kotlinx.coroutines.delay
                 }
             })
             if(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) mapView.resume()
-            onDispose { active=false; owner.lifecycle.removeObserver(observer); mapView.pause(); mapView.finish() }
+            onDispose { cameraMemory?.position=kakaoMap?.cameraPosition; active=false; owner.lifecycle.removeObserver(observer); mapView.pause(); mapView.finish() }
         }
         Box(modifier.testTag(when { error!=null->"map-state-error"; kakaoMap!=null->"map-state-ready"; else->"map-state-loading" })) {
-            AndroidView(factory={mapView},modifier=Modifier.fillMaxSize().testTag("native-kakao-map"))
+            AndroidView(factory={android.widget.FrameLayout(context).apply{addView(mapView,android.widget.FrameLayout.LayoutParams(-1,-1))}.also{container->container.setOnTouchListener{v,event->v.parent?.requestDisallowInterceptTouchEvent(event.actionMasked!=android.view.MotionEvent.ACTION_UP&&event.actionMasked!=android.view.MotionEvent.ACTION_CANCEL);false}}},modifier=Modifier.fillMaxSize().testTag("native-kakao-map"))
             if(error!=null) Surface(color=Color.White.copy(alpha=.97f),modifier=Modifier.align(Alignment.Center).padding(24.dp)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(error!!,fontSize=13.sp)
@@ -139,6 +140,6 @@ private fun markerBitmap(index:Int):Bitmap {
     canvas.drawCircle(40f,38f,31f,paint)
     paint.color=android.graphics.Color.WHITE; paint.typeface=Typeface.DEFAULT_BOLD
     paint.textSize=if(index<=0) 22f else 30f; paint.textAlign=Paint.Align.CENTER
-    canvas.drawText(if(index<0)"이동" else if(index==0) "출발" else index.toString(),40f,38f-(paint.ascent()+paint.descent())/2,paint)
+    canvas.drawText(if(index<0)"출발" else if(index==0) "출발" else index.toString(),40f,38f-(paint.ascent()+paint.descent())/2,paint)
     return bitmap
 }

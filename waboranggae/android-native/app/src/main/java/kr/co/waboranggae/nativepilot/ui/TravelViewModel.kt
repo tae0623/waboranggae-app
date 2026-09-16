@@ -13,7 +13,9 @@ import kr.co.waboranggae.nativepilot.data.*
 import kotlinx.serialization.json.*
 
 enum class Page { HOME, CONDITIONS, RESULTS, MAP, HOT_PLACE, MY_TRAVEL, DETAIL, EDITOR }
+data class TripDay(val date:String,val preferences:Preferences,val courseId:String?=null,val error:String?=null)
 data class TravelUiState(
+    val tripDays:List<TripDay> = emptyList(),val generationProgress:String="",
     val page: Page = Page.HOME, val form: TravelForm = TravelForm(),
     val cities: List<City> = emptyList(), val cityError: String? = null,
     val hero: HeroPhoto? = null, val searching: Boolean = false,
@@ -79,7 +81,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         mutable.update { it.copy(page=Page.CONDITIONS,wizardStep=1,form=it.form.copy(requiredPlace=place,city=place.city,departure=null,query="",startType="custom",interests=tags.ifEmpty{setOf("nature")}),suggestions=emptyList(),searching=false,searchError=null,error=null) }
     }
     fun navigate(page: Page) { if(page!=Page.CONDITIONS)dismissMapChoice();mutable.update { it.copy(page=page,selectedId=if(page==Page.MAP)it.confirmedId else it.selectedId,wizardStep=if(page==Page.CONDITIONS) 1 else it.wizardStep) };if(page==Page.MAP && mutable.value.confirmedId!=null)loadTravelWeather(mutable.value.preferences?.travelDate) }
-    fun confirmTravel(id:String){if(mutable.value.courses.none{it.id==id&&it.canPreviewRoute()})return;mutable.update{it.copy(confirmedId=id,selectedId=id,page=Page.MAP)};refreshRouting(id);loadTravelWeather(mutable.value.preferences?.travelDate)}
+    fun confirmTravel(id:String){if(mutable.value.courses.none{it.id==id&&it.canPreviewRoute()})return;mutable.update{it.copy(confirmedId=id,selectedId=id,page=Page.MAP,preferences=it.tripDays.find{d->d.courseId==id}?.preferences?:it.preferences)};refreshRouting(id);loadTravelWeather(mutable.value.preferences?.travelDate)}
     fun changeTripConditions(){mutable.update{it.copy(page=Page.CONDITIONS,wizardStep=2,error=null)}}
     fun nextWizardStep() {
         val s=mutable.value
@@ -169,47 +171,44 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         val error=form.validationError()
         if(error!=null) { mutable.update { it.copy(error=error) }; return }
         multiDayForm=form;localDayOrigin=null;dayCache.clear()
-        mutable.update { it.copy(loading=true,error=null,activeDay=form.date,confirmedId=null) }
-        recommendationJob=viewModelScope.launch {
-            val started=System.nanoTime()
-            try {
-                val preferences=form.preferences()
-                val payload=repository.recommend(preferences)
-                val courses=acceptedCourses(payload).filter{course->preferences.requiredContentId==null || course.places.any{it.id.removePrefix("tour-")==preferences.requiredContentId}}
-                routedIds.clear();routingJob?.cancel();weatherJob?.cancel()
-                require(courses.isNotEmpty()) { payload.fallbackReason ?: "이 출발지에서 갈 수 있는 코스를 찾지 못했어요. 출발지나 시작 시각을 바꿔 주세요." }
-                localDayOrigin=courses.first().origin;dayCache[form.date]=courses to preferences
-                mutable.update { it.copy(loading=false,courses=courses,selectedId=courses.first().id,page=Page.RESULTS,
-                    elapsedMs=(System.nanoTime()-started)/1_000_000,fetchedAt=payload.fetchedAt,preferences=preferences,detailError=null,weather=null,weatherLoading=false,routingBusyId=null,routingError=null) }
-            } catch(e: Exception) {
-                if(e is CancellationException) throw e
-                mutable.update { it.copy(loading=false,error=e.message ?: "추천을 완료하지 못했습니다.") }
-            }
+        routingJob?.cancel();weatherJob?.cancel();routedIds.clear()
+        mutable.update{it.copy(loading=true,error=null,courses=emptyList(),tripDays=emptyList(),confirmedId=null)}
+        recommendationJob=viewModelScope.launch{
+            val started=System.nanoTime();val dates=form.tripDates()
+            val visited=mutableListOf<VisitedPlace>();val all=mutableListOf<Course>();val days=mutableListOf<TripDay>()
+            try{
+                for((index,date) in dates.withIndex()){
+                    mutable.update{it.copy(generationProgress="DAY ${index+1} / ${dates.size}")}
+                    var preferences=form.preferences().copy(travelDate=date,travelEndDate=date)
+                    try{
+                        preferences=form.forDay(date,localDayOrigin).preferences().copy(visitedPlaces=visited.toList())
+                        val response=repository.recommend(preferences)
+                        val accepted=acceptedCourses(response).filter{c->preferences.requiredContentId==null||c.places.any{it.id.removePrefix("tour-")==preferences.requiredContentId}}
+                        val courses=if(dates.size>1)accepted.take(1)else accepted
+                        require(courses.isNotEmpty()){response.fallbackReason?:"이 날짜의 새 코스를 찾지 못했어요."}
+                        if(index==0)localDayOrigin=courses.first().origin
+                        dayCache[date]=courses to preferences;all.addAll(courses)
+                        days+=TripDay(date,preferences,courses.first().id)
+                        visited+=courses.first().places.map{VisitedPlace(it.id,it.name,it.latitude,it.longitude)}
+                    }catch(e:Exception){if(e is CancellationException)throw e;days+=TripDay(date,preferences,error=e.message?:"코스를 불러오지 못했어요.")}
+                }
+                mutable.update{it.copy(loading=false,courses=all.toList(),tripDays=days.toList(),activeDay=form.date,
+                    selectedId=all.firstOrNull()?.id,page=Page.RESULTS,preferences=days.firstOrNull{d->d.courseId!=null}?.preferences,
+                    elapsedMs=(System.nanoTime()-started)/1_000_000,error=days.filter{d->d.error!=null}.joinToString("\n"){d->"${d.date}: ${d.error}"}.ifBlank{null},
+                    weather=null,weatherLoading=false,routingBusyId=null,routingError=null,generationProgress="")}
+            }finally{mutable.update{it.copy(loading=false,generationProgress="")}}
         }
     }
-    fun cancelRecommendation() { recommendationJob?.cancel(); mutable.update { it.copy(loading=false) } }
+    fun cancelRecommendation() { recommendationJob?.cancel(); mutable.update { it.copy(loading=false,generationProgress="") } }
     fun selectDay(date:String,force:Boolean=false) {
-        val base=multiDayForm?:return
-        if(date !in base.tripDates() || mutable.value.loading || (!force && mutable.value.activeDay==date))return
-        val form=runCatching{base.forDay(date,localDayOrigin)}.getOrElse{error->mutable.update{it.copy(error=error.message)};return}
-        val preferences=form.preferences()
-        routingJob?.cancel();weatherJob?.cancel();routedIds.clear()
-        mutable.update{it.copy(activeDay=date,confirmedId=null,selectedId=null,courses=emptyList(),weather=null,weatherLoading=false,routingBusyId=null,routingError=null,error=null,preferences=preferences,page=Page.RESULTS)}
-        dayCache[date]?.takeIf{!force}?.let{(courses,p)->mutable.update{it.copy(courses=courses,selectedId=courses.firstOrNull()?.id,preferences=p)};return}
-        mutable.update{it.copy(loading=true)}
-        recommendationJob=viewModelScope.launch{try{
-            val response=repository.recommend(preferences);val courses=acceptedCourses(response)
-            require(courses.isNotEmpty()){response.fallbackReason?:"이 날짜의 코스를 찾지 못했어요."}
-            dayCache[date]=courses to preferences
-            if(date==base.date)localDayOrigin=courses.first().origin
-            mutable.update{it.copy(courses=courses,selectedId=courses.first().id,elapsedMs=0,fetchedAt=response.fetchedAt)}
-        }catch(e:Exception){if(e is CancellationException)throw e;mutable.update{it.copy(error=e.message?:"코스를 불러오지 못했어요.")}}
-        finally{mutable.update{it.copy(loading=false)}}}
+        if(force){recommend();return}
+        val day=mutable.value.tripDays.find{it.date==date}?:return
+        mutable.update{it.copy(activeDay=date,selectedId=day.courseId,preferences=day.preferences,page=Page.RESULTS)}
     }
-    fun clearPersonalTravel() { dismissMapChoice();multiDayForm=null;localDayOrigin=null;dayCache.clear();suggestionCache.clear();searchVersion++;recommendationJob?.cancel();searchJob?.cancel();routingJob?.cancel();weatherJob?.cancel();routedIds.clear();mutable.update{it.copy(form=TravelForm(),courses=emptyList(),selectedId=null,confirmedId=null,activeDay=null,preferences=null,page=Page.HOME,loading=false,error=null,detailError=null,weather=null,suggestions=emptyList(),routingBusyId=null,routingError=null)} }
+    fun clearPersonalTravel() { dismissMapChoice();multiDayForm=null;localDayOrigin=null;dayCache.clear();suggestionCache.clear();searchVersion++;recommendationJob?.cancel();searchJob?.cancel();routingJob?.cancel();weatherJob?.cancel();routedIds.clear();mutable.update{it.copy(tripDays=emptyList(),generationProgress="",form=TravelForm(),courses=emptyList(),selectedId=null,confirmedId=null,activeDay=null,preferences=null,page=Page.HOME,loading=false,error=null,detailError=null,weather=null,suggestions=emptyList(),routingBusyId=null,routingError=null)} }
     private fun selectCourse(id: String) {
         if(mutable.value.courses.none { it.id==id }) return
-        mutable.update { it.copy(selectedId=id) }
+        mutable.update { it.copy(selectedId=id,preferences=it.tripDays.find{d->d.courseId==id}?.preferences?:it.preferences,activeDay=it.tripDays.find{d->d.courseId==id}?.date?:it.activeDay) }
     }
     fun openDetails(id:String) {
         selectCourse(id);mutable.update{it.copy(page=Page.DETAIL,detailError=null,weather=null)}
@@ -244,7 +243,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                 if(mutable.value.preferences==p && mutable.value.courses.any{it.id==id}){
                     val updated=repository.rememberCourse(raw);routedIds.add(id)
                     mutable.update{it.copy(courses=it.courses.map{c->if(c.id==id)updated else c})}
-                    dayCache[p.travelDate]=mutable.value.courses to p
+                    dayCache[p.travelDate]=mutable.value.courses.filter{c->mutable.value.tripDays.find{d->d.date==p.travelDate}?.courseId==c.id || mutable.value.tripDays.size<=1} to p
                     if(mutable.value.page==Page.MAP&&mutable.value.selectedId==id)loadTravelWeather(p.travelDate)
                 }
             }catch(e:Exception){if(e is CancellationException)throw e;if(mutable.value.selectedId==id)mutable.update{it.copy(routingError="길찾기 시간을 확인하지 못했습니다. 추정 시간으로 표시합니다.")}}
@@ -256,7 +255,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
             val course=repository.rememberCourse(snapshot)
             require(course.constraintPassed && course.mapStops().size>1){"저장된 코스의 위치·검증 정보가 부족합니다. 다시 추천받아 주세요."}
             recommendationJob?.cancel();routingJob?.cancel();weatherJob?.cancel();multiDayForm=null;localDayOrigin=null;dayCache.clear();routedIds.clear()
-            mutable.update{it.copy(courses=listOf(course),selectedId=course.id,preferences=null,activeDay=null,confirmedId=null,weather=null,routingBusyId=null,routingError=null)}
+            mutable.update{it.copy(tripDays=emptyList(),courses=listOf(course),selectedId=course.id,preferences=null,activeDay=null,confirmedId=null,weather=null,routingBusyId=null,routingError=null)}
             openDetails(course.id)
         }.onFailure{e->mutable.update{it.copy(error=e.message)}}
     }
@@ -296,7 +295,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                 val course=repository.rememberCourse(raw)
                 require(course.constraintPassed && course.mapStops().size>1){"조건을 충족하지 못하는 코스입니다."}
                 mutable.update{it.copy(courses=it.courses.map{c->if(c.id==id)course else c},selectedId=course.id,page=Page.DETAIL)}
-                routedIds.add(id);dayCache[p.travelDate]=mutable.value.courses to p
+                routedIds.add(id);dayCache[p.travelDate]=mutable.value.courses.filter{c->mutable.value.tripDays.find{d->d.date==p.travelDate}?.courseId==c.id || mutable.value.tripDays.size<=1} to p
             }catch(e:Exception){if(e is CancellationException)throw e;mutable.update{it.copy(detailError=if((e as? ApiFailure)?.status==400)"여행 시간·이동·식사/카페 순서 조건에 맞지 않거나 추천이 만료되었습니다. 원래 코스는 유지됩니다."else e.message)}}
             finally{mutable.update{it.copy(detailBusy=false)}}
         }

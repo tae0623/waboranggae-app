@@ -26,8 +26,7 @@ import kr.co.waboranggae.nativepilot.data.*
     val preview=remember(place) { Course(id="departure-${place.id}-${place.latitude}-${place.longitude}",city="",title=place.name,
         durationHours=0.0,walkMinutes=0,transitMinutes=0,places=emptyList(),
         origin=Origin(place.name,place.address,place.latitude,place.longitude)) }
-    val stop=preview.mapStops().first()
     Box(frame.testTag("departure-search-map")) {
-        NativeCourseMap(preview,stop,{onPoint(it.coordinate,it.name)},Modifier.fillMaxSize(),onMapPoint=onPoint)
+        ExpandableNativeMap(preview,Modifier.fillMaxSize(),onSelect={onPoint(it.coordinate,it.name)},onPoint=onPoint)
     }
 }

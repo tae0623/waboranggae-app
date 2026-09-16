@@ -95,16 +95,15 @@ import kotlinx.serialization.json.*
             Surface(shape=RoundedCornerShape(18.dp),color=Color.White){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){Text("도시로 이동",fontSize=11.sp,color=Muted);Text(access.origin.name,fontSize=16.sp,fontWeight=FontWeight.Bold);Text(access.origin.address,fontSize=12.sp,color=Muted)}}
             TransitLegCard(access.segment,true)
         }}
-        course.origin?.let{origin->TimelineNode("출") {Surface(shape=RoundedCornerShape(18.dp),color=Color.White){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){Text("현지 여행 시작",fontSize=11.sp,color=Muted);Text(origin.name,fontSize=16.sp,fontWeight=FontWeight.Bold);Text(origin.address,fontSize=12.sp,color=Muted)}}}}
+        course.origin?.let{origin->TimelineNode(if(course.accessTrip!=null)"1" else "출") {Surface(shape=RoundedCornerShape(18.dp),color=Color.White){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){Text(if(course.accessTrip!=null)"현지 도착" else "현지 여행 시작",fontSize=11.sp,color=Muted);Text(origin.name,fontSize=16.sp,fontWeight=FontWeight.Bold);Text(origin.address,fontSize=12.sp,color=Muted)}}}}
         course.places.forEachIndexed{index,p->
-            TimelineNode((index+1).toString(),Purple){
-                TransitLegCard(course.routeSegments.getOrNull(index))
+            Box(Modifier.padding(start=44.dp)){TransitLegCard(course.routeSegments.getOrNull(index))}
+            TimelineNode((index+(if(course.accessTrip!=null)2 else 1)).toString(),Purple){
                 Surface(shape=RoundedCornerShape(20.dp),color=Color.White,shadowElevation=1.dp) {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     if(images&&!p.imageUrl.isNullOrBlank())Photo(repository.imageUrl(p.imageUrl),p.name,Modifier.fillMaxWidth().height(150.dp),contentScale=ContentScale.Crop)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Text(p.arrival,fontSize=12.sp,fontWeight=FontWeight.Bold);Text("${p.stayMinutes}분 체류",fontSize=11.sp,color=Muted)}
                     Text(p.name,fontSize=16.sp,fontWeight=FontWeight.Bold);Text(p.address,fontSize=12.sp,color=Muted)
                     if(p.description.isNotBlank())Text(p.description,fontSize=13.sp,lineHeight=20.sp,color=Muted)
-                    if(onPlace!=null)TextButton({course.mapStops().find{it.id==p.id}?.let(onPlace)},contentPadding=PaddingValues(0.dp)){Text("지도에서 보기",fontSize=12.sp)}
                 }}
             }
         }

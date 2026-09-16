@@ -84,7 +84,9 @@ fun HotPlace.travelDateError(date:String):String? {
     val courses: List<Course>, val source: String, val planningSource: String = "rules",
     val fetchedAt: String? = null, val fallbackReason: String? = null
 )
+@Serializable data class VisitedPlace(val id:String,val name:String,val latitude:Double?=null,val longitude:Double?=null)
 @Serializable data class Preferences(
+    val visitedPlaces:List<VisitedPlace> = emptyList(),
     val scheduleMode:String="fixed",
     val requiredContentId:String?=null,val requiredPlaceName:String?=null,
     val region: String = "전라남도", val city: String,
@@ -174,13 +176,13 @@ data class TravelForm(
 data class MapStop(val id: String, val name: String, val coordinate: Coordinate, val place: Place?, val index: Int)
 fun Course.mapStops(): List<MapStop> {
     val start = origin?.takeIf { it.coordinate().valid() } ?: return emptyList()
-    val result = mutableListOf(MapStop("origin", start.name, start.coordinate(), null, 0))
+    val result = mutableListOf(MapStop("origin", start.name, start.coordinate(), null, if(accessTrip!=null)1 else 0))
     places.forEach { place ->
         val point = place.coordinate() ?: return@forEach
         // The origin is displayed once, even when the API also includes it as a station place.
         if (place.category == "station" && kotlin.math.abs(point.latitude-start.latitude) < 0.0001 &&
             kotlin.math.abs(point.longitude-start.longitude) < 0.0001) return@forEach
-        result += MapStop(place.id, place.name, point, place, result.size)
+        result += MapStop(place.id, place.name, point, place, result.size+if(accessTrip!=null)1 else 0)
     }
     return result
 }

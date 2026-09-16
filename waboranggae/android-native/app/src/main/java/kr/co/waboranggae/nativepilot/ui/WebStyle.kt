@@ -50,7 +50,7 @@ fun webTypography():Typography {
 }
 @Composable fun BrandMark(modifier:Modifier=Modifier) {
     Box(modifier.background(Color(0xFFF0FDF4),RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center) {
-        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_brand),"전남 지도를 걷는 사람",Modifier.fillMaxSize())
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_brand),"전남 지도 위 발자국",Modifier.fillMaxSize())
     }
 }
 @Composable fun WebChip(label:String,on:Boolean=false,onClick:()->Unit={}) {

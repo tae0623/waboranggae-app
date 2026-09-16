@@ -47,9 +47,9 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
         }
         key(step) { Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start=24.dp,end=24.dp,top=28.dp,bottom=24.dp)) {
             val title=listOf("어디서\n출발하세요?","어디로\n떠날까요?","어떻게\n여행할까요?","어떤 여행을\n원하세요?")[step-1]
-            val subtitle=listOf("가게, 명소, 주소를 검색해 고르세요","전남 22개 지역 중 목적지 선택","내게 맞는 걷기 부담과 여행 속도","가고 싶은 곳과 식사 계획을 골라주세요")[step-1]
+            val subtitle=listOf("","전남 22개 지역 중 목적지 선택","내게 맞는 걷기 부담과 여행 속도","가고 싶은 곳과 식사 계획을 골라주세요")[step-1]
             Text(title,fontSize=30.sp,lineHeight=35.sp,fontWeight=FontWeight.Black,letterSpacing=(-.9).sp)
-            Text(subtitle,fontSize=14.sp,color=WebMuted,modifier=Modifier.padding(top=6.dp,bottom=24.dp))
+            if(step!=1)Text(subtitle,fontSize=14.sp,color=WebMuted,modifier=Modifier.padding(top=6.dp,bottom=24.dp))
             f.requiredPlace?.let{place->
                 Surface(color=Color.White,shape=RoundedCornerShape(16.dp),border=BorderStroke(1.dp,WebBorder),modifier=Modifier.fillMaxWidth().padding(bottom=18.dp).testTag("required-place")) {
                     Row(Modifier.padding(start=16.dp,end=6.dp,top=12.dp,bottom=12.dp),verticalAlignment=Alignment.CenterVertically){

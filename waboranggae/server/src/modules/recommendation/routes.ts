@@ -100,11 +100,11 @@ async function createRecommendation(preferences: z.infer<typeof travelPreference
   }
 
   if (!plannedCourses.length) {
-    fallbackReason = tourCourses.length
+    fallbackReason = preferences.visitedPlaces?.length ? '앞선 날짜와 겹치지 않는 방문지가 부족해요. 여행 날짜나 취향을 조정해 주세요.' : tourCourses.length
       ? '이 출발지와 시작 시각에 맞는 동선을 찾지 못했어요. 출발지나 식사 선택을 바꿔 주세요.'
       : tourApiConfigured ? '관광정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
       : '관광정보 서비스 연결을 확인해 주세요.';
-    if (allowDemo && !preferences.requiredContentId) {
+    if (allowDemo && !preferences.requiredContentId && !preferences.visitedPlaces?.length) {
       plannedCourses = await demoProvider.fetchCourses(preferences);
       source = 'demo';
       fallbackReason += ' 시연 코스로 대체했습니다.';

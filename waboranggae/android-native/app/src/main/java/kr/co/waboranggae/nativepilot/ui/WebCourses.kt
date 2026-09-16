@@ -30,9 +30,7 @@ import java.util.Locale
                 TextButton({model.navigate(Page.CONDITIONS)}){Text("조건 수정",fontSize=12.sp,color=Muted)}
             }
             Text("${state.form.city} · ${formatKoreanClock(state.form.startTime)} 시작"+(if(state.form.limitEndTime)" · ${formatKoreanClock(state.form.endTime)}까지" else ""),fontSize=12.sp,color=Muted)
-            if(state.form.tripDates().size>1&&state.preferences!=null)Row(Modifier.padding(top=14.dp).horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                state.form.tripDates().forEachIndexed{index,date->WebChip("DAY ${index+1} · ${date.substring(5)}",state.activeDay==date){model.selectDay(date)}}
-            }
+
             state.error?.let{Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.error);TextButton({state.activeDay?.let{model.selectDay(it,true)}}){Text("다시 시도")}}
         }
         if(courses.isEmpty()) {
@@ -45,6 +43,7 @@ import java.util.Locale
                 Surface(onClick={model.openDetails(course.id)},shape=RoundedCornerShape(24.dp),color=Color.White,
                     shadowElevation=3.dp,modifier=Modifier.fillMaxWidth().testTag("course-card")) {
                     Column {
+                        if(state.tripDays.size>1)Text("DAY ${state.tripDays.indexOfFirst{it.courseId==course.id}+1} · ${state.tripDays.find{it.courseId==course.id}?.date}",Modifier.padding(16.dp),fontWeight=FontWeight.Bold,color=Purple)
                         val photo=course.places.firstOrNull{!it.imageUrl.isNullOrBlank()}
                         Box(Modifier.fillMaxWidth().height(if(index==0)220.dp else 160.dp)) {
                             Photo(model.repository.imageUrl(photo?.imageUrl),photo?.name ?: course.title,Modifier.fillMaxSize(),overlayCredit=false)

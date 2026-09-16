@@ -7,6 +7,7 @@ export const mealPreferenceSchema = z.enum(['auto', 'none', 'lunch', 'dinner', '
 export const travelDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜는 YYYY-MM-DD 형식이어야 합니다.').refine(validTravelDate, '실제 달력에 있는 날짜를 입력해 주세요.');
 
 const travelPreferencesObject = z.object({
+  visitedPlaces: z.array(z.object({id:z.string().min(1).max(200),name:z.string().min(1).max(160),latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional()})).max(120).optional(),
   scheduleMode: z.enum(['fixed', 'course-first']).optional(),
   requiredContentId: z.string().regex(/^\d{1,20}$/).optional(),
   requiredPlaceName: z.string().min(1).max(160).optional(),
@@ -55,7 +56,7 @@ export const travelPreferencesSchema = travelPreferencesObject.superRefine((p,ct
 
 /** Model-only extraction contract: coordinates, addresses and calendar arithmetic are not LLM tasks. */
 export const analysisPreferencesSchema = travelPreferencesObject.omit({
-  scheduleMode:true,
+  scheduleMode:true,visitedPlaces:true,
   requiredContentId:true,requiredPlaceName:true,
   timeBudgetMode:true,startAddress:true,startLatitude:true,startLongitude:true,travelDate:true,travelEndDate:true,endTime:true,
   lodgingName:true,lodgingAddress:true,lodgingLatitude:true,lodgingLongitude:true,meals:true,preferredTransit:true,

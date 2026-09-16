@@ -1,3 +1,4 @@
+import {alreadyVisited} from '../../../../../src/domain/visitedPlaces';
 import {currentOrUpcomingEvent, koreaDateKey} from '../../hot-places/copy';
 import { Course, Interest, Place, PlaceCategory, TravelPreferences, WalkabilityMetrics } from '../../../../../src/types/travel';
 import { JEONNAM_CITIES } from '../../../../../src/domain/jeonnamCities';
@@ -629,7 +630,7 @@ async function makeClusters(candidates: Candidate[], preferences: TravelPreferen
     const radius = preferences.pace === 'easy' || preferences.lowMobility ? 3 : preferences.pace === 'full' ? 7 : 5;
     // Always consider the supplemental pool, even when TourAPI alone fills the neighbourhood.
     const nearby = await fetchNearbyLinked(seed, preferences);
-    const merged = mergePlaceCandidates([seed, ...candidates], nearby, preferences.city);
+    const merged = mergePlaceCandidates([seed, ...candidates], nearby, preferences.city).filter(c=>!alreadyVisited(c,preferences.visitedPlaces));
     const nearbyById = new Map(merged.filter(candidate => candidate.id !== seed.id && distanceKm(seed, candidate) <= radius)
       .map(candidate => [candidate.id, candidate]));
     if (nearbyById.size < targetSize - 1) {
@@ -801,7 +802,7 @@ export class TourApiProvider implements DataProvider {
     };
     const [tour, kakao] = await Promise.all([tourCandidates(), fetchKakaoCandidates(preferences).catch(() => [])]);
     const all = mergePlaceCandidates<Candidate>([...toCandidates(requiredItem ? [requiredItem] : []), ...tour],
-      kakao.map(candidate => ({ ...candidate, item: {addr1: candidate.address} })), preferences.city);
+      kakao.map(candidate => ({ ...candidate, item: {addr1: candidate.address} })), preferences.city).filter(c=>!alreadyVisited(c,preferences.visitedPlaces));
     const candidates = all.filter((candidate) => {
       if(candidate.id===preferences.requiredContentId)return true;
       if (!preferences.interests.length) return true;

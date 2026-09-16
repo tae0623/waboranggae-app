@@ -11,6 +11,15 @@ export function rankValidatedCourses(preferences: TravelPreferences, courses: Co
   }));
 }
 
+/** A selected end time prefers a fuller feasible local itinerary, leaving a small margin. */
+export function timeUsePriority(preferences:TravelPreferences,course:Course){
+  if(preferences.scheduleMode!=='course-first'||!preferences.endTime)return 0;
+  const clock=(s:string)=>Number(s.slice(0,2))*60+Number(s.slice(3));
+  const window=clock(preferences.endTime)-clock(preferences.startTime);
+  const minutes=course.timeBreakdown?.totalMinutes??course.durationHours*60;
+  return window>0&&minutes<=window?Math.min(.9,minutes/window):0;
+}
+
 /** Keep the highest ranked order, not another title for the same places.
  * No invented attractions or forced three-card padding in sparse regions. */
 export function diverseCourses(courses: Course[], limit=3): Course[] {
@@ -36,7 +45,7 @@ export function diverseCourses(courses: Course[], limit=3): Course[] {
 export async function verifyTopCourses(preferences: TravelPreferences, courses: Course[]) {
   const plausible=rankValidatedCourses(preferences, courses).filter(c => c.constraintPassed);
   // Start with a useful small itinerary; shorter variants are fallbacks, not a hidden time minimum.
-  if(preferences.scheduleMode==='course-first')plausible.sort((a,b)=>Math.min(3,b.places.length)-Math.min(3,a.places.length));
+  if(preferences.scheduleMode==='course-first')plausible.sort((a,b)=>timeUsePriority(preferences,b)-timeUsePriority(preferences,a)||Math.min(3,b.places.length)-Math.min(3,a.places.length));
   const candidates = diverseCourses(plausible);
   if (!candidates.length) return [];
   const routed = await attachRoutingToCourses(preferences, candidates, { live: true });
@@ -59,5 +68,6 @@ export async function verifyTopCourses(preferences: TravelPreferences, courses: 
   const ranked = rankValidatedCourses(preferences,assignGroundedCourseTitles(preferences,checked));
   return ranked.sort((a, b) => Number(b.constraintPassed) - Number(a.constraintPassed)
     || Number(b.routeSource === 'kakao') - Number(a.routeSource === 'kakao')
+    || timeUsePriority(preferences,b)-timeUsePriority(preferences,a)
     || (preferences.scheduleMode==='course-first' ? Math.min(3,b.places.length)-Math.min(3,a.places.length) : 0));
 }

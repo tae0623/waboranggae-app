@@ -1,11 +1,15 @@
+import type { TravelPreferences } from '../../src/types/travel';
 import type { RankedCourse } from './api';
 import { formatMinutes } from './parity';
-export function RouteSummary({course,busy,error,compact=false}:{course?:RankedCourse;busy:boolean;error:string;compact?:boolean}){
+export function RouteSummary({course,busy,error,compact=false,preferences}:{course?:RankedCourse;busy:boolean;error:string;compact?:boolean;preferences?:TravelPreferences|null}){
   if(!course)return null;
   if(compact&&!busy&&!error&&course.constraintPassed)return null;
+  const clock=(s:string)=>Number(s.slice(0,2))*60+Number(s.slice(3));
+  const slack=preferences?.endTime?Math.max(0,clock(preferences.endTime)-clock(preferences.startTime)-(course.timeBreakdown?.totalMinutes??course.durationHours*60)):0;
   return <section className="route-status">
     {!compact&&<><strong>현지 코스 예상 {formatMinutes(course.timeBreakdown?.totalMinutes??course.durationHours*60)}</strong>
     <span className="route-accuracy">{course.routeSource==='kakao'?'경로 확인':course.routeSource==='mixed'?'일부 구간 추정':'이동 시간 추정'}</span></>}
+    {slack>0&&<p>여유 시간 {formatMinutes(Math.round(slack))}</p>}
     {busy&&<p role="status">길찾기 반영 중…</p>}
     {!course.constraintPassed&&<p role="status">설정한 조건을 벗어난 구간이 있어요. 장소나 시간을 조정해 주세요.</p>}
     {error&&<p role="status">{error}</p>}

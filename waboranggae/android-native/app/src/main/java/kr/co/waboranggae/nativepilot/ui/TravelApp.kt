@@ -8,6 +8,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -49,6 +51,7 @@ import kr.co.waboranggae.nativepilot.data.*
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.Locale
+import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.delay
 
 val Ink = Color(0xFF1C1C1E)
@@ -104,7 +107,7 @@ private val cardShape=RoundedCornerShape(24.dp)
         AppDialog(onDismissRequest={},title={Text("코스 찾는 중")},
             text={Column(verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text("${seconds}초 · 잠시만 기다려 주세요")
+                Text("${state.generationProgress} · ${seconds}초")
             }},confirmButton={TextButton(onClick=model::cancelRecommendation) { Text("취소") }})
     }
 }
@@ -115,41 +118,52 @@ private val cardShape=RoundedCornerShape(24.dp)
     }
 }
 @Composable private fun MapPage(state:TravelUiState,model:TravelViewModel) {
-    val course=state.confirmedCourse
+    val confirmed=state.confirmedCourse
     Column(Modifier.fillMaxSize().testTag("map-page")) {
-        PageHeader("여행 동선",course?.title.orEmpty()){if(course==null)model.navigate(Page.RESULTS)else model.openDetails(course.id)}
-        if(course==null) { EmptyState("여행할 코스를 선택해 주세요.","추천 코스 보기"){model.navigate(Page.RESULTS)}; return }
-        key(course.id) {
-            var selected by remember { mutableStateOf<MapStop?>(null) }
-            LazyColumn(contentPadding=PaddingValues(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                item { Column(Modifier.padding(horizontal=18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    TravelWeatherCard(state)
-                    Text("현지 여행 ${formatMinutes(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt())}",fontSize=20.sp,fontWeight=FontWeight.ExtraBold)
-                    Text(course.movementSummary(),fontSize=12.sp,color=Muted)
-                    if(state.routingBusyId==course.id)LinearProgressIndicator(Modifier.fillMaxWidth().testTag("routing-loading"))
-                    state.routingError?.let{Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.error)}
-                    if(!course.constraintPassed)Text(course.constraintViolations.firstOrNull()?:"종료 시각을 확인해 주세요.",fontSize=12.sp,color=MaterialTheme.colorScheme.error)
-                } }
-                item { Column(Modifier.padding(horizontal=14.dp)) {
-                    NativeCourseMap(course,selected,{selected=it},Modifier.fillMaxWidth().height(360.dp).clip(RoundedCornerShape(24.dp)))
-                    Text("초록: 대중교통 · 회색: 도보 · 연한 선: 추정 구간",Modifier.padding(8.dp),fontSize=11.sp,color=Muted)
-                } }
-                item { Column(Modifier.padding(horizontal=18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Text("오늘의 동선",fontSize=20.sp,fontWeight=FontWeight.ExtraBold)
-                    JourneyTimeline(course,model.repository,images=true,onPlace={selected=it})
-                } }
-            }
-            selected?.let{stop->
-                AppDialog(onDismissRequest={selected=null},title={Text(stop.name)},text={
-                    Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                        stop.place?.imageUrl?.let{Photo(model.repository.imageUrl(it),stop.name,Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(16.dp)),contentScale=ContentScale.Crop)}
-                        Text(stop.place?.address ?: if(stop.index<0)course.accessTrip?.origin?.address.orEmpty() else course.origin?.address.orEmpty(),fontSize=13.sp,color=Muted)
-                        stop.place?.let{Text("${it.arrival} · 머무는 시간 ${it.stayMinutes}분",fontSize=13.sp);if(it.description.isNotBlank())Text(it.description,fontSize=13.sp)}
+        PageHeader("여행 동선",if(state.tripDays.size>1)"전체 일정" else confirmed?.title.orEmpty()){if(confirmed==null)model.navigate(Page.RESULTS)else model.openDetails(confirmed.id)}
+        if(confirmed==null){EmptyState("여행할 코스를 선택해 주세요.","추천 코스 보기"){model.navigate(Page.RESULTS)};return}
+        if(state.preferences==null && state.tripDays.isEmpty()){
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+                Text("저장된 코스",fontWeight=FontWeight.Bold)
+                ExpandableNativeMap(confirmed,Modifier.fillMaxWidth().height(360.dp))
+                JourneyTimeline(confirmed,model.repository,images=true)
+            };return
+        }
+        val days=if(state.tripDays.size>1)state.tripDays else listOf(TripDay(state.preferences?.travelDate.orEmpty(),state.preferences?:return,confirmed.id))
+        // A non-lazy container keeps map views alive when the page scrolls.
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(24.dp)){
+            days.forEachIndexed { index,day->
+                val course=state.courses.find{it.id==day.courseId}
+                if(course==null){Text("DAY ${index+1} · ${day.date}\n${day.error.orEmpty()}",color=MaterialTheme.colorScheme.error);return@forEachIndexed}
+                key(course.id){
+                    Column(verticalArrangement=Arrangement.spacedBy(14.dp)){
+                        if(days.size>1)Text("DAY ${index+1} · ${day.date}",fontSize=20.sp,fontWeight=FontWeight.ExtraBold)
+                        DayWeather(course,day.preferences,model.repository)
+                        Text(course.title,fontSize=18.sp,fontWeight=FontWeight.Bold)
+                        Text("현지 여행 ${formatMinutes(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt())}",fontWeight=FontWeight.Bold)
+                        Text(course.movementSummary(),fontSize=12.sp,color=Muted)
+                        day.preferences.endTime?.let{end->val slack=java.time.Duration.between(java.time.LocalTime.parse(day.preferences.startTime),java.time.LocalTime.parse(end)).toMinutes().toInt()-(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt());if(slack>0)Text("여유 시간 ${formatMinutes(slack)}",fontSize=12.sp,color=Muted)}
+                        ExpandableNativeMap(course,Modifier.fillMaxWidth().height(360.dp).clip(RoundedCornerShape(24.dp)))
+                        JourneyTimeline(course,model.repository,images=true)
                     }
-                },confirmButton={TextButton({selected=null}){Text("확인")}})
+                }
             }
         }
     }
+}
+@Composable private fun DayWeather(course:Course,preferences:Preferences,repository:TravelRepository){
+    var weather by remember(course.id,preferences.travelDate){mutableStateOf<kotlinx.serialization.json.JsonObject?>(null)}
+    var loading by remember{mutableStateOf(true)}
+    LaunchedEffect(course.id,preferences.travelDate){
+        val point=course.places.firstNotNullOfOrNull{it.coordinate()}?:course.origin?.coordinate()
+        try{
+            if(point!=null){
+                val until=java.time.LocalTime.parse(preferences.startTime).plusMinutes((course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt()).toLong())
+                weather=repository.api("/api/weather/forecast?lat=${point.latitude}&lng=${point.longitude}&date=${preferences.travelDate}&startTime=${preferences.startTime}&endTime=$until").jsonObject
+            }
+        }catch(e:Exception){if(e is kotlinx.coroutines.CancellationException)throw e}finally{loading=false}
+    }
+    TravelWeatherCard(TravelUiState(preferences=preferences,weather=weather,weatherDate=preferences.travelDate,weatherLoading=loading))
 }
 @Composable private fun EmptyState(message:String,action:String,onClick:()->Unit) {
     Column(Modifier.fillMaxWidth().padding(30.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {

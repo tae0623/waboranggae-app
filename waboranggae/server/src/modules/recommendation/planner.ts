@@ -1,3 +1,4 @@
+import {alreadyVisited} from '../../../../src/domain/visitedPlaces';
 import {
   Course,
   CoursePlanningSource,
@@ -68,7 +69,7 @@ export function collectPlanningCandidates(courses: Course[], preferences?: Trave
   const unique = new Map<string, Place>();
   for (const course of courses) {
     for (const place of course.places) {
-      if (hasCoords(place) && !unique.has(place.id)) unique.set(place.id, place);
+      if (hasCoords(place) && !alreadyVisited(place,preferences?.visitedPlaces) && !unique.has(place.id)) unique.set(place.id, place);
     }
   }
   const places = [...unique.values()];

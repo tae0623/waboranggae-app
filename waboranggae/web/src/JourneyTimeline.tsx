@@ -19,16 +19,16 @@ export function TransitLeg({segment,access=false}:{segment?:RouteSegment|null;ac
       </div></div>) : segment?.instruction ? <p>{segment.instruction}</p> : <p>이 구간의 상세 경로를 확인하지 못했어요.</p>}
   </div>;
 }
-export function JourneyTimeline({course,images=false,onPlace}:{course:RankedCourse;images?:boolean;onPlace?:(index:number)=>void}) {
+export function JourneyTimeline({course,images=false,onPlace: _onPlace}:{course:RankedCourse;images?:boolean;onPlace?:(index:number)=>void}) {
   return <div className="journey-timeline">
     {course.accessTrip&&<div className="journey-node access-node"><span className="journey-dot">출</span><div className="journey-content"><div className="journey-place"><small>도시로 이동</small><strong>{course.accessTrip.origin.name}</strong><p>{course.accessTrip.origin.address}</p></div><TransitLeg segment={course.accessTrip.segment} access/></div></div>}
-    {course.origin&&<div className="journey-node"><span className="journey-dot">출</span><div className="journey-content"><div className="journey-place"><small>현지 여행 시작</small><strong>{course.origin.name}</strong><p>{course.origin.address}</p></div></div></div>}
+    {course.origin&&<div className="journey-node"><span className="journey-dot">{course.accessTrip?1:'출'}</span><div className="journey-content"><div className="journey-place"><small>{course.accessTrip?'현지 도착':'현지 여행 시작'}</small><strong>{course.origin.name}</strong><p>{course.origin.address}</p></div></div></div>}
     {course.places.map((p,i)=>{const [label,color]=category[p.category]||['방문','#636366'];return <div className="journey-node" key={p.id}>
-      <span className="journey-dot" style={{background:color}}>{i+1}</span><div className="journey-content"><TransitLeg segment={course.routeSegments?.[i]}/>
+      <div className="journey-content"><TransitLeg segment={course.routeSegments?.[i]}/><div className="numbered-place"><span className="journey-dot" style={{background:color}}>{i+(course.accessTrip?2:1)}</span>
         <div className="journey-place">{images&&p.imageUrl&&<img src={mediaUrl(p.imageUrl)||undefined} alt={p.name} loading="lazy"/>}
           <div className="place-meta"><span>{p.arrival}</span><span style={{color,background:color+'14'}}>{label}</span><small>{p.stayMinutes}분 체류</small></div>
-          {onPlace?<button className="place-title" onClick={()=>onPlace(i)}>{p.name} <span>지도에서 보기 ↗</span></button>:<strong>{p.name}</strong>}
+          <strong>{p.name}</strong>
           <p>{p.address}</p><p className="place-description">{p.description}</p>
-        </div></div></div>;})}
+        </div></div></div></div>;})}
   </div>;
 }

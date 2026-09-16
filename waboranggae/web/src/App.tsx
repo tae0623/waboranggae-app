@@ -14,7 +14,7 @@ import { useDialogs } from './Dialogs'
 import { RouteSummary } from './RouteSummary'
 import { JourneyTimeline, Stars } from './JourneyTimeline'
 import { AppInfo } from './AppInfo'
-import { tripDates, preferencesForDay } from '../../src/domain/tripDays'
+import { tripDates, recommendTrip } from '../../src/domain/tripDays'
 import type { RouteOrigin } from '../../src/types/travel'
 import './parity.css'
 import { ACCOUNT_CONSENT_TEXT, needsPrivacyConsent } from '../../src/domain/privacyNotice'
@@ -526,7 +526,7 @@ function HomeScreen({ onPlan, courses }: { onPlan: (seed?: Partial<Condition>) =
         {/* 앱 로고 */}
         <div style={{ position: 'absolute', top: 52, left: 20, right: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img data-testid="home-brand-mark" src={brandMark} alt="전남 지도를 걷는 사람" width={40} height={40} style={{ display: 'block', borderRadius: 12, background: '#F0FDF4', flexShrink: 0 }} />
+            <img data-testid="home-brand-mark" src={brandMark} alt="전남 지도 위 발자국" width={40} height={40} style={{ display: 'block', borderRadius: 12, background: '#F0FDF4', flexShrink: 0 }} />
             <span style={{ fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", letterSpacing: '-0.02em' }}>뚜버기</span>
           </div>
         </div>
@@ -673,17 +673,17 @@ function HomeScreen({ onPlan, courses }: { onPlan: (seed?: Partial<Condition>) =
   )
 }
 
-function CourseListScreen({ state, condition, courses, onSelect, onRetry, onPlan, fallbackReason, dates=[], activeDate, onDay }: {
-  state: CourseState; condition?: Condition; courses: Course[]; onSelect: (c: Course) => void; onRetry: () => void; onPlan: () => void; fallbackReason?: string | null; dates?:string[]; activeDate?:string; onDay?:(date:string)=>void
+function CourseListScreen({ state, condition, courses, onSelect, onRetry, onPlan, fallbackReason, dates=[], activeDate: _activeDate, onDay: _onDay, dateById={}, progress='' }: {
+  state: CourseState; condition?: Condition; courses: Course[]; onSelect: (c: Course) => void; onRetry: () => void; onPlan: () => void; fallbackReason?: string | null; dates?:string[]; activeDate?:string; onDay?:(date:string)=>void;dateById?:Record<string,string>;progress?:string
 }) {
   const filtered = courses
-  const dayTabs=dates.length>1?<div className="trip-days" aria-label="여행 날짜 선택">{dates.map((date,i)=><button key={date} aria-pressed={date===activeDate} onClick={()=>onDay?.(date)}>DAY {i+1}<small>{date.slice(5)}</small></button>)}</div>:null
+  const dayTabs=dates.length>1?<div className="trip-days"><strong>{dates[0]} ~ {dates[dates.length-1]} · 전체 일정</strong></div>:null
 
   if (state === 'loading') return (
     <div style={{ position: 'absolute', inset: 0, background: L.bg, overflowY: 'auto', paddingBottom: L.tabH }} className="hide-scroll">
       {dayTabs}<div style={{ padding: '80px 20px 24px', textAlign: 'center' }}>
         <div style={{ width: 48, height: 48, border: `3px solid ${L.border}`, borderTop: `3px solid ${L.dark}`, borderRadius: 24, margin: '0 auto 20px' }} className="spin" />
-        <div style={S.text(17, 700, L.text)}>코스 계산 중…</div>
+        <div style={S.text(17, 700, L.text)}>{progress||'코스 계산 중…'}</div>
       </div>
       <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {[1, 2].map(i => <div key={i} style={{ background: L.surface, borderRadius: L.rXl, overflow: 'hidden' }}><Skel h={160} r={0} /><div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}><Skel h={16} w="60%" /><Skel h={12} w="44%" /><Skel h={34} /></div></div>)}
@@ -704,7 +704,7 @@ function CourseListScreen({ state, condition, courses, onSelect, onRetry, onPlan
       {filtered.length === 0
         ? <Empty icon="list" title="추천 코스가 없어요" cta="조건 변경" onCta={onPlan} />
         : <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 20px 20px' }}>
-            {filtered.map((c, i) => <CourseCard key={c.id} course={c} onPress={() => onSelect(c)} wide={i === 0} />)}
+            {filtered.map((c, i) => <section key={c.id}>{dates.length>1&&<h2 style={{fontSize:17}}>DAY {dates.indexOf(dateById[c.id]||'')+1} · {dateById[c.id]}</h2>}<CourseCard course={c} onPress={() => onSelect(c)} wide={i === 0} /></section>)}
           </div>
       }
     </div>
@@ -873,18 +873,26 @@ function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy,
 }
 
 
-function MapScreen({ confirmedCourse:c, onDetail, preferences, routingBusy, routingError }: {
-  confirmedCourse:Course|null;onDetail:(c:Course)=>void;preferences:TravelPreferences|null;routingBusy:boolean;routingError:string
-}) {
-  const weather=useWeather(c?.apiCourse,preferences)
-  const [mapFocus,setMapFocus]=useState<number|null>(null)
-  if(!c)return <div className="route-page"><Empty icon="map" title="확정된 코스가 없어요" desc="코스 상세에서 ‘이 코스로 여행하기’를 눌러 주세요."/></div>
-  return <div className="route-page hide-scroll"><div className="route-page-head"><button className="round-back" aria-label="코스 상세로 돌아가기" onClick={()=>onDetail(c)}><Ic n="back"/></button><div><small>여행 동선 · {c.city}</small><h1>{c.title}</h1></div></div>
+function JourneyDay({course:c,preferences,index,multiple,onDetail}:{course:Course;preferences:TravelPreferences|null;index:number;multiple:boolean;onDetail:(c:Course)=>void}){
+  const weather=useWeather(c.apiCourse,preferences)
+  return <section className="journey-day">
+    {multiple&&<h2 style={{padding:'20px 16px 0'}}>DAY {index+1} · {preferences?.travelDate}</h2>}
     <div className="weather-card"><span>{weather.icon}</span><div><small>{weather.condition}</small><strong>{weather.msg}</strong></div></div>
-    <RouteSummary course={c.apiCourse} busy={routingBusy} error={routingError}/>
-    <div style={{margin:16}}><CourseRouteMap course={c.apiCourse} focusIndex={mapFocus}/></div>
-    <div style={{padding:'8px 16px 30px'}}><h2 style={{fontSize:18}}>여행 타임라인</h2>{c.apiCourse&&<JourneyTimeline images course={c.apiCourse} onPlace={i=>{setMapFocus(i);document.querySelector('.route-page')?.scrollTo({top:100,behavior:'smooth'})}}/>}</div>
-  </div>
+    <div style={{padding:'0 16px'}}><strong>{c.title}</strong><button className="field-button" onClick={()=>onDetail(c)}>코스 상세</button></div>
+    <RouteSummary course={c.apiCourse} preferences={preferences} busy={false} error=""/>
+    <div style={{margin:16}}><CourseRouteMap course={c.apiCourse}/></div>
+    <div style={{padding:'8px 16px 30px'}}>{c.apiCourse&&<JourneyTimeline images course={c.apiCourse}/>}</div>
+  </section>
+}
+function MapScreen({confirmedCourse:c,journeys,onDetail,preferencesById,missingDays,routingBusy,routingError}:{
+ confirmedCourse:Course|null;journeys:Course[];onDetail:(c:Course)=>void;preferencesById:Record<string,TravelPreferences>;missingDays:{date:string;error:string}[];routingBusy:boolean;routingError:string
+}){
+ const days=[...journeys.map(course=>({date:preferencesById[course.id]?.travelDate||'',course,error:''})),...missingDays.map(d=>({...d,course:null}))].sort((a,b)=>a.date.localeCompare(b.date));
+ if(!c)return <div className="route-page"><Empty icon="map" title="확정된 코스가 없어요" desc="코스 상세에서 ‘이 코스로 여행하기’를 눌러 주세요."/></div>
+ return <div className="route-page hide-scroll"><div className="route-page-head"><button className="round-back" aria-label="코스 상세로 돌아가기" onClick={()=>onDetail(c)}><Ic n="back"/></button><div><small>{c.city}</small><h1>여행 동선{journeys.length>1?' · 전체 일정':''}</h1></div></div>
+ {routingBusy&&<p role="status">경로 확인 중…</p>}{routingError&&<p role="status">{routingError}</p>}
+ {days.map((d,index)=>d.course?<JourneyDay key={d.course.id} course={d.course} preferences={preferencesById[d.course.id]??null} index={index} multiple={days.length>1} onDetail={onDetail}/>:<p role="status" key={d.date} style={{padding:16}}>DAY {index+1} · {d.date} · {d.error}</p>)}
+ </div>
 }
 
 function MyTravelScreen({ loggedIn, user, onLogin, onLogout, onDeleted, bookmarkItems, history, onSelectCourse, onReplayHistory, onDeleteHistory, courses }: {
@@ -1143,8 +1151,9 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
   const {ask,dialog}=useDialogs()
   const recommendationVersion=useRef(0)
   const tripBase=useRef<{condition:Condition;preferences:TravelPreferences;origin?:RouteOrigin}|null>(null)
-  const dayCache=useRef<Record<string,{courses:Course[];preferences:TravelPreferences}>>({})
+  const dayCache=useRef<Record<string,{courses:Course[];preferences:TravelPreferences;error?:string}>>({})
   const [activeDay,setActiveDay]=useState('')
+  const [tripProgress,setTripProgress]=useState('')
   const routingPending=useRef(new Set<string>())
   const [routingStatus,setRoutingStatus]=useState<Record<string,{busy:boolean;error:string}>>({})
   const [coursePrefs,setCoursePrefs]=useState<Record<string,TravelPreferences>>({})
@@ -1267,36 +1276,21 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
     setCourses([]);setCoursePrefs({});setRoutingStatus({})
     setCourseState('loading');setTab('course')
     try {
-      const response=await api.recommend(prefs)
+      const days=await recommendTrip(prefs,tripDates(cond.date,cond.endDate),async p=>{
+        const response=await api.recommend(p);return {...response,courses:acceptedCourses(response.source,response.courses)}
+      },(date,index)=>setTripProgress('DAY '+(index+1)+' · '+date),()=>version!==recommendationVersion.current)
       if(version!==recommendationVersion.current)return
-      const accepted=acceptedCourses(response.source,response.courses)
-      const mapped=accepted.map(rankedToUiCourse)
-      dayCache.current[cond.date]={courses:mapped,preferences:prefs}
-      if(tripBase.current)tripBase.current.origin=accepted[0]?.origin
-      setCourses(mapped)
-      setCoursePrefs(Object.fromEntries(accepted.map(c=>[c.id,prefs])))
-      setFallbackReason(response.fallbackReason??null)
-      setCourseState(accepted.length?'success':'error')
-      if(!accepted.length)setFallbackReason(response.fallbackReason||'조건에 맞는 코스를 찾지 못했어요. 장소나 취향을 바꿔 다시 시도해 주세요.')
+      dayCache.current=Object.fromEntries(days.map(d=>[d.date,{...d,courses:d.courses.map(rankedToUiCourse)}]))
+      const all=days.flatMap(d=>d.courses.map(rankedToUiCourse))
+      setCourses(all);setCoursePrefs(Object.fromEntries(days.flatMap(d=>d.courses.map(c=>[c.id,d.preferences]))))
+      setFallbackReason(days.filter(d=>d.error).map(d=>d.date+': '+d.error).join('\n')||null)
+      setCourseState(all.length?'success':'error');setTripProgress('')
     } catch(error) {
       if(version!==recommendationVersion.current)return
-      setCourses([]);setFallbackReason(error instanceof Error?error.message:'서버 연결에 실패했습니다.');setCourseState('error')
+      setCourses([]);setFallbackReason(error instanceof Error?error.message:'서버 연결에 실패했습니다.');setCourseState('error');setTripProgress('')
     }
   }
-  const switchDay=async(date:string,force=false)=>{
-    const base=tripBase.current;if(!base||!tripDates(base.condition.date,base.condition.endDate).includes(date)||(date===activeDay&&!force))return
-    let prefs:TravelPreferences;try{prefs=preferencesForDay(base.preferences,date,base.origin)}catch(e){await ask('날짜별 코스',e instanceof Error?e.message:'첫날 코스를 먼저 확인해 주세요.');return}
-    const version=++recommendationVersion.current
-    setActiveDay(date);setSelectedCourse(null);setEditorOpen(false);setConfirmedCourse(null);setRoutingStatus({});setActivePrefs(prefs);setTab('course');setFallbackReason(null)
-    const cached=dayCache.current[date]
-    if(!force&&cached?.courses.length){setCourses(cached.courses);setCoursePrefs(Object.fromEntries(cached.courses.map(c=>[c.id,cached.preferences])));setCourseState('success');return}
-    setCourses([]);setCoursePrefs({});setCourseState('loading')
-    try{const response=await api.recommend(prefs);if(version!==recommendationVersion.current)return
-      const mapped=acceptedCourses(response.source,response.courses).map(rankedToUiCourse)
-      dayCache.current[date]={courses:mapped,preferences:prefs};if(date===base.condition.date)base.origin=mapped[0]?.apiCourse?.origin;setCourses(mapped);setCoursePrefs(Object.fromEntries(mapped.map(c=>[c.id,prefs])));setCourseState(mapped.length?'success':'error');setFallbackReason(mapped.length?null:response.fallbackReason||'이 날짜의 코스를 찾지 못했어요.')
-    }catch(e){if(version===recommendationVersion.current){setCourseState('error');setFallbackReason(e instanceof Error?e.message:'코스를 불러오지 못했어요.')}}
-  }
-  const retryDay=()=>{if(activeDay)void switchDay(activeDay,true)}
+  const retryDay=()=>{if(condition)void handleComplete(condition)}
   const replaceCourse=(raw:RankedCourse)=>{
     const updated=rankedToUiCourse(raw)
     for(const cached of Object.values(dayCache.current))cached.courses=cached.courses.map(c=>c.id===raw.id?updated:c)
@@ -1347,8 +1341,8 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
           <>
             <div style={{ position: 'absolute', inset: 0 }}>
               {tab === 'home' && <HomeScreen onPlan={(seed) => { setWizardSeed(seed); setWizardOpen(true); }} courses={courses} />}
-              {tab === 'course' && <CourseListScreen dates={condition?tripDates(condition.date,condition.endDate):[]} activeDate={activeDay} onDay={date=>void switchDay(date)} state={courseState} condition={condition?{...condition,date:activeDay||condition.date,departure:activeDay!==condition.date?(coursePrefs[courses[0]?.id??'']?.startLocation||condition.departure):condition.departure}:undefined} courses={courses} fallbackReason={fallbackReason} onSelect={(course) => void openCourse(course)} onRetry={retryDay} onPlan={() => {setWizardSeed(condition);setWizardOpen(true)}} />}
-              {tab === 'map' && <MapScreen preferences={coursePrefs[confirmedCourse?.id||'']??null} routingBusy={!!routingStatus[confirmedCourse?.id||'']?.busy} routingError={routingStatus[confirmedCourse?.id||'']?.error||''} confirmedCourse={confirmedCourse} onDetail={openCourse}/>}
+              {tab === 'course' && <CourseListScreen dates={condition?tripDates(condition.date,condition.endDate):[]} activeDate={activeDay} progress={tripProgress} dateById={Object.fromEntries(Object.entries(coursePrefs).map(([id,p])=>[id,p.travelDate||'']))} state={courseState} condition={condition?{...condition,date:activeDay||condition.date,departure:activeDay!==condition.date?(coursePrefs[courses[0]?.id??'']?.startLocation||condition.departure):condition.departure}:undefined} courses={courses} fallbackReason={fallbackReason} onSelect={(course) => void openCourse(course)} onRetry={retryDay} onPlan={() => {setWizardSeed(condition);setWizardOpen(true)}} />}
+              {tab === 'map' && <MapScreen journeys={confirmedCourse&&Object.keys(dayCache.current).length>1?Object.values(dayCache.current).flatMap(d=>d.courses.slice(0,1)).map(c=>c.id===confirmedCourse.id?confirmedCourse:c):confirmedCourse?[confirmedCourse]:[]} preferencesById={coursePrefs} missingDays={Object.entries(dayCache.current).filter(([,d])=>d.error).map(([date,d])=>({date,error:d.error!}))} routingBusy={!!routingStatus[confirmedCourse?.id||'']?.busy} routingError={routingStatus[confirmedCourse?.id||'']?.error||''} confirmedCourse={confirmedCourse} onDetail={openCourse}/>}
               {tab === 'mytravel' && <MyTravelScreen loggedIn={loggedIn} user={user} onLogin={() => setScreen('login')} onLogout={() => void handleLogout()} onDeleted={()=>void clearAccount()} bookmarkItems={bookmarkItems} history={history} onSelectCourse={(course) => void openCourse(course)} onReplayHistory={replayHistory} onDeleteHistory={async(id)=>{if(await ask('여행 기록 삭제','저장한 여행 기록을 삭제할까요?','삭제'))try{await api.history.delete(id);await refreshAccount()}catch(error){await ask('삭제 실패',error instanceof Error?error.message:'다시 시도해 주세요.')}}} courses={courses} />}
             </div>
             <TabBar active={tab} onChange={setTab} />
