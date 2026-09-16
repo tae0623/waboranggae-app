@@ -1,0 +1,8 @@
+# Copy to local.properties, or run tools/configure.mjs from the parent project.
+# Never commit local.properties. No TourAPI/DB/JWT/LLM secrets belong in the app.
+sdk.dir=C:/path/to/Android/Sdk
+API_BASE_URL=https://your-development-server.example
+DEV_ACCESS_KEY=
+# Kakao Developers > App > App keys > Native app key
+KAKAO_NATIVE_APP_KEY=
+

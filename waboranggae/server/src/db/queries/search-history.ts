@@ -1,5 +1,6 @@
 import { prisma } from '../client';
 import { TravelPreferences } from '../../../../src/types/travel';
+import { Prisma } from '@prisma/client';
 
 export class SearchHistoryQueries {
   /**
@@ -12,6 +13,7 @@ export class SearchHistoryQueries {
         query,
         city: preferences.city,
         pace: preferences.pace,
+        preferences: JSON.parse(JSON.stringify(preferences)) as Prisma.InputJsonValue,
       },
     });
   }
@@ -43,8 +45,8 @@ export class SearchHistoryQueries {
    */
   static async deleteSearchHistory(userId: string, historyId?: string) {
     if (historyId) {
-      return prisma.searchHistory.delete({
-        where: { id: historyId },
+      return prisma.searchHistory.deleteMany({
+        where: { id: historyId, userId },
       });
     }
     // 전체 삭제

@@ -1,16 +1,20 @@
 import { prisma } from '../client';
+import { Prisma } from '@prisma/client';
 
 export class BookmarkQueries {
   /**
    * 코스를 북마크에 추가합니다.
    */
-  static async addBookmark(userId: string, courseId: string, courseName: string, city: string) {
-    return prisma.bookmark.create({
-      data: {
+  static async addBookmark(userId: string, courseId: string, courseName: string, city: string, snapshot?: Prisma.InputJsonValue) {
+    return prisma.bookmark.upsert({
+      where: { userId_courseId: { userId, courseId } },
+      update: { courseName, city, ...(snapshot ? { snapshot } : {}) },
+      create: {
         userId,
         courseId,
         courseName,
         city,
+        ...(snapshot ? { snapshot } : {}),
       },
     });
   }
@@ -19,10 +23,8 @@ export class BookmarkQueries {
    * 코스 북마크를 제거합니다.
    */
   static async removeBookmark(userId: string, courseId: string) {
-    return prisma.bookmark.delete({
-      where: {
-        userId_courseId: { userId, courseId },
-      },
+    return prisma.bookmark.deleteMany({
+      where: { userId, courseId },
     });
   }
 

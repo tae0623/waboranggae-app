@@ -50,11 +50,11 @@ export function CoursesScreen({
     : source === 'demo'
     ? '실데이터 연결 실패 · 시연 코스'
     : planningSource === 'ollama' ? 'AI가 구성하고 서버가 검증' : '시간 규칙으로 구성·검증';
-  const routingNotice = courses[0]?.routeSource === 'tmap-transit'
-    ? '출발지와 장소 간 이동은 TMAP 대중교통 길찾기 결과를 반영했습니다.'
+  const routingNotice = courses[0]?.routeSource === 'kakao'
+    ? '출발지와 장소 간 이동은 조회한 카카오 구간 경로를 반영했습니다.'
     : courses[0]?.routeSource === 'mixed'
-      ? '일부 구간은 TMAP 경로, 나머지는 좌표 기반 예상 경로입니다.'
-      : '출발지 실좌표를 반영했으며, 길찾기 키가 없는 구간의 이동시간은 좌표 기반 예상치입니다.';
+      ? '일부 구간은 조회한 경로, 나머지는 좌표 기반 예상 경로입니다.'
+      : '출발지 실좌표를 반영한 예상 시간입니다. 동선 탭에서 구간별 카카오맵 길찾기를 확인하세요.';
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -123,8 +123,8 @@ export function CoursesScreen({
       {source !== null ? <View style={styles.notice}>
         <Ionicons name="information-circle-outline" size={18} color={colors.blue} />
         <Text style={styles.noticeText}>
-          {source === 'tour-api'
-            ? `관광지는 한국관광공사 TourAPI에서 조회했습니다. ${routingNotice} 운영시간은 방문 전에 확인하세요.`
+          {source !== 'demo'
+            ? `장소: 한국관광공사·카카오 · 사진: 한국관광공사. ${routingNotice} 운영시간은 방문 전에 확인하세요.`
             : fallbackReason || 'TourAPI를 쓰지 못해 시연 코스를 표시합니다. .env의 DATA_GO_KR_KEY를 확인하세요.'}
         </Text>
       </View> : null}

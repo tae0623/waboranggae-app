@@ -5,6 +5,8 @@ import { hashPassword, verifyPassword, validatePasswordRequirements } from '../u
 import { generateTokenPair, verifyRefreshToken } from './jwt';
 import { authenticateToken } from '../middleware/auth';
 import { loginLimiter, signupLimiter } from '../middleware/rateLimiter';
+import { consentSchema, needsPrivacyConsent } from '../privacy';
+import { isSessionRevoked, revokeSession } from './session-revocations';
 
 const router = Router();
 
@@ -12,22 +14,24 @@ const router = Router();
 const signupSchema = z.object({
   email: z.string().email('올바른 이메일 주소를 입력하세요'),
   displayName: z.string().min(2, '이름은 2자 이상이어야 합니다').max(50, '이름은 50자 이하여야 합니다'),
-  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다'),
-});
+  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다').max(128),
+}).merge(consentSchema);
 
 const loginSchema = z.object({
   email: z.string().email('올바른 이메일 주소를 입력하세요'),
-  password: z.string().min(1, '비밀번호를 입력하세요'),
+  password: z.string().min(1, '비밀번호를 입력하세요').max(128),
+  privacyConsent: z.boolean().optional(),
+  consentVersion: z.string().optional(),
 });
 
 const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token이 필요합니다'),
+  refreshToken: z.string().min(1, 'Refresh token이 필요합니다').max(8192),
 });
 
 // 회원가입
 router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, displayName, password } = signupSchema.parse(req.body);
+    const { email, displayName, password, consentVersion } = signupSchema.parse(req.body);
 
     // 비밀번호 요구사항 검증
     const passwordError = validatePasswordRequirements(password);
@@ -55,6 +59,8 @@ router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
         email,
         displayName,
         password: hashedPassword,
+        consentVersion,
+        consentedAt: new Date(),
       },
     });
 
@@ -82,7 +88,7 @@ router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
       return;
     }
 
-    console.error('[Signup Error]', error);
+    console.error('[Signup Error] Request failed');
     res.status(500).json({
       error: '회원가입 중 오류가 발생했습니다',
     });
@@ -92,10 +98,14 @@ router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
 // 로그인
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
+    const { email, password, privacyConsent, consentVersion } = loginSchema.parse(req.body);
+    // Authentication without consent remains available for privacy rights/deletion.
+    // It never records consent implicitly; account writes are separately gated.
+    const consent = privacyConsent !== undefined || consentVersion !== undefined
+      ? consentSchema.parse({ privacyConsent, consentVersion }) : null;
 
     // 사용자 조회
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email },
     });
 
@@ -111,6 +121,10 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     if (!isValid) {
       res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' });
       return;
+    }
+
+    if (consent && needsPrivacyConsent(user)) {
+      user = await prisma.user.update({ where: { id: user.id }, data: { consentVersion: consent.consentVersion, consentedAt: new Date() } });
     }
 
     // 토큰 생성
@@ -136,15 +150,29 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       return;
     }
 
-    console.error('[Login Error]', error);
+    console.error('[Login Error] Request failed');
     res.status(500).json({
       error: '로그인 중 오류가 발생했습니다',
     });
   }
 });
 
+// Existing sessions must explicitly accept the current notice before new account writes.
+router.post('/consent', authenticateToken, async (req, res, next) => {
+  try {
+    const consent = consentSchema.parse(req.body);
+    const current = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.userId } });
+    const user = needsPrivacyConsent(current)
+      ? await prisma.user.update({ where: { id: current.id }, data: { consentVersion: consent.consentVersion, consentedAt: new Date() } })
+      : current;
+    const { password: _, ...safeUser } = user;
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(safeUser);
+  } catch (error) { next(error); }
+});
+
 // 토큰 갱신
-router.post('/refresh', async (req: Request, res: Response) => {
+router.post('/refresh', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { refreshToken } = refreshSchema.parse(req.body);
 
@@ -161,7 +189,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
       where: { id: payload.userId },
     });
 
-    if (!user || user.tokenVersion !== payload.tokenVersion) {
+    if (!user || user.tokenVersion !== payload.tokenVersion || await isSessionRevoked(payload.sessionId)) {
       // 비밀번호 변경 등으로 토큰이 무효화됨
       res.status(401).json({ error: '토큰이 무효화되었습니다. 다시 로그인하세요' });
       return;
@@ -171,7 +199,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
     const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokenPair(
       user.id,
       user.email,
-      user.tokenVersion
+      user.tokenVersion,
+      payload.sessionId
     );
 
     res.json({
@@ -186,18 +215,29 @@ router.post('/refresh', async (req: Request, res: Response) => {
       return;
     }
 
-    console.error('[Refresh Error]', error);
+    console.error('[Refresh Error] Request failed');
     res.status(500).json({
       error: '토큰 갱신 중 오류가 발생했습니다',
     });
   }
 });
 
-// 로그아웃 (선택사항: 클라이언트에서 토큰 삭제하면 됨)
-router.post('/logout', authenticateToken, (req: Request, res: Response) => {
-  // JWT는 stateless이므로 서버에서 할 일이 없음
-  // 클라이언트에서 토큰 삭제
-  res.json({ message: '로그아웃되었습니다' });
+// Native logout revokes this login only; other devices keep their own session IDs.
+router.post('/logout/current', authenticateToken, async (req:Request,res:Response,next)=>{
+  try {
+    if(!req.user!.sessionId){res.status(409).json({error:'세션을 갱신한 후 다시 시도해 주세요.'});return;}
+    await revokeSession(req.user!.sessionId);
+    res.setHeader('Cache-Control','no-store');
+    res.json({message:'로그아웃되었습니다',scope:'current-session'});
+  }catch(error){next(error);}
+});
+
+// Retained for older web clients whose button explicitly says all devices.
+router.post('/logout', authenticateToken, async (req: Request, res: Response, next) => {
+  try {
+    await prisma.user.update({ where: { id: req.user!.userId }, data: { tokenVersion: { increment: 1 } } });
+    res.json({ message: '모든 기기에서 로그아웃되었습니다' });
+  } catch (error) { next(error); }
 });
 
 export const authRouter = router;

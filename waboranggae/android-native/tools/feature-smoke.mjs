@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { readFile,writeFile } from 'node:fs/promises';
+import { parse } from 'dotenv';
+const root=new URL('../../',import.meta.url);
+const settings=parse(await readFile(new URL('.env.team.local',root)));
+const base='http://127.0.0.1:8788';
+const headers={'Content-Type':'application/json','X-Dev-Access-Key':settings.TEAM_ACCESS_KEY};
+const {preferences}=JSON.parse(await readFile(new URL('.runtime/native-pilot/recommend-request.json',root),'utf8'));
+preferences.travelDate=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
+async function call(path,body){const start=Date.now();const response=await fetch(base+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(135000)});const data=await response.json();return {status:response.status,data,elapsedMs:Date.now()-start};}
+const result=await call('/api/recommend',{preferences});assert.equal(result.status,200);assert.equal(result.data.source,'tour-api');
+const course=result.data.courses.find(c=>c.constraintPassed);assert.ok(course);
+const edited=await call('/api/recommend/edit',{preferences,courseId:course.id,placeIds:course.places.map(p=>p.id)});
+assert.equal(edited.status,200);assert.equal(edited.data.course.constraintPassed,true);
+const rejected=await call('/api/recommend/edit',{preferences,courseId:course.id,placeIds:[course.places[0].id,course.places[0].id]});assert.equal(rejected.status,400);
+const weather=await call(`/api/weather/current?lat=${course.origin.latitude}&lng=${course.origin.longitude}`);assert.equal(weather.status,200);
+const explanation=await call('/api/explain',{preferences,course});assert.equal(explanation.status,200);assert.ok(explanation.data.reason.summary);
+const legal=await call('/legal/config');assert.equal(legal.data.supportEmail,'waboranggae.help@gmail.com');
+const end=new Date(preferences.travelDate+'T00:00:00Z');end.setUTCDate(end.getUTCDate()+1);
+const multi=await call('/api/recommend',{preferences:{...preferences,travelEndDate:end.toISOString().slice(0,10),endTime:'18:00',durationHours:32,meals:['breakfast','lunch','dinner'],summary:'순천 1박 2일 실제 API 검증'}});
+console.log(JSON.stringify({multiDayCandidates:multi.data.courses?.map(c=>({hours:c.durationHours,stops:c.places.length,violations:c.constraintViolations,facts:c.scoreFacts}))},null,2));
+const report={checkedAt:new Date().toISOString(),edit:{status:edited.status,unchangedOrderValidated:true,duplicateRejected:rejected.status===400},weather:{available:weather.data.available,observedAt:weather.data.observedAt||null},explanation:{source:explanation.data.reason.source,elapsedMs:explanation.elapsedMs},multiDay:{status:multi.status,source:multi.data.source,validCourses:multi.data.courses?.filter(c=>c.constraintPassed).length??0,elapsedMs:multi.elapsedMs},legal:{supportEmail:legal.data.supportEmail,operatorConfigured:Boolean(legal.data.operator),releaseReady:legal.data.releaseReady}};
+await writeFile(new URL('.runtime/native-pilot/feature-smoke.json',root),JSON.stringify(report,null,2));
+console.log(JSON.stringify(report,null,2));

@@ -1,3 +1,4 @@
+import type { TravelPreferences } from '../types/travel';
 export function clockMinutes(value: string) {
   const match = value.match(/^(\d{2}):(\d{2})$/);
   if (!match) return 10 * 60;
@@ -28,13 +29,13 @@ export function touringMinutes(
 ) {
   const wall = wallClockMinutes(startDate, startTime, endDate, endTime);
   const origin = clockMinutes(startTime);
+  if (startDate === endDate) return wall;
   let total = 0;
-  for (let elapsed = 0; elapsed < wall; elapsed += 15) {
-    const tod = ((origin + elapsed) % 1_440 + 1_440) % 1_440;
-    if (tod >= 22 * 60 || tod < 8 * 60) continue;
-    total += 15;
+  const finish = origin + wall;
+  for (let day = 0; day * 1440 < finish; day++) {
+    total += Math.max(0, Math.min(finish, day * 1440 + 22 * 60) - Math.max(origin, day * 1440 + 8 * 60));
   }
-  return Math.max(60, total);
+  return total;
 }
 
 export function wallClockHours(...args: Parameters<typeof wallClockMinutes>) {
@@ -42,7 +43,7 @@ export function wallClockHours(...args: Parameters<typeof wallClockMinutes>) {
 }
 
 export function touringHours(...args: Parameters<typeof touringMinutes>) {
-  return Math.max(1, Math.round(touringMinutes(...args) / 6) / 10);
+  return touringMinutes(...args) / 60;
 }
 
 export function isOvernightTrip(startDate: string, endDate: string) {
@@ -92,12 +93,12 @@ export function mealsFromPreference(
   mealPreference: 'auto' | 'none' | 'lunch' | 'dinner' | 'both',
   meals?: MealKind[],
 ): MealKind[] {
-  if (meals?.length) return [...new Set(meals)];
+  if (meals !== undefined) return [...new Set(meals)];
   if (mealPreference === 'none') return [];
   if (mealPreference === 'lunch') return ['lunch'];
   if (mealPreference === 'dinner') return ['dinner'];
   if (mealPreference === 'both') return ['lunch', 'dinner'];
-  return ['lunch', 'dinner'];
+  return ['breakfast', 'lunch', 'dinner'];
 }
 
 export function wantsMeals(
@@ -108,12 +109,19 @@ export function wantsMeals(
 }
 
 export function planningHours(preferences: {
+  scheduleMode?: 'fixed' | 'course-first';
+  pace?: string;
   travelDate: string | null;
   travelEndDate?: string | null;
   startTime: string;
   endTime?: string;
   durationHours: number;
 }) {
+  if(preferences.scheduleMode==='course-first'){
+    const suggested=preferences.pace==='easy'?4.5:preferences.pace==='full'?7.5:6;
+    const available=(clockMinutes(preferences.endTime || '23:59')-clockMinutes(preferences.startTime))/60;
+    return Math.max(0.5,Math.min(suggested,available));
+  }
   if (preferences.travelDate && preferences.travelEndDate && preferences.endTime) {
     return touringHours(
       preferences.travelDate,
@@ -126,12 +134,14 @@ export function planningHours(preferences: {
 }
 
 export function wallLimitMinutes(preferences: {
+  scheduleMode?: 'fixed' | 'course-first';
   travelDate: string | null;
   travelEndDate?: string | null;
   startTime: string;
   endTime?: string;
   durationHours: number;
 }) {
+  if(preferences.scheduleMode==='course-first')return Math.max(0,clockMinutes(preferences.endTime || '23:59')-clockMinutes(preferences.startTime));
   if (preferences.travelDate && preferences.travelEndDate && preferences.endTime) {
     return wallClockMinutes(
       preferences.travelDate,
@@ -141,4 +151,65 @@ export function wallLimitMinutes(preferences: {
     );
   }
   return preferences.durationHours * 60;
+}
+
+export interface MealWindow {
+  kind: 'breakfast' | 'lunch' | 'dinner';
+  label: string;
+  start: number;
+  end: number;
+}
+
+const MEAL_WINDOWS: Record<MealWindow['kind'], MealWindow> = {
+  breakfast: { kind: 'breakfast', label: '아침', start: 8 * 60, end: 9 * 60 + 30 },
+  lunch: { kind: 'lunch', label: '점심', start: 11 * 60 + 30, end: 13 * 60 + 30 },
+  dinner: { kind: 'dinner', label: '저녁', start: 17 * 60 + 30, end: 19 * 60 + 30 },
+};
+
+function overlapsTrip(window: MealWindow, start: number, end: number) {
+  // Match the native selection and the scheduler's 60-minute minimum meal stay.
+  const arrival = Math.max(start, window.start);
+  return arrival <= window.end && arrival + 60 <= end;
+}
+
+function requestedKinds(preferences: TravelPreferences): MealWindow['kind'][] {
+  return mealsFromPreference(preferences.mealPreference, preferences.meals);
+}
+
+export function tripEndClock(preferences: TravelPreferences) {
+  if(preferences.scheduleMode==='course-first')return clockMinutes(preferences.endTime || '23:59');
+  if (preferences.travelDate && preferences.travelEndDate && preferences.endTime) {
+    return clockMinutes(preferences.startTime) + wallClockMinutes(
+      preferences.travelDate,
+      preferences.startTime,
+      preferences.travelEndDate,
+      preferences.endTime,
+    );
+  }
+  return clockMinutes(preferences.startTime) + preferences.durationHours * 60;
+}
+
+export function mealWindowsFor(preferences: TravelPreferences): MealWindow[] {
+  if (preferences.mealPreference === 'none' && !preferences.meals?.length) return [];
+  const start = clockMinutes(preferences.startTime);
+  const automatic = preferences.mealPreference === 'auto' && preferences.meals === undefined;
+  const end = preferences.scheduleMode==='course-first' && automatic
+    ? Math.min(tripEndClock(preferences),start+planningHours(preferences)*60) : tripEndClock(preferences);
+  const kinds = requestedKinds(preferences);
+  const windows: MealWindow[] = [];
+  for (let dayStart = 0; dayStart < end; dayStart += 1_440) {
+    for (const kind of kinds) {
+      const base = MEAL_WINDOWS[kind];
+      const window = {
+        ...base,
+        start: base.start + dayStart,
+        end: base.end + dayStart,
+      };
+      // Automatic meals leave room for the initial local transfer; explicit choices remain strict.
+      const earliest = automatic ? start + 25 : start;
+      if (overlapsTrip(window, earliest, end)) windows.push(window);
+      if (windows.length >= 10) return windows;
+    }
+  }
+  return windows;
 }

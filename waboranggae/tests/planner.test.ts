@@ -44,6 +44,20 @@ function hasSameDiningCategory(a: Place['category'], b: Place['category']) {
 }
 
 describe('hybrid itinerary planner', () => {
+  it('validates a second-day lunch against its own day rather than reusing first-day lunch',()=>{
+    const p={...parseTravelText('순천 자연 6시간'),travelDate:'2026-10-01',travelEndDate:'2026-10-02',startTime:'10:00',endTime:'18:00',durationHours:32,mealPreference:'both' as const};
+    const schedule=[
+      {...candidates[0]!,id:'day1-a',arrival:'10:00',stayMinutes:90},
+      {...candidates[2]!,id:'day1-lunch',arrival:'11:45'},
+      {...candidates[1]!,id:'day1-b',arrival:'13:00',stayMinutes:120},
+      {...candidates[3]!,id:'day1-dinner',arrival:'18:00'},
+      {...candidates[0]!,id:'day1-c',arrival:'20:00',stayMinutes:120},
+      {...candidates[1]!,id:'day2-a',arrival:'08:00',stayMinutes:120},
+      {...candidates[2]!,id:'day2-lunch',arrival:'12:00'},
+      {...candidates[0]!,id:'day2-b',arrival:'16:00',stayMinutes:120},
+    ];
+    expect(validateScheduledPlaces(p,schedule).filter(x=>x.includes('식사 시간'))).toEqual([]);
+  });
   it('automatically reserves one lunch and prevents consecutive restaurants', () => {
     const preferences = parseTravelText('순천에서 오전 10시부터 자연과 카페를 6시간 여유롭게 보고 싶어');
     const windows = mealWindowsFor(preferences);
@@ -182,6 +196,20 @@ describe('hybrid itinerary planner', () => {
     expect(new Set(titled.map((course) => course.title)).size).toBe(titled.length);
     expect(titled[0]?.title).toContain(preferences.city);
     expect(titled[0]?.places.some((place) => titled[0]!.title.includes(place.name))).toBe(true);
+  });
+
+  it('keeps complete representative place names without title ellipsis', () => {
+    const preferences = parseTravelText('순천에서 자연과 점심을 6시간 보고 싶어');
+    const courses = buildRulePlannedCourses(preferences, candidates).slice(0, 2);
+    expect(courses.length).toBeGreaterThan(0);
+    const fullNames = ['아주긴이름의생태문화자연관찰공원', '역사문화예술이함께하는복합문화관'];
+    const titled = assignGroundedCourseTitles(preferences, courses.map(course => ({
+      ...course, places: course.places.map((item, index) => ({ ...item, name: fullNames[index % 2]! })),
+    })));
+    for (const course of titled) {
+      expect(course.title).not.toMatch(/…|\.\.\./);
+      expect(fullNames.some(name => course.title.includes(name))).toBe(true);
+    }
   });
 
   it('opens lunch on both days for an overnight window', () => {

@@ -9,7 +9,7 @@ import {
 } from '../server/src/modules/recommendation/data/tour-api';
 
 const TOUR_ITEMS: TourApiItem[] = [
-  { contentid: '1', contenttypeid: '12', title: '순천만습지', addr1: '전남 순천시', mapx: '127.509', mapy: '34.885' },
+  { contentid: '1', contenttypeid: '12', cat1: 'A01', title: '순천만습지', addr1: '전남 순천시', mapx: '127.509', mapy: '34.885' },
   { contentid: '2', contenttypeid: '14', title: '순천 문화관', addr1: '전남 순천시', mapx: '127.512', mapy: '34.887' },
   { contentid: '3', contenttypeid: '39', title: '순천 로컬 식당', addr1: '전남 순천시', mapx: '127.515', mapy: '34.889' },
   { contentid: '4', contenttypeid: '38', title: '순천 전통시장', addr1: '전남 순천시', mapx: '127.518', mapy: '34.891' },

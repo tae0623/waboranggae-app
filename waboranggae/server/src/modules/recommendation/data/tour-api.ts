@@ -1,9 +1,14 @@
+import {currentOrUpcomingEvent, koreaDateKey} from '../../hot-places/copy';
 import { Course, Interest, Place, PlaceCategory, TravelPreferences, WalkabilityMetrics } from '../../../../../src/types/travel';
 import { JEONNAM_CITIES } from '../../../../../src/domain/jeonnamCities';
 import { distanceKm as haversineKm, projectMapPoints } from '../../../utils/geo';
 import { DataProvider } from './provider';
-import { desiredStopCount, stopBudgetHours } from '../planner';
+import { desiredStopCount, stopBudgetHours, mealWindowsFor } from '../planner';
 import { placePreferenceScore } from '../../../../../src/domain/recommendScore';
+import {belongsToCity} from '../local-trip';
+import {RequiredVisitError} from '../../../shared/public-error';
+import {validTravelDate} from '../../../../../src/domain/travelInput';
+import {fetchKakaoCandidates, mergePlaceCandidates} from './kakao-candidates';
 
 const apiBaseUrl = (process.env.TOUR_API_BASE_URL || 'https://apis.data.go.kr/B551011/KorService2').replace(/\/$/, '');
 // apis.data.go.kr 계열은 API 종류와 관계없이 공통 공공데이터포털 키만 사용합니다.
@@ -41,6 +46,8 @@ interface Candidate {
   category: PlaceCategory;
   tags: Interest[];
   imageUrl?: string;
+  source: 'tour-api' | 'kakao';
+  placeUrl?: string;
 }
 
 interface CacheEntry {
@@ -62,11 +69,14 @@ function decodedServiceKey() {
 
 function asItems(payload: unknown): TourApiItem[] {
   const root = payload as {
+    resultCode?: string;
     response?: {
       header?: { resultCode?: string; resultMsg?: string };
       body?: { items?: { item?: TourApiItem | TourApiItem[] } | '' };
     };
   };
+  // Gateway validation errors use a top-level envelope, even with HTTP 200.
+  if(root.resultCode && root.resultCode!=='0000')throw new Error('TourAPI 요청을 처리하지 못했습니다.');
   const header = root.response?.header;
   if (header?.resultCode && header.resultCode !== '0000') {
     throw new Error(header.resultMsg || `TourAPI 오류 ${header.resultCode}`);
@@ -211,24 +221,33 @@ const CAFE_NAME_PATTERN = /카페|커피|베이커리|디저트|다방|로스터
 
 export function classifyTourItemCategory(item: TourApiItem): PlaceCategory {
   switch (contentType(item)) {
+    case 12:
+      if (item.cat1 === 'A01') return 'nature';
+      if (item.cat2 === 'A0201') return 'history';
+      return 'culture';
+    case 28: return 'nature';
     case 14: return 'history';
     case 38: return 'market';
     case 39: return CAFE_NAME_PATTERN.test(item.title || '') ? 'cafe' : 'food';
     case 15:
     case 25: return 'culture';
-    default: return 'nature';
+    default: return 'culture';
   }
 }
 
 export function classifyTourItemTags(item: TourApiItem): Interest[] {
   switch (contentType(item)) {
+    case 12: {
+      const category = classifyTourItemCategory(item);
+      return category === 'nature' ? ['nature','photo'] : category === 'history' ? ['history','photo'] : ['photo'];
+    }
     case 14: return ['history', 'photo'];
     case 38: return ['market', 'food'];
     case 39: return classifyTourItemCategory(item) === 'cafe' ? ['cafe', 'food'] : ['food'];
     case 15: return ['photo'];
     case 25: return ['nature', 'history'];
     case 28: return ['nature'];
-    default: return ['nature', 'photo'];
+    default: return ['photo'];
   }
 }
 
@@ -371,7 +390,7 @@ export async function fetchOngoingFestivals(limit = 4): Promise<TourHighlight[]>
     }, 24 * 60 * 60 * 1_000);
     const regionItem = findRequestedTourRegion(regions, '전라남도');
     const regionCode = regionItem?.code || regionItem?.lDongRegnCd;
-    const today = yyyymmdd(new Date());
+    const today = koreaDateKey();
     const items = await requestItems('searchFestival2', {
       numOfRows: '20',
       pageNo: '1',
@@ -381,6 +400,7 @@ export async function fetchOngoingFestivals(limit = 4): Promise<TourHighlight[]>
     });
     return items
       .filter(isHighlightAttraction)
+      .filter(item=>currentOrUpcomingEvent(item.eventstartdate,item.eventenddate))
       .map((item) => {
         const haystack = `${item.lDongSignguNm || ''} ${item.addr1 || ''}`;
         const matched = JEONNAM_CITIES.find((name) => haystack.includes(name));
@@ -438,10 +458,6 @@ export async function fetchTourPlaceDetail(
     const [commonItems, introItems] = await Promise.all([
       requestItems('detailCommon2', {
         contentId,
-        ...(type ? { contentTypeId: type } : {}),
-        defaultYN: 'Y',
-        overviewYN: 'Y',
-        addrinfoYN: 'Y',
       }),
       type
         ? requestItems('detailIntro2', { contentId, contentTypeId: type })
@@ -480,11 +496,15 @@ function toCandidates(items: TourApiItem[]) {
     const longitude = Number(item.mapx);
     const latitude = Number(item.mapy);
     const name = item.title?.trim();
-    if (!name || !Number.isFinite(longitude) || !Number.isFinite(latitude) || !supportedTypes.has(contentType(item))) {
+    // Overnight facilities are not sightseeing stops in a same-day, car-free itinerary.
+    if (contentType(item) !== 39 && BLOCKED_HIGHLIGHT_NAME.test(name || '')) return [];
+    if (!name || !Number.isFinite(longitude) || !Number.isFinite(latitude) || longitude < 124 || longitude > 132
+      || latitude < 33 || latitude > 39 || !supportedTypes.has(contentType(item))) {
       return [];
     }
     return [{
       item,
+      source: 'tour-api',
       id: item.contentid || `${longitude}-${latitude}`,
       name,
       longitude,
@@ -496,11 +516,63 @@ function toCandidates(items: TourApiItem[]) {
   });
 }
 
+/** Validate the provider's record, never a client-supplied name, coordinate or event period. */
+export function validateRequiredTourItem(item:TourApiItem|undefined,preferences:TravelPreferences) {
+  const fail=(message:string):never=>{throw new RequiredVisitError(message);};
+  if(!item || item.contentid!==preferences.requiredContentId || !toCandidates([item]).length)
+    fail('선택한 장소의 관광정보를 확인할 수 없습니다. 장소를 다시 선택해 주세요.');
+  const record=item!;
+  if(!record.mapx?.trim() || !record.mapy?.trim() || Number(record.mapx)<124 || Number(record.mapx)>132 || Number(record.mapy)<33 || Number(record.mapy)>39)
+    fail('선택한 장소의 위치 정보가 없어 코스를 만들 수 없습니다.');
+  if(!belongsToCity(`${record.lDongSignguNm||''} ${record.addr1||''}`.trim(),preferences.city))
+    fail('선택한 장소와 여행 지역이 다릅니다. 여행 지역을 확인해 주세요.');
+  if(contentType(record)===15){
+    const from=(record.eventstartdate||'').replace(/-/g,''),to=(record.eventenddate||'').replace(/-/g,'');
+    const day=(preferences.travelDate||'').replace(/-/g,'');
+    const calendar=(s:string)=>/^\d{8}$/.test(s)&&validTravelDate(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6)}`);
+    if(!calendar(from) || !calendar(to) || from>to)
+      fail('행사 기간을 확인할 수 없어 이 행사를 포함한 코스를 만들 수 없습니다.');
+    if(!day || day<from || day>to)
+      fail(`행사 기간(${from.slice(0,4)}.${from.slice(4,6)}.${from.slice(6)}~${to.slice(0,4)}.${to.slice(4,6)}.${to.slice(6)}) 안에서 여행 날짜를 선택해 주세요.`);
+  }
+  return record;
+}
+
+async function fetchRequiredTourItem(preferences:TravelPreferences):Promise<TourApiItem|undefined> {
+  if(!preferences.requiredContentId)return undefined;
+  // KorService2 returns common fields directly and rejects the old *YN options.
+  const items=await requestItems('detailCommon2',{contentId:preferences.requiredContentId});
+  let item=items.find(p=>p.contentid===preferences.requiredContentId);
+  if(item && contentType(item)===15){
+    const intro=await requestItems('detailIntro2',{contentId:preferences.requiredContentId,contentTypeId:'15'});
+    item={...item,eventstartdate:intro[0]?.eventstartdate,eventenddate:intro[0]?.eventenddate};
+  }
+  return validateRequiredTourItem(item,preferences);
+}
+
 export function distanceKm(a: Pick<Candidate, 'latitude' | 'longitude'>, b: Pick<Candidate, 'latitude' | 'longitude'>) {
   return haversineKm(a, b);
 }
 
+/** Keep meal/cafe candidates before the planner chooses actual stops. This is a pool, not an itinerary. */
+export function selectPlanningPool<T extends {id:string;category:PlaceCategory;latitude:number;longitude:number}>(
+  seed:T, candidates:T[], preferences:TravelPreferences, limit:number,
+):T[] {
+  const ordered=[...new Map(candidates.filter(c=>c.id!==seed.id).map(c=>[c.id,c])).values()]
+    .sort((a,b)=>distanceKm(seed,a)-distanceKm(seed,b));
+  const chosen:T[]=[];
+  const keep=(p:T)=>{if(chosen.length<limit&&!chosen.some(c=>c.id===p.id))chosen.push(p)};
+  const meals=Math.max(0,mealWindowsFor(preferences).length-(seed.category==='food'?1:0));
+  ordered.filter(c=>c.category==='food').slice(0,meals).forEach(keep);
+  if(preferences.interests.includes('cafe')&&seed.category!=='cafe')ordered.filter(c=>c.category==='cafe').slice(0,1).forEach(keep);
+  // A requested activity must not be crowded out by nearby dining venues.
+  ordered.filter(c=>!['food','cafe','station'].includes(c.category)).slice(0,1).forEach(keep);
+  ordered.forEach(keep);
+  return chosen.sort((a,b)=>distanceKm(seed,a)-distanceKm(seed,b));
+}
+
 function matchScore(candidate: Candidate, preferences: TravelPreferences) {
+  if(candidate.id===preferences.requiredContentId)return 10_000;
   return placePreferenceScore({ category: candidate.category, tags: candidate.tags }, preferences);
 }
 
@@ -508,6 +580,7 @@ async function fetchNearbyLinked(
   seed: Candidate,
   preferences: TravelPreferences,
 ): Promise<Candidate[]> {
+  if (!serviceKey) return [];
   const contentTypes = contentTypesFor(preferences);
   const radius = preferences.pace === 'easy' || preferences.lowMobility ? '3000' : preferences.pace === 'full' ? '7000' : '5000';
   const pages = await Promise.all([
@@ -532,29 +605,33 @@ async function fetchNearbyLinked(
       }).catch(() => [] as TourApiItem[]),
     ),
   ]);
-  const merged = toCandidates(pages.flat());
+  const merged = toCandidates(pages.flat()).filter(candidate => belongsToCity(candidate.item.addr1 || '', preferences.city));
   const unique = new Map<string, Candidate>();
   for (const candidate of merged) {
     if (candidate.id === seed.id) continue;
     if (!unique.has(candidate.id)) unique.set(candidate.id, candidate);
   }
-  return [...unique.values()]
-    .sort((a, b) => distanceKm(seed, a) - distanceKm(seed, b))
-    .slice(0, 6);
+  return selectPlanningPool(seed,[...unique.values()],preferences,12);
 }
 
 async function makeClusters(candidates: Candidate[], preferences: TravelPreferences) {
-  const remaining = [...candidates].sort((a, b) => matchScore(b, preferences) - matchScore(a, preferences));
+  const origin = Number.isFinite(preferences.startLatitude) && Number.isFinite(preferences.startLongitude)
+    ? {latitude: preferences.startLatitude!, longitude: preferences.startLongitude!} : undefined;
+  const remaining = [...candidates].sort((a, b) => matchScore(b, preferences) - matchScore(a, preferences)
+    || (origin ? distanceKm(origin, a) - distanceKm(origin, b) : 0));
   const clusters: Candidate[][] = [];
-  const targetSize = desiredStopCount(stopBudgetHours(preferences));
+  const targetSize = Math.min(12, desiredStopCount(stopBudgetHours(preferences)) + 4);
 
-  while (remaining.length >= 1 && clusters.length < 3) {
+  while (remaining.length >= 1 && clusters.length < (preferences.requiredContentId?1:3)) {
     const seed = remaining.shift();
     if (!seed) break;
 
-    const nearbyById = new Map(
-      (await fetchNearbyLinked(seed, preferences)).map((candidate) => [candidate.id, candidate]),
-    );
+    const radius = preferences.pace === 'easy' || preferences.lowMobility ? 3 : preferences.pace === 'full' ? 7 : 5;
+    // Always consider the supplemental pool, even when TourAPI alone fills the neighbourhood.
+    const nearby = await fetchNearbyLinked(seed, preferences);
+    const merged = mergePlaceCandidates([seed, ...candidates], nearby);
+    const nearbyById = new Map(merged.filter(candidate => candidate.id !== seed.id && distanceKm(seed, candidate) <= radius)
+      .map(candidate => [candidate.id, candidate]));
     if (nearbyById.size < targetSize - 1) {
       for (const candidate of [...remaining].sort((a, b) => distanceKm(seed, a) - distanceKm(seed, b))) {
         if (nearbyById.size >= targetSize - 1) break;
@@ -562,7 +639,7 @@ async function makeClusters(candidates: Candidate[], preferences: TravelPreferen
       }
     }
 
-    const cluster = [seed, ...[...nearbyById.values()].slice(0, targetSize - 1)];
+    const cluster = [seed, ...selectPlanningPool(seed,[...nearbyById.values()],preferences,targetSize-1)];
     clusters.push(cluster);
     const used = new Set(cluster.map((candidate) => candidate.id));
     for (let index = remaining.length - 1; index >= 0; index -= 1) {
@@ -627,7 +704,9 @@ function buildCourse(cluster: Candidate[], preferences: TravelPreferences, index
     clock += stay;
 
     return {
-      id: `tour-${candidate.id}`,
+      id: candidate.source === 'kakao' ? candidate.id : `tour-${candidate.id}`,
+      dataSource: candidate.source,
+      placeUrl: candidate.placeUrl,
       name: candidate.name,
       category: candidate.category,
       address: candidate.item.addr1 || `${preferences.city} · 상세 주소 확인`,
@@ -638,7 +717,7 @@ function buildCourse(cluster: Candidate[], preferences: TravelPreferences, index
         : previousDistance !== undefined && previousDistance <= 1.2
           ? `직선거리 약 ${previousDistance.toFixed(1)}km · 도보 권장`
           : `직선거리 약 ${(previousDistance ?? 0).toFixed(1)}km · 대중교통 권장`,
-      description: `한국관광공사 관광정보에 등록된 ${categoryLabel(candidate.category)} 장소예요.`,
+      description: '',
       tags: candidate.tags,
       mapPoint: projected[placeIndex] ?? { x: 60 + placeIndex * 60, y: 220 - placeIndex * 35 },
       latitude: candidate.latitude,
@@ -671,7 +750,7 @@ function buildCourse(cluster: Candidate[], preferences: TravelPreferences, index
     id: `tour-${preferences.city}-${index + 1}-${cluster.map((candidate) => candidate.id).join('-')}`,
     city: preferences.city,
     title: `${preferences.city} ${theme} 뚜벅이 코스 ${index + 1}`,
-    subtitle: `한국관광공사 기반 · ${places.length}곳 연계 · 좌표 기반 동선`,
+    subtitle: `${places.length}곳 연계`,
     accent: palette.accent,
     softAccent: palette.softAccent,
     durationHours,
@@ -691,31 +770,47 @@ export class TourApiProvider implements DataProvider {
   }
 
   async fetchCourses(preferences: TravelPreferences): Promise<Course[]> {
-    if (!this.isConfigured()) return [];
-
+    if (!this.isConfigured() && preferences.requiredContentId)
+      throw new RequiredVisitError('선택한 장소의 관광정보 서비스에 연결할 수 없습니다.',503);
+    // Required visits fail explicitly; an unrelated search result must never replace them.
+    let requiredItem: TourApiItem | undefined;
     try {
-      const { regionCode, cityCode } = await resolveLegalArea(preferences.region, preferences.city);
-      const items = await requestItems('areaBasedList2', {
-        numOfRows: '80',
-        pageNo: '1',
-        arrange: 'A',
-        lDongRegnCd: regionCode,
-        lDongSignguCd: cityCode,
-      });
-      const candidates = toCandidates(items)
-        .filter((candidate) => {
-          if (!preferences.interests.length) return true;
-          if ((preferences.mealPreference !== 'none' || (preferences.meals?.length ?? 0) > 0) && candidate.category === 'food') return true;
-          return candidate.tags.some((tag) => preferences.interests.includes(tag))
-            || matchScore(candidate, preferences) > 0;
-        });
-      const pool = candidates.length >= 3 ? candidates : toCandidates(items);
-      const clusters = await makeClusters(pool, preferences);
-      return clusters.map((cluster, index) => buildCourse(cluster, preferences, index));
+      requiredItem = await fetchRequiredTourItem(preferences);
     } catch (error) {
-      const message = error instanceof Error ? error.message : '알 수 없는 오류';
-      console.warn(`[waboranggae] TourAPI 요청 실패, 시연 데이터로 전환합니다: ${message}`);
-      return [];
+      if (error instanceof RequiredVisitError) throw error;
+      throw new RequiredVisitError('선택한 장소의 관광정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',503);
     }
+    const tourCandidates = async (): Promise<Candidate[]> => {
+      if (!this.isConfigured()) return [];
+      try {
+        const { regionCode, cityCode } = await resolveLegalArea(preferences.region, preferences.city);
+        const queries = await Promise.all(contentTypesFor(preferences).slice(0, 4).map(type => requestItems('areaBasedList2', {
+          numOfRows: '80',
+          pageNo: '1',
+          arrange: 'A',
+          lDongRegnCd: regionCode,
+          lDongSignguCd: cityCode,
+          contentTypeId: String(type),
+          ...(type === 12 && preferences.interests.includes('nature') ? { cat1: 'A01' } : {}),
+        }).catch(() => [] as TourApiItem[])));
+        return toCandidates(queries.flat()).filter(candidate => belongsToCity(candidate.item.addr1 || '', preferences.city));
+      } catch {
+        console.warn('[waboranggae] TourAPI 후보 조회 실패: 사용 가능한 다른 장소 정보를 확인합니다.');
+        return [];
+      }
+    };
+    const [tour, kakao] = await Promise.all([tourCandidates(), fetchKakaoCandidates(preferences).catch(() => [])]);
+    const all = mergePlaceCandidates<Candidate>([...toCandidates(requiredItem ? [requiredItem] : []), ...tour],
+      kakao.map(candidate => ({ ...candidate, item: {addr1: candidate.address} })));
+    const candidates = all.filter((candidate) => {
+      if(candidate.id===preferences.requiredContentId)return true;
+      if (!preferences.interests.length) return true;
+      if ((preferences.mealPreference !== 'none' || (preferences.meals?.length ?? 0) > 0) && candidate.category === 'food') return true;
+      return candidate.tags.some((tag) => preferences.interests.includes(tag))
+        || matchScore(candidate, preferences) > 0;
+    });
+    const pool = candidates.length >= 3 ? candidates : all;
+    const clusters = await makeClusters(pool, preferences);
+    return clusters.map((cluster, index) => buildCourse(cluster, preferences, index));
   }
 }

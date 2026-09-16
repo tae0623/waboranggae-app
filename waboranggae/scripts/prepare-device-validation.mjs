@@ -1,0 +1,15 @@
+import{readFile,writeFile}from'node:fs/promises';
+import{createHash,randomBytes}from'node:crypto';
+import{parse}from'dotenv';
+const target='https://drtxexwznmpmiclvrjji.supabase.co/functions/v1/waboranggae-api';
+const edge=parse(await readFile('.env.edge.local'));
+if(edge.PUBLIC_APP_URL!==target||edge.EDGE_VALIDATION_MODE!=='true')throw Error('VALIDATION_TARGET_MISMATCH');
+const account=process.argv.includes('--account');
+const token=randomBytes(32).toString('hex'),expires=new Date(Date.now()+(account?24:2)*60*60*1000).toISOString();
+const prefix=account?'EDGE_ACCOUNT_VALIDATION':'EDGE_DEVICE_VALIDATION';
+edge[prefix+'_HASH']=createHash('sha256').update(token).digest('hex');
+edge[prefix+'_EXPIRES_AT']=expires;
+const encode=v=>Object.entries(v).map(([k,value])=>k+'='+JSON.stringify(value)).join('\n')+'\n';
+await writeFile('.env.edge.local',encode(edge));
+await writeFile('.env.device-validation.local',encode({API_BASE_URL:target,DEVICE_VALIDATION_TOKEN:token,EXPIRES_AT:expires,VALIDATION_SCOPE:account?'account-test':'guest'}),{mode:0o600});
+console.log(JSON.stringify({deviceValidationPrepared:true,api:target,expiresAt:expires,guestOnly:!account,separateAccountCredential:account,secretsPrinted:false}));

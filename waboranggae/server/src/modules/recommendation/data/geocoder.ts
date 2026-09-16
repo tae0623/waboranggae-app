@@ -1,4 +1,5 @@
 import { RouteOrigin, TravelPreferences } from '../../../../../src/types/travel';
+import { fetchKakaoOrigin } from './kakao';
 
 const baseUrl = (process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
 const userAgent = process.env.NOMINATIM_USER_AGENT
@@ -116,7 +117,7 @@ export function resolveStartOrigin(preferences: TravelPreferences): Promise<Rout
       .catch(() => undefined)
       .then(async () => {
         try {
-          resolve(await fetchOrigin(preferences, query));
+          resolve(await fetchKakaoOrigin(preferences) ?? await fetchOrigin(preferences, query));
         } catch (error) {
           console.warn('[geocoder]', error instanceof Error ? error.message : error);
           resolve(null);

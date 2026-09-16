@@ -54,10 +54,10 @@ export function buildLeafletHtml(course: RankedCourse) {
     ...lockers.map((marker) => [marker.lat, marker.lng]),
   ];
   const center = bounds[0] ?? [places[0]!.latitude, places[0]!.longitude];
-  const routeLabel = course.routeSource === 'tmap-transit'
-    ? 'TMAP 실제 대중교통 경로'
+  const routeLabel = course.routeSource === 'kakao'
+    ? '카카오 조회 구간 경로'
     : course.routeSource === 'mixed'
-      ? 'TMAP + 좌표 추정 경로'
+      ? '조회 구간 + 좌표 추정 경로'
       : '좌표 기반 예상 경로';
 
   return `<!DOCTYPE html>
@@ -92,7 +92,7 @@ export function buildLeafletHtml(course: RankedCourse) {
       L.marker([origin.lat,origin.lng],{icon,zIndexOffset:1000}).addTo(map).bindPopup(popup).openPopup();
     }
     routeLines.forEach((line)=>{
-      if(line.points.length>1)L.polyline(line.points,{color:line.source==='tmap-transit'?'#0D5C45':'#7A8B82',weight:5,opacity:.88,dashArray:line.source==='tmap-transit'?null:'8 7'}).addTo(map).bindTooltip(line.mode);
+      if(line.points.length>1)L.polyline(line.points,{color:line.source==='kakao'?'#0D5C45':'#7A8B82',weight:5,opacity:.88,dashArray:line.source==='kakao'?null:'8 7'}).addTo(map).bindTooltip(line.mode);
     });
     places.forEach((p,i)=>{
       const icon=L.divIcon({className:'',html:'<div class="place-icon">'+(i+1)+'</div>',iconSize:[26,26],iconAnchor:[13,13]});

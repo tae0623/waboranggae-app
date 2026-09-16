@@ -5,15 +5,11 @@ import {
   RouteSegment,
   RoutingSource,
   TravelPreferences,
+  RoutingPoint,
 } from '../../../../src/types/travel';
 import { distanceKm } from '../../utils/geo';
 import { nearbyLinksScore, walkingEaseScore } from '../../../../src/domain/walkability';
 import { resolveStartOrigin } from './data/geocoder';
-import {
-  fetchTmapTransitRoute,
-  isTmapTransitConfigured,
-  RoutingPoint,
-} from './data/tmap-transit';
 import { stepsFromEstimate } from './transit-instruction';
 import {
   formatClock,
@@ -22,8 +18,10 @@ import {
   minimumStayMinutes,
   parseClock,
   tripEndClock,
+  validateScheduledPlaces,
 } from './planner';
 import { skipNightClock, planningHours } from '../../../../src/domain/tripWindow';
+import {fetchKakaoRoute} from './data/kakao';
 
 function hasCoordinates(place: Place): place is Place & { latitude: number; longitude: number } {
   return Number.isFinite(place.latitude) && Number.isFinite(place.longitude);
@@ -60,29 +58,47 @@ function estimateRoute(from: RoutingPoint, to: RoutingPoint): RouteSegment {
   };
 }
 
-function searchDateTime(preferences: TravelPreferences) {
-  if (!preferences.travelDate) return undefined;
-  const date = preferences.travelDate.replace(/-/g, '').slice(0, 8);
-  const time = preferences.startTime.replace(':', '');
-  return /^\d{12}$/.test(`${date}${time}`) ? `${date}${time}` : undefined;
-}
+type RoutingLookup = { remaining:number; pending:Map<string,Promise<RouteSegment|null>> };
 
 async function routeBetween(
   from: RoutingPoint,
   to: RoutingPoint,
-  preferences: TravelPreferences,
-  allowLive: boolean,
+  live=false,
+  preferences?:TravelPreferences,
+  lookup?:RoutingLookup,
 ) {
-  const live = allowLive
-    ? await fetchTmapTransitRoute(from, to, searchDateTime(preferences))
-    : null;
-  return live ?? estimateRoute(from, to);
+  if(live){
+    const get=(mode:'walk'|'transit')=>{
+      const key=`${from.latitude},${from.longitude}|${to.latitude},${to.longitude}|${mode}`;
+      const pending=lookup?.pending.get(key);if(pending)return pending;
+      if(lookup && lookup.remaining<=0)return Promise.resolve(null);
+      if(lookup)lookup.remaining--;
+      const request=fetchKakaoRoute(from,to,mode).then(segment=>segment?{...segment,fromName:from.name,toName:to.name}:null);
+      lookup?.pending.set(key,request);return request;
+    };
+    const distance=distanceKm(from,to);
+    if(distance>=0.6 && distance<=2){
+      const [walk,transit]=await Promise.all([get('walk'),get('transit')]);
+      const walkLimit=preferences?.lowMobility || preferences?.pace==='easy'?15:25;
+      if(walk && walk.totalMinutes<=walkLimit && (!transit || walk.totalMinutes<=transit.totalMinutes+3))return walk;
+      if(transit)return transit;
+      if(walk)return walk;
+    } else {
+      const route=await get(distance<0.6?'walk':'transit');if(route)return route;
+    }
+  }
+  return estimateRoute(from, to);
 }
 
 function routingSource(segments: RouteSegment[]): RoutingSource {
-  const liveCount = segments.filter((segment) => segment.source === 'tmap-transit').length;
+  const liveCount = segments.filter((segment) => segment.source === 'kakao').length;
   if (!liveCount) return 'estimated';
-  return liveCount === segments.length ? 'tmap-transit' : 'mixed';
+  return liveCount === segments.length ? 'kakao' : 'mixed';
+}
+
+function routingStayFloor(preferences:TravelPreferences,category:Place['category']) {
+  if(preferences.timeBudgetMode!=='local')return minimumStayMinutes(category);
+  return category==='food'?45:category==='cafe'||category==='market'?40:category==='station'?0:60;
 }
 
 function buildSchedule(
@@ -98,14 +114,14 @@ function buildSchedule(
   const scheduled = places.map((place, index) => {
     const segment = segments[index];
     if (segment) clock += segment.totalMinutes;
-    clock = skipNightClock(clock, tripStart);
+    if (preferences.travelEndDate && preferences.travelEndDate !== preferences.travelDate) clock = skipNightClock(clock, tripStart);
     const mealWindow = place.category === 'food' ? windows[mealIndex] : undefined;
     if (mealWindow && clock < mealWindow.start) clock = mealWindow.start;
-    clock = skipNightClock(clock, tripStart);
+    if (preferences.travelEndDate && preferences.travelEndDate !== preferences.travelDate) clock = skipNightClock(clock, tripStart);
     const arrival = formatClock(clock);
-    const stayMinutes = stays[index] ?? minimumStayMinutes(place.category);
+    const stayMinutes = stays[index] ?? routingStayFloor(preferences,place.category);
     clock += stayMinutes;
-    clock = skipNightClock(clock, tripStart);
+    if (preferences.travelEndDate && preferences.travelEndDate !== preferences.travelDate) clock = skipNightClock(clock, tripStart);
     if (mealWindow) mealIndex += 1;
     const routeText = segment?.instruction
       || (segment
@@ -133,20 +149,36 @@ function balanceSchedule(
   places: Place[],
   segments: RouteSegment[],
 ) {
-  const stays = places.map((place) => Math.max(minimumStayMinutes(place.category), place.stayMinutes));
+  const stays = places.map((place) => Math.max(routingStayFloor(preferences,place.category), place.stayMinutes));
   const targetEnd = tripEndClock(preferences);
   let scheduled = buildSchedule(preferences, places, segments, stays);
+
+  // A longer first leg can make lunch late even when the whole day still fits.
+  // Reduce optional time BEFORE that meal, never shorten below category minimums.
+  const windows=mealWindowsFor(preferences);
+  let meal=0;
+  for(let index=0;index<places.length;index++){
+    if(places[index]?.category!=='food')continue;
+    const window=windows[meal++];if(!window)continue;
+    for(let earlier=index-1;earlier>=0;earlier--){
+      const arrival=parseClock(scheduled.places[index]!.arrival)+Math.floor(window.start/1440)*1440;
+      const late=arrival-window.end;if(late<=0)break;
+      const floor=routingStayFloor(preferences,places[earlier]!.category);
+      stays[earlier]=Math.max(floor,stays[earlier]!-late);
+      scheduled=buildSchedule(preferences,places,segments,stays);
+    }
+  }
 
   if (scheduled.endClock > targetEnd) {
     for (let index = stays.length - 1; index >= 0 && scheduled.endClock > targetEnd; index -= 1) {
       const place = places[index];
       if (!place) continue;
-      const floor = minimumStayMinutes(place.category);
+      const floor = routingStayFloor(preferences,place.category);
       const reduction = Math.min((stays[index] ?? floor) - floor, scheduled.endClock - targetEnd);
       stays[index] = (stays[index] ?? floor) - Math.max(0, reduction);
       scheduled = buildSchedule(preferences, places, segments, stays);
     }
-  } else if (scheduled.endClock < targetEnd) {
+  } else if (scheduled.endClock < targetEnd && preferences.scheduleMode!=='course-first') {
     const lastMealIndex = places.findLastIndex((place) => place.category === 'food');
     const indexes = places
       .map((_, index) => index)
@@ -160,8 +192,17 @@ function balanceSchedule(
       if (!place || scheduled.endClock >= targetEnd) break;
       const capacity = maximumStayMinutes(place.category) - (stays[index] ?? 0);
       const extra = Math.min(Math.max(0, capacity), targetEnd - scheduled.endClock);
-      stays[index] = (stays[index] ?? 0) + extra;
-      scheduled = buildSchedule(preferences, places, segments, stays);
+      // Filling a day must not push a later meal beyond its arrival window.
+      const old=stays[index]!;
+      let low=0,high=extra;
+      while(low<high){
+        const add=Math.ceil((low+high)/2);stays[index]=old+add;
+        const attempt=buildSchedule(preferences,places,segments,stays);
+        const lateMeal=validateScheduledPlaces(preferences,attempt.places).some(v=>v.includes('식사 시간이'));
+        if(attempt.endClock<=targetEnd&&!lateMeal)low=add;else high=add-1;
+      }
+      stays[index]=old+low;
+      scheduled=buildSchedule(preferences,places,segments,stays);
     }
   }
 
@@ -172,7 +213,8 @@ async function routeCourse(
   preferences: TravelPreferences,
   course: Course,
   origin: RouteOrigin,
-  allowLive: boolean,
+  live=false,
+  lookup?:RoutingLookup,
 ): Promise<Course> {
   const routablePlaces = course.places.filter(hasCoordinates);
   if (routablePlaces.length !== course.places.length) return course;
@@ -184,23 +226,53 @@ async function routeCourse(
       longitude: place.longitude,
     })),
   ];
-  const segments = await Promise.all(
-    routablePlaces.map((_, index) => routeBetween(points[index]!, points[index + 1]!, preferences, allowLive)),
+  let segments = await Promise.all(
+    routablePlaces.map((_, index) => routeBetween(points[index]!, points[index + 1]!,live,preferences,lookup)),
   );
+  let ordered=course.places;
+  let scheduled = balanceSchedule(preferences, ordered, segments);
+  // Keep all selected places. Move an overdue meal and its following cafe together.
+  // Compare candidates locally; query at most one repaired order against the free API quota.
+  if(validateScheduledPlaces(preferences,scheduled.places).some(v=>v.includes('식사 시간이'))){
+    const known=new Map(segments.map((s,i)=>[`${i===0?'origin':ordered[i-1]!.id}|${ordered[i]!.id}`,s]));
+    const variants:Place[][]=[];
+    ordered.forEach((p,index)=>{
+      if(p.category!=='food'||index===0||variants.length>=12)return;
+      const length=ordered[index+1]?.category==='cafe'?2:1;
+      const block=ordered.slice(index,index+length);
+      const rest=ordered.filter((_,i)=>i<index||i>=index+length);
+      for(let at=index-1;at>=0&&variants.length<12;at--)variants.push([...rest.slice(0,at),...block,...rest.slice(at)]);
+    });
+    const estimated=variants.map(places=>{
+      const route=places.map((p,i)=>{
+        const previous=i===0?origin:places[i-1]!;
+        return known.get(`${i===0?'origin':places[i-1]!.id}|${p.id}`)??estimateRoute(previous as RoutingPoint,p as RoutingPoint);
+      });
+      const plan=balanceSchedule(preferences,places,route);
+      return{places,route,plan,violations:validateScheduledPlaces(preferences,plan.places)};
+    }).filter(v=>v.violations.length===0).sort((a,b)=>a.route.reduce((s,r)=>s+r.totalMinutes,0)-b.route.reduce((s,r)=>s+r.totalMinutes,0));
+    const best=estimated[0];
+    if(best){
+      const route=live?await Promise.all(best.places.map((p,i)=>{
+        const previous=i===0?origin:best.places[i-1]!;
+        const existing=known.get(`${i===0?'origin':best.places[i-1]!.id}|${p.id}`);
+        return existing?Promise.resolve(existing):routeBetween(previous as RoutingPoint,p as RoutingPoint,true,preferences,lookup);
+      })):best.route;
+      const plan=balanceSchedule(preferences,best.places,route);
+      if(validateScheduledPlaces(preferences,plan.places).length===0){ordered=best.places;segments=route;scheduled=plan;}
+    }
+  }
   const source = routingSource(segments);
-  const scheduled = balanceSchedule(preferences, course.places, segments);
   const walkMinutes = segments.reduce((sum, segment) => sum + segment.walkMinutes, 0);
   const transitMinutes = segments.reduce((sum, segment) => sum + segment.transitMinutes, 0);
   const distance = segments.reduce((sum, segment) => sum + segment.distanceKm, 0);
   const start = parseClock(preferences.startTime);
   const durationHours = Math.round((scheduled.endClock - start) / 6) / 10;
-  const routingNote = source === 'tmap-transit'
-    ? 'TMAP 대중교통 실제 경로 반영'
-    : source === 'mixed'
-      ? '일부 구간 TMAP 실제 경로 반영'
-      : `출발 거점 실좌표 반영 · ${isTmapTransitConfigured()
-        ? allowLive ? '길찾기 실패 또는 호출 보호 한도로 좌표 추정' : '무료 호출 보호를 위해 예비 코스는 좌표 추정'
-        : 'TMAP 키 미설정으로 이동시간 추정'}`;
+  const totalMinutes=Math.round(scheduled.endClock-start);
+  const stayMinutes=scheduled.places.reduce((sum,p)=>sum+p.stayMinutes,0);
+  const originToFirstMinutes=segments[0]?.totalMinutes??0;
+  const betweenPlacesMinutes=segments.slice(1).reduce((sum,s)=>sum+s.totalMinutes,0);
+  const routingNote = source==='kakao'?'카카오 구간 시간 반영 · 조회 시점 기준':source==='mixed'?'카카오 시간 반영 · 일부 구간 추정':'이동 시간 추정';
 
   return {
     ...course,
@@ -216,8 +288,12 @@ async function routeCourse(
     places: scheduled.places,
     origin,
     routeSource: source,
+    routingCheckedAt: live ? new Date().toISOString() : undefined,
     routeSegments: segments,
-    validationNotes: [...new Set([...(course.validationNotes || []), routingNote])],
+    timeBreakdown:{originToFirstMinutes,betweenPlacesMinutes,stayMinutes,waitAndRestMinutes:Math.max(0,totalMinutes-originToFirstMinutes-betweenPlacesMinutes-stayMinutes),totalMinutes,
+      requestedMinutes:preferences.scheduleMode==='course-first'&&!preferences.endTime?undefined:tripEndClock(preferences)-start,
+      overBudgetMinutes:Math.max(0,totalMinutes-(tripEndClock(preferences)-start))},
+    validationNotes: [...new Set([...(course.validationNotes || []).filter(n=>!n.startsWith('출발 거점 실좌표')&&!n.startsWith('카카오 ')&&n!=='이동 시간 추정'), routingNote,...(ordered!==course.places?['식사 시간에 맞춰 방문 순서 조정']:[])])],
   };
 }
 
@@ -225,16 +301,18 @@ async function routeCourse(
 export async function attachRoutingToCourses(
   preferences: TravelPreferences,
   courses: Course[],
+  options:{live?:boolean}={},
 ): Promise<Course[]> {
   const origin = await resolveStartOrigin(preferences);
   if (!origin) return courses;
-  const liveCourseLimit = Math.max(0, Number(process.env.TMAP_LIVE_COURSE_LIMIT || 1));
-  return Promise.all(courses.map((course, index) => routeCourse(
+  const lookup:RoutingLookup={remaining:24,pending:new Map()};
+  return Promise.all(courses.map((course) => routeCourse(
     preferences,
     course,
     origin,
-    index < liveCourseLimit,
+    options.live===true,
+    lookup,
   )));
 }
 
-export const routingTestUtils = { estimateRoute };
+export const routingTestUtils = { estimateRoute, routeBetween };

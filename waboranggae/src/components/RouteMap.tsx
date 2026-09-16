@@ -54,7 +54,7 @@ export function RouteMap({ course, compact = false }: { course: RankedCourse; co
         <Path d="M-15 206 C69 150, 146 232, 350 152" fill="none" stroke="#C7DDE0" strokeWidth="18" opacity={0.72} />
         <Path d="M20 250 C87 211, 137 224, 207 184 S302 126, 360 145" fill="none" stroke="#FFFFFF" strokeWidth="5" opacity={0.8} />
         {routePaths.map((route, index) => (
-          <Path key={`route-${index}`} d={route.path} fill="none" stroke={route.source === 'tmap-transit' ? course.accent : '#7A8B82'} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.source === 'tmap-transit' ? undefined : '8 7'} />
+          <Path key={`route-${index}`} d={route.path} fill="none" stroke={route.source === 'kakao' ? course.accent : '#7A8B82'} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.source === 'kakao' ? undefined : '8 7'} />
         ))}
         {originPoint ? <Rect x={originPoint.x - 14} y={originPoint.y - 14} width="28" height="28" rx="9" fill={colors.coral} stroke={colors.white} strokeWidth="3" /> : null}
         {originPoint ? <SvgText x={originPoint.x} y={originPoint.y + 4} fill="#FFFFFF" fontSize="10" fontWeight="900" textAnchor="middle">출</SvgText> : null}
@@ -77,7 +77,7 @@ export function RouteMap({ course, compact = false }: { course: RankedCourse; co
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: course.accent }]} />
-          <Text style={styles.legendText}>{course.routeSource === 'tmap-transit' ? 'TMAP 실제 동선' : '예상 동선'}</Text>
+          <Text style={styles.legendText}>{course.routeSource === 'kakao' ? '카카오 조회 구간' : '예상 동선'}</Text>
         </View>
         {!compact && lockerPoints.length ? (
           <View style={styles.legendItem}>

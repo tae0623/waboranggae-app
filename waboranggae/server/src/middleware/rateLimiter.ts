@@ -16,6 +16,15 @@ export const apiLimiter = rateLimit({
   },
 });
 
+/** 장소 검색은 후보를 바꿔가며 반복하므로 추천 생성과 별도 예산으로 제한합니다. */
+export const placeSearchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { error: '장소 검색 요청이 많습니다. 잠시 후 다시 시도해주세요.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 /** CPU/GPU 사용량이 큰 AI·추천 API 요청 제한 */
 export const generationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -46,18 +55,6 @@ export const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1시간
   max: 3,
   message: { error: '너무 많은 가입 요청이 있었습니다. 1시간 후 다시 시도해주세요.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-/**
- * 엄격한 제한 (비밀번호 변경, 계정 삭제 등)
- * 1시간당 3회만 가능
- */
-export const strictLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 3,
-  message: { error: '보안상의 이유로 잠시 후 다시 시도해주세요.' },
   standardHeaders: true,
   legacyHeaders: false,
 });

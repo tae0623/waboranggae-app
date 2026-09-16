@@ -2,8 +2,12 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { BookmarkQueries, SearchHistoryQueries, UserQueries } from '../../db/queries';
 import { travelPreferencesSchema } from '../../shared/schemas';
+import { courseSnapshotSchema } from '../../shared/courseSnapshot';
+import { Prisma } from '@prisma/client';
+import { requireConsentForAccountWrite } from '../../middleware/privacyConsent';
 
 export const userRouter = Router();
+userRouter.use(requireConsentForAccountWrite);
 
 /**
  * JWT 미들웨어에서 설정한 req.user에서 사용자 ID 추출
@@ -76,12 +80,15 @@ userRouter.post('/user/bookmarks/add', async (request: Request, response: Respon
   try {
     const userId = extractUserId(request);
     const body = z.object({
-      courseId: z.string(),
-      courseName: z.string(),
-      city: z.string(),
+      courseId: z.string().min(1).max(200),
+      courseName: z.string().min(1).max(3000),
+      city: z.string().min(1).max(100),
+      snapshot: courseSnapshotSchema.optional(),
     }).parse(request.body);
 
-    const bookmark = await BookmarkQueries.addBookmark(userId, body.courseId, body.courseName, body.city);
+    if (body.snapshot && body.snapshot.id !== body.courseId) { response.status(400).json({ error: '코스 ID가 일치하지 않습니다.' }); return; }
+    const bookmark = await BookmarkQueries.addBookmark(userId, body.courseId, body.courseName, body.city,
+      body.snapshot ? JSON.parse(JSON.stringify(body.snapshot)) as Prisma.InputJsonValue : undefined);
     response.status(201).json(bookmark);
   } catch (error) {
     next(error);
@@ -112,7 +119,7 @@ userRouter.get('/user/bookmarks', async (request: Request, response: Response, n
   try {
     const userId = extractUserId(request);
     const city = request.query.city as string | undefined;
-    const limit = request.query.limit ? Number(request.query.limit) : undefined;
+    const limit = z.coerce.number().int().min(1).max(100).default(50).parse(request.query.limit);
 
     const bookmarks = await BookmarkQueries.getUserBookmarks(userId, { city, limit });
     response.json(bookmarks);
@@ -145,8 +152,10 @@ userRouter.post('/user/search-history', async (request: Request, response: Respo
   try {
     const userId = extractUserId(request);
     const body = z.object({
-      query: z.string(),
+      query: z.string().min(1).max(2000),
       preferences: travelPreferencesSchema,
+      // Each explicit save includes its own consent; automatic history is off.
+      saveConsent: z.literal(true),
     }).parse(request.body);
 
     const history = await SearchHistoryQueries.recordSearch(userId, body.query, body.preferences);
@@ -163,7 +172,7 @@ userRouter.post('/user/search-history', async (request: Request, response: Respo
 userRouter.get('/user/search-history', async (request: Request, response: Response, next: NextFunction) => {
   try {
     const userId = extractUserId(request);
-    const limit = request.query.limit ? Number(request.query.limit) : 10;
+    const limit = z.coerce.number().int().min(1).max(100).default(10).parse(request.query.limit);
 
     const history = await SearchHistoryQueries.getUserSearchHistory(userId, limit);
     response.json(history);
@@ -179,7 +188,7 @@ userRouter.get('/user/search-history', async (request: Request, response: Respon
 userRouter.get('/user/search-history/frequent-cities', async (request: Request, response: Response, next: NextFunction) => {
   try {
     const userId = extractUserId(request);
-    const limit = request.query.limit ? Number(request.query.limit) : 5;
+    const limit = z.coerce.number().int().min(1).max(22).default(5).parse(request.query.limit);
 
     const cities = await SearchHistoryQueries.getFrequentCities(userId, limit);
     response.json(cities);

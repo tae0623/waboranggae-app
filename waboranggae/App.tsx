@@ -1,291 +1,70 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BackHandler, Linking, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TabBar, AppTab } from './src/components/TabBar';
-import { DEFAULT_QUERY, parseTravelText } from './src/domain/demoEngine';
-import { AccountScreen } from './src/screens/AccountScreen';
-import { CourseDetailScreen } from './src/screens/CourseDetailScreen';
-import { CoursesScreen } from './src/screens/CoursesScreen';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { MapScreen } from './src/screens/MapScreen';
-import { colors } from './src/theme';
-import { RankedCourse, TravelPreferences } from './src/types/travel';
-import { apiClient } from './src/services/apiClient';
-import {
-  useAnalysis,
-  useBookmarks,
-  useRecommendation,
-  useSearchHistory,
-  useUser,
-} from './src/hooks';
-
-const initialPreferences = parseTravelText(DEFAULT_QUERY);
+import * as SecureStore from 'expo-secure-store';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import NativeApp, { type NativeAppHandle } from './web/src/NativeApp';
 
 export default function App() {
-  return (
-    <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <AppShell />
-    </SafeAreaProvider>
-  );
-}
-
-function AppShell() {
-  const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<AppTab>('home');
-  const [query, setQuery] = useState(DEFAULT_QUERY);
-  const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [manualPreferences, setManualPreferences] = useState<TravelPreferences>(initialPreferences);
-  const [reasonOverrides, setReasonOverrides] = useState<Record<string, RankedCourse['reason']>>({});
-  const [explainingCourseId, setExplainingCourseId] = useState<string | null>(null);
-  const [explanationError, setExplanationError] = useState<string | null>(null);
-
-  const { preferences, source, loading: analyzing, analyze } = useAnalysis();
-  const {
-    user,
-    userId,
-    isAuthenticated,
-    loading: authLoading,
-    error: authError,
-    login,
-    signup,
-    logout,
-  } = useUser();
-  const { bookmarks, add: addBookmark, remove: removeBookmark, fetchList: fetchBookmarks } = useBookmarks(userId);
-  const { history, record: recordSearch, fetch: fetchHistory } = useSearchHistory(userId);
-  const {
-    courses,
-    source: courseSource,
-    planningSource,
-    loading: recommending,
-    error: recommendationError,
-    fallbackReason,
-    recommend,
-    clear: clearRecommendations,
-  } = useRecommendation();
-
+  const ui = useRef<NativeAppHandle>(null);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [initialSession, setInitialSession] = useState<{ access: string; refresh: string } | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState(false);
+  const storageQueue = useRef(Promise.resolve());
   useEffect(() => {
-    if (!userId) return;
-    fetchBookmarks().catch(() => undefined);
-    fetchHistory(8).catch(() => undefined);
-  }, [userId, fetchBookmarks, fetchHistory]);
-
-  const loading = analyzing || recommending;
-  // AI 분석 결과도 수동 선택 폼에 복사합니다. 이후 사용자가 수정한 값이 항상 최종값입니다.
-  const activePreferences = manualPreferences;
-  const displayedCourses = useMemo(
-    () => courses.map((course) => ({
-      ...course,
-      reason: reasonOverrides[course.id] ?? course.reason,
-    })),
-    [courses, reasonOverrides],
-  );
-
-  useEffect(() => {
-    if (preferences) setManualPreferences(preferences);
-  }, [preferences]);
-
-  useEffect(() => {
-    if (courses[0]?.id) setSelectedCourseId(courses[0].id);
-  }, [courses]);
-
-  const selectedCourse = useMemo(
-    () => displayedCourses.find((course) => course.id === selectedCourseId) ?? displayedCourses[0],
-    [displayedCourses, selectedCourseId],
-  );
-
-  const handleAnalyze = async () => {
-    if (!query.trim() || loading) return;
-
+    SecureStore.getItemAsync('waboranggae.session').then(value => {
+      const tokens = value ? JSON.parse(value) : null;
+      setInitialSession(tokens && typeof tokens.access === 'string' && typeof tokens.refresh === 'string' ? tokens : null);
+      setSessionReady(true);
+    }).catch(() => setSessionError(true));
+  }, []);
+  const persistSession = useCallback(async (tokens: { access: string; refresh: string } | null) => {
+    const action = storageQueue.current.catch(() => undefined).then(async () => {
+      if (tokens) await SecureStore.setItemAsync('waboranggae.session', JSON.stringify(tokens));
+      else await SecureStore.deleteItemAsync('waboranggae.session');
+    });
+    storageQueue.current = action;
+    await action;
+  }, []);
+  const base = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+  const onBackState = useCallback(async (value: boolean) => { setCanGoBack(value); }, []);
+  const nativeRequest = useCallback(async (path: string, options: { method: string; headers: Record<string, string>; body?: string; timeoutMs: number }) => {
+    if (!base || !/^\/(api|auth)\//.test(path)) throw new Error('허용되지 않은 API 요청입니다.');
+    const url = new URL(path, base);
+    if (url.origin !== new URL(base).origin) throw new Error('허용되지 않은 API 주소입니다.');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.min(options.timeoutMs, 130000));
     try {
-      const analyzedPrefs = await analyze(query);
-      setManualPreferences(analyzedPrefs);
-      clearRecommendations();
-      setReasonOverrides({});
-    } catch (error) {
-      console.warn('AI 조건 자동 채우기 실패:', error);
-    }
-  };
-
-  const handlePreferencesChange = (next: TravelPreferences) => {
-    setManualPreferences(next);
-    clearRecommendations();
-    setSelectedCourseId('');
-    setReasonOverrides({});
-  };
-
-  const handleRecommendByConditions = async () => {
-    if (loading) return;
-    setActiveTab('courses');
-    try {
-      setReasonOverrides({});
-      await recommend(manualPreferences);
-      if (userId) {
-        recordSearch(manualPreferences.summary, manualPreferences).catch(() => undefined);
-      }
-    } catch (error) {
-      console.warn('조건 추천 실패:', error);
-    }
-  };
-
-  const handleToggleBookmark = async (course: RankedCourse) => {
-    if (!userId) {
-      setActiveTab('account');
-      setDetailOpen(false);
-      return;
-    }
-    const saved = bookmarks.some((item) => item.courseId === course.id);
-    try {
-      if (saved) await removeBookmark(course.id);
-      else await addBookmark(course.id, course.title, course.city);
-    } catch {
-      // hook error state에 보관
-    }
-  };
-
-  const handleOpenCourse = async (course: RankedCourse) => {
-    setSelectedCourseId(course.id);
-    setDetailOpen(true);
-    setExplanationError(null);
-
-    if (reasonOverrides[course.id]?.source === 'ollama' || course.reason.source === 'ollama') return;
-
-    setExplainingCourseId(course.id);
-    try {
-      const response = await apiClient.explain({
-        preferences: activePreferences,
-        course,
+      const response = await fetch(url.href, {
+        method: options.method, body: options.body, signal: controller.signal,
+        headers: { ...options.headers, ...(process.env.EXPO_PUBLIC_DEV_ACCESS_KEY ? { 'X-Dev-Access-Key': process.env.EXPO_PUBLIC_DEV_ACCESS_KEY } : {}) },
       });
-      setReasonOverrides((current) => ({ ...current, [course.id]: response.reason }));
-    } catch (error) {
-      setExplanationError(error instanceof Error ? error.message : '추천 이유 생성에 실패했습니다.');
-      console.warn('추천 이유 API 호출 실패:', error);
-    } finally {
-      setExplainingCourseId((current) => current === course.id ? null : current);
-    }
-  };
-
-  const handleSeeAllCourses = async () => {
-    setActiveTab('courses');
-    if (!courses.length && !recommending) await recommend(activePreferences);
-  };
-
-  const handleTabChange = async (tab: AppTab) => {
-    setDetailOpen(false);
-    if (tab === 'account') {
-      setActiveTab('account');
-      return;
-    }
-    if (tab !== 'home' && !courses.length && !recommending) {
-      setActiveTab('courses');
-      await recommend(activePreferences);
-      return;
-    }
-    setActiveTab(tab);
-  };
-
-  return (
-    <View style={styles.viewport}>
-      <View style={[styles.device, { paddingTop: Platform.OS === 'web' ? 0 : insets.top }]}>
-        <View style={styles.screen}>
-          {detailOpen && selectedCourse ? (
-            <CourseDetailScreen
-              course={selectedCourse}
-              preferences={activePreferences}
-              explanationLoading={explainingCourseId === selectedCourse.id}
-              explanationError={explanationError}
-              onBack={() => setDetailOpen(false)}
-              onOpenMap={() => {
-                setDetailOpen(false);
-                setActiveTab('map');
-              }}
-              bookmarked={bookmarks.some((item) => item.courseId === selectedCourse.id)}
-              onToggleBookmark={() => handleToggleBookmark(selectedCourse)}
-            />
-          ) : activeTab === 'home' ? (
-            <HomeScreen
-              query={query}
-              onQueryChange={setQuery}
-              onAnalyze={handleAnalyze}
-              loading={loading}
-              preferences={activePreferences}
-              onPreferencesChange={handlePreferencesChange}
-              onRecommendByConditions={handleRecommendByConditions}
-              recommendation={displayedCourses[0] ?? null}
-              source={source}
-              onOpenCourse={handleOpenCourse}
-              onSeeAll={handleSeeAllCourses}
-            />
-          ) : activeTab === 'courses' ? (
-            <CoursesScreen
-              courses={displayedCourses}
-              source={courseSource}
-              planningSource={planningSource || 'rules'}
-              preferences={activePreferences}
-              loading={recommending}
-              error={recommendationError}
-              fallbackReason={fallbackReason}
-              onRetry={() => recommend(activePreferences)}
-              onOpenCourse={handleOpenCourse}
-            />
-          ) : activeTab === 'map' && selectedCourse ? (
-            <MapScreen
-              course={selectedCourse}
-              courses={displayedCourses}
-              onSelectCourse={(course) => setSelectedCourseId(course.id)}
-              onOpenDetail={() => setDetailOpen(true)}
-            />
-          ) : activeTab === 'account' ? (
-            <AccountScreen
-              userName={user?.displayName}
-              userEmail={user?.email}
-              isAuthenticated={isAuthenticated}
-              authLoading={authLoading}
-              authError={authError}
-              bookmarks={bookmarks}
-              history={history}
-              onLogin={login}
-              onSignup={signup}
-              onLogout={logout}
-              onOpenBookmark={(courseId) => {
-                const course = displayedCourses.find((item) => item.id === courseId);
-                if (course) handleOpenCourse(course);
-                else setActiveTab('courses');
-              }}
-            />
-          ) : null}
-        </View>
-
-        {!detailOpen ? (
-          <View style={{ paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom }}>
-            <TabBar active={activeTab} onChange={handleTabChange} />
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
+      return { status: response.status, body: await response.text() };
+    } finally { clearTimeout(timer); }
+  }, [base]);
+  const openExternal = useCallback(async (url: string) => {
+    if (new URL(url).protocol === 'https:') await Linking.openURL(url);
+  }, []);
+  useEffect(() => {
+    const listener = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!canGoBack) return false;
+      ui.current?.back();
+      return true;
+    });
+    return () => listener.remove();
+  }, [canGoBack]);
+  return <SafeAreaProvider>
+    <StatusBar style="dark" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F2F4F8' }}>
+      {!sessionReady ? <View style={{ padding: 24 }}><Text>{sessionError ? '보안 저장소를 열지 못했습니다. 앱을 다시 실행해 주세요.' : '로그인 정보를 확인하고 있습니다…'}</Text></View> : !base || base === 'same-origin' ? <View style={{ padding: 24 }}>
+        <Text>앱 API 주소가 설정되지 않았습니다. EXPO_PUBLIC_API_BASE_URL에 휴대폰에서 접속 가능한 서버 주소를 입력해 주세요.</Text>
+      </View> : <NativeApp ref={ui} apiBaseUrl={base}
+        initialSession={initialSession} persistSession={persistSession}
+        devAccessKey={process.env.EXPO_PUBLIC_DEV_ACCESS_KEY}
+        onBackState={onBackState} openExternal={openExternal} nativeRequest={nativeRequest}
+        dom={{ scrollEnabled: false, style: { flex: 1 }, useExpoDOMWebView: false, javaScriptCanOpenWindowsAutomatically: false }}
+      />}
+    </SafeAreaView>
+  </SafeAreaProvider>;
 }
-
-const styles = StyleSheet.create({
-  viewport: {
-    flex: 1,
-    backgroundColor: Platform.OS === 'web' ? '#17352C' : colors.cream,
-    alignItems: 'center',
-  },
-  device: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 520,
-    backgroundColor: colors.cream,
-    overflow: 'hidden',
-    ...Platform.select({
-      web: {
-        boxShadow: '0 24px 80px rgba(0,0,0,0.28)',
-      },
-      default: {},
-    }),
-  },
-  screen: { flex: 1 },
-});

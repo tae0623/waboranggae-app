@@ -11,31 +11,20 @@ import { distanceKm, projectMapPoints } from '../../utils/geo';
 import { nearbyLinksScore, walkingEaseScore } from '../../../../src/domain/walkability';
 import { placePreferenceScore } from '../../../../src/domain/recommendScore';
 import {
-  mealsFromPreference,
+  mealWindowsFor,
+  tripEndClock,
   planningHours,
   skipNightClock,
   unfoldClock,
-  wallClockMinutes,
 } from '../../../../src/domain/tripWindow';
+
+export {mealWindowsFor, tripEndClock} from '../../../../src/domain/tripWindow';
 
 export interface PlannedCourseOutline {
   title: string;
   placeIds: string[];
   rationale: string;
 }
-
-interface MealWindow {
-  kind: 'breakfast' | 'lunch' | 'dinner';
-  label: string;
-  start: number;
-  end: number;
-}
-
-const MEAL_WINDOWS: Record<MealWindow['kind'], MealWindow> = {
-  breakfast: { kind: 'breakfast', label: '아침', start: 8 * 60, end: 9 * 60 + 30 },
-  lunch: { kind: 'lunch', label: '점심', start: 11 * 60 + 30, end: 13 * 60 + 30 },
-  dinner: { kind: 'dinner', label: '저녁', start: 17 * 60 + 30, end: 19 * 60 + 30 },
-};
 
 const INTEREST_LABELS: Record<Interest, string> = {
   nature: '자연',
@@ -66,51 +55,12 @@ export function formatClock(totalMinutes: number) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
-function overlapsTrip(window: MealWindow, start: number, end: number) {
-  // 자동 식사는 최소 45분을 확보할 수 있을 때만 일정에 넣습니다.
-  // 예: 12시에 끝나는 여행에 11:30 점심을 억지로 넣지 않습니다.
-  return start <= window.end && end >= window.start + 45;
-}
-
-function requestedKinds(preferences: TravelPreferences): MealWindow['kind'][] {
-  return mealsFromPreference(preferences.mealPreference, preferences.meals);
-}
-
-export function tripEndClock(preferences: TravelPreferences) {
-  if (preferences.travelDate && preferences.travelEndDate && preferences.endTime) {
-    return parseClock(preferences.startTime) + wallClockMinutes(
-      preferences.travelDate,
-      preferences.startTime,
-      preferences.travelEndDate,
-      preferences.endTime,
-    );
-  }
-  return parseClock(preferences.startTime) + preferences.durationHours * 60;
-}
-
-export function mealWindowsFor(preferences: TravelPreferences): MealWindow[] {
-  if (preferences.mealPreference === 'none' && !preferences.meals?.length) return [];
-  const start = parseClock(preferences.startTime);
-  const end = tripEndClock(preferences);
-  const kinds = requestedKinds(preferences);
-  const windows: MealWindow[] = [];
-  for (let dayStart = 0; dayStart < end; dayStart += 1_440) {
-    for (const kind of kinds) {
-      const base = MEAL_WINDOWS[kind];
-      const window = {
-        ...base,
-        start: base.start + dayStart,
-        end: base.end + dayStart,
-      };
-      if (overlapsTrip(window, start, end)) windows.push(window);
-      if (windows.length >= 4) return windows;
-    }
-  }
-  return windows;
-}
-
 function hasCoords(place: Place): place is Place & { latitude: number; longitude: number } {
   return Number.isFinite(place.latitude) && Number.isFinite(place.longitude);
+}
+
+export function isRequiredPlace(place:Pick<Place,"id">,preferences:TravelPreferences){
+  return Boolean(preferences.requiredContentId && (place.id===preferences.requiredContentId || place.id===`tour-${preferences.requiredContentId}`));
 }
 
 export function collectPlanningCandidates(courses: Course[], preferences?: TravelPreferences) {
@@ -122,7 +72,8 @@ export function collectPlanningCandidates(courses: Course[], preferences?: Trave
   }
   const places = [...unique.values()];
   if (preferences) {
-    places.sort((a, b) => placePreferenceScore(b, preferences) - placePreferenceScore(a, preferences));
+    places.sort((a, b) => Number(isRequiredPlace(b,preferences))-Number(isRequiredPlace(a,preferences))
+      || placePreferenceScore(b, preferences) - placePreferenceScore(a, preferences));
   }
   return places.slice(0, 36);
 }
@@ -174,27 +125,31 @@ function schedulePlacesWithStays(
   const projected = projectMapPoints(sourcePlaces.filter(hasCoords));
   const mealWindows = mealWindowsFor(preferences);
   let mealWindowIndex = 0;
-  let clock = parseClock(preferences.startTime) + FIRST_MILE_MINUTES;
+  const first=sourcePlaces[0];
+  const firstMinutes=preferences.scheduleMode==='course-first' && first && hasCoords(first)
+    && Number.isFinite(preferences.startLatitude) && Number.isFinite(preferences.startLongitude)
+    ? Math.max(1,Math.ceil(segmentMinutes(distanceKm({latitude:preferences.startLatitude!,longitude:preferences.startLongitude!},first)))) : FIRST_MILE_MINUTES;
+  let clock = parseClock(preferences.startTime) + firstMinutes;
   const tripStart = parseClock(preferences.startTime);
 
   const places = sourcePlaces.map((place, index) => {
     const previousDistance = distances[index - 1];
     if (index > 0 && previousDistance !== undefined) clock += segmentMinutes(previousDistance);
-    clock = skipNightClock(clock, tripStart);
+    if (preferences.travelEndDate && preferences.travelEndDate !== preferences.travelDate) clock = skipNightClock(clock, tripStart);
     const mealWindow = isMeal(place) ? mealWindows[mealWindowIndex] : undefined;
     if (mealWindow && clock < mealWindow.start) clock = mealWindow.start;
-    clock = skipNightClock(clock, tripStart);
+    if (preferences.travelEndDate && preferences.travelEndDate !== preferences.travelDate) clock = skipNightClock(clock, tripStart);
     const arrival = formatClock(clock);
     const stay = stays[index] ?? minimumStayMinutes(place.category);
     clock += stay;
-    clock = skipNightClock(clock, tripStart);
+    if (preferences.travelEndDate && preferences.travelEndDate !== preferences.travelDate) clock = skipNightClock(clock, tripStart);
     if (mealWindow) mealWindowIndex += 1;
     return {
       ...place,
       arrival,
       stayMinutes: stay,
       moveLabel: index === 0
-        ? `${preferences.startLocation}에서 ${preferences.startTime} 출발 · 첫 장소 이동 25분 가정`
+        ? `${preferences.startLocation}에서 ${preferences.startTime} 출발 · 첫 장소 이동 약 ${firstMinutes}분`
         : previousDistance !== undefined && previousDistance <= 1.2
           ? `직선거리 약 ${previousDistance.toFixed(1)}km · 도보 권장${mealWindow ? ' · 식사시간 맞춤' : ''}`
           : `직선거리 약 ${(previousDistance ?? 0).toFixed(1)}km · 대중교통 권장${mealWindow ? ' · 식사시간 맞춤' : ''}`,
@@ -213,6 +168,7 @@ function schedulePlacesWithStays(
 function schedulePlaces(preferences: TravelPreferences, sourcePlaces: Place[]) {
   const stays: number[] = sourcePlaces.map((place) => minimumStayMinutes(place.category));
   let scheduled = schedulePlacesWithStays(preferences, sourcePlaces, stays);
+  if(preferences.scheduleMode==='course-first')return scheduled;
   const targetEnd = tripEndClock(preferences);
   const lastMealIndex = sourcePlaces.findLastIndex(isMeal);
   const afterMeal = sourcePlaces
@@ -253,6 +209,8 @@ function scheduledEndClock(preferences: TravelPreferences, places: Place[]) {
 
 export function validateScheduledPlaces(preferences: TravelPreferences, places: Place[]) {
   const violations: string[] = [];
+  if(preferences.requiredContentId && !places.some(p=>isRequiredPlace(p,preferences)))
+    violations.push('선택한 필수 방문지가 코스에 포함되지 않았습니다.');
   const seen = new Set<string>();
   for (let index = 0; index < places.length; index += 1) {
     const place = places[index];
@@ -276,23 +234,24 @@ export function validateScheduledPlaces(preferences: TravelPreferences, places: 
   if (mealPlaces.length > windows.length) {
     violations.push('여행 시간에 필요한 수보다 음식점이 많이 포함되었습니다.');
   }
-  if (windows.length && mealPlaces.length < windows.length) {
-    const overnight = Boolean(preferences.travelDate && preferences.travelEndDate && preferences.travelDate !== preferences.travelEndDate);
-    if (!overnight || mealPlaces.length === 0) {
-      violations.push('선택한 점심·저녁 일정이 모두 반영되지 않았습니다.');
-    }
+  const automaticMeals=preferences.scheduleMode==='course-first' && preferences.mealPreference==='auto' && preferences.meals===undefined;
+  if (windows.length && mealPlaces.length < windows.length && !automaticMeals) {
+    violations.push('선택한 식사 일정이 모두 반영되지 않았습니다.');
   }
 
-  const usedWindowKinds = new Set<MealWindow['kind']>();
+  const arrivalClocks = new Map<string,number>();
+  let previousClock=parseClock(preferences.startTime);
+  for(const place of places){const absolute=unfoldClock(previousClock,parseClock(place.arrival));arrivalClocks.set(place.id,absolute);previousClock=absolute+place.stayMinutes;}
+  const usedWindows = new Set<number>();
   for (const place of mealPlaces) {
-    const arrival = parseClock(place.arrival);
+    const arrival = arrivalClocks.get(place.id)!;
     const window = windows.find((candidate) =>
-      !usedWindowKinds.has(candidate.kind) && arrival >= candidate.start && arrival <= candidate.end,
+      !usedWindows.has(candidate.start) && arrival >= candidate.start && arrival <= candidate.end,
     );
     if (!window) {
-      violations.push(`${place.name}의 식사 시간이 점심·저녁 시간대와 맞지 않습니다.`);
+      violations.push(`${place.name}의 식사 시간이 선택한 시간대와 맞지 않습니다.`);
     } else {
-      usedWindowKinds.add(window.kind);
+      usedWindows.add(window.start);
     }
   }
 
@@ -306,10 +265,10 @@ export function validateScheduledPlaces(preferences: TravelPreferences, places: 
   const start = parseClock(preferences.startTime);
   const end = scheduledEndClock(preferences, places);
   const targetEnd = tripEndClock(preferences);
-  if (end > targetEnd + 25) {
+  if (end > targetEnd + (preferences.scheduleMode==='course-first'?0:25)) {
     violations.push('전체 일정이 선택한 여행 시간을 초과했습니다.');
   }
-  if (end < start + minimumCourseDurationMinutes(planningHours(preferences))) {
+  if (preferences.scheduleMode!=='course-first' && end < start + minimumCourseDurationMinutes(planningHours(preferences))) {
     violations.push('전체 일정이 선택한 여행 시간에 비해 너무 짧습니다.');
   }
 
@@ -337,7 +296,7 @@ function themeFor(preferences: TravelPreferences, places: Place[]) {
 
 function shortPlaceName(name: string, city: string) {
   const withoutCity = name.replace(new RegExp(`^${city}(?:시)?\\s*`), '').trim() || name.trim();
-  return withoutCity.length > 11 ? `${withoutCity.slice(0, 10)}…` : withoutCity;
+  return withoutCity;
 }
 
 /** 실제 방문 장소와 검증된 테마로 최종 목록에서 서로 구분되는 제목을 만듭니다. */
@@ -373,7 +332,7 @@ function buildCourse(
   suppliedTitle?: string,
   adjusted = false,
 ) {
-  if (sourcePlaces.length < 2) return null;
+  if (sourcePlaces.length < (preferences.scheduleMode==='course-first'?1:2)) return null;
   const scheduled = schedulePlaces(preferences, sourcePlaces);
   const violations = validateScheduledPlaces(preferences, scheduled.places);
   if (violations.length) return null;
@@ -400,7 +359,7 @@ function buildCourse(
     id: `planned-${preferences.city}-${index + 1}-${scheduled.places.map((place) => place.id).join('-')}`,
     city: preferences.city,
     title,
-    subtitle: `한국관광공사 장소 · ${plannerLabel} · 시간표 검증 완료`,
+    subtitle: `${plannerLabel} · 시간표 검증 완료`,
     accent: palette.accent,
     softAccent: palette.softAccent,
     durationHours,
@@ -416,13 +375,13 @@ function buildCourse(
       '식사 시간 검증',
       '식사 후 카페 순서 검증',
       '동일 식음 장소 연속 배치 방지',
-      `선택 시간 ${planningHours(preferences)}시간 충족 검증`,
+      ...(preferences.scheduleMode==='course-first'?[]:[`선택 시간 ${planningHours(preferences)}시간 충족 검증`]),
     ],
   } satisfies Course;
 }
 
 export function desiredStopCount(durationHours: number) {
-  return Math.max(2, Math.min(10, Math.round(durationHours / 1.5)));
+  return Math.max(2, Math.min(30, Math.round(durationHours / 1.5)));
 }
 
 export function stopBudgetHours(preferences: TravelPreferences) {
@@ -436,7 +395,7 @@ function lodgingPoint(preferences: TravelPreferences) {
 
 function mealSlotIndexes(preferences: TravelPreferences, stopCount: number) {
   const start = parseClock(preferences.startTime);
-  const span = Math.max(60, tripEndClock(preferences) - start);
+  const span = Math.max(60, planningHours(preferences) * 60);
   const interval = Math.max(70, Math.min(110, span / Math.max(stopCount, 1)));
   const indexes: number[] = [];
   const windows = mealWindowsFor(preferences);
@@ -444,7 +403,9 @@ function mealSlotIndexes(preferences: TravelPreferences, stopCount: number) {
   const maxMealIndex = reserveCafeAfterMeal ? stopCount - 2 : stopCount - 1;
   for (const window of windows) {
     const midpoint = (window.start + window.end) / 2;
-    let index = Math.max(0, Math.min(maxMealIndex, Math.round((midpoint - start) / interval)));
+    let elapsed=0;
+    for(let day=0;day*1440<midpoint;day++)elapsed+=Math.max(0,Math.min(midpoint,day*1440+22*60)-Math.max(start,day*1440+8*60));
+    let index = Math.max(0, Math.min(maxMealIndex, Math.round(elapsed / interval)));
     while (indexes.some((value) => Math.abs(value - index) <= 1) && index < maxMealIndex) index += 1;
     while (indexes.some((value) => Math.abs(value - index) <= 1) && index > 0) index -= 1;
     indexes.push(index);
@@ -509,7 +470,8 @@ function buildRuleOutline(preferences: TravelPreferences, candidates: Place[], r
     const preferredPool = slot === 'food' ? foods : slot === 'cafe' ? cafes : activities;
     const fallbackPool = slot === 'cafe' ? activities : preferredPool;
     const previous = selected.at(-1);
-    const candidate = pickCandidate(preferredPool, used, previous, preferences, routeIndex)
+    const candidate = preferredPool.find(p=>isRequiredPlace(p,preferences) && !used.has(p.id))
+      ?? pickCandidate(preferredPool, used, previous, preferences, routeIndex)
       ?? pickCandidate(fallbackPool, used, previous, preferences, routeIndex);
     if (!candidate) continue;
     selected.push(candidate);
@@ -521,7 +483,8 @@ function buildRuleOutline(preferences: TravelPreferences, candidates: Place[], r
 
 function buildProximityOutline(preferences: TravelPreferences, candidates: Place[], seedIndex: number) {
   const ranked = [...candidates].sort((a, b) => placePreferenceScore(b, preferences) - placePreferenceScore(a, preferences));
-  const seed = ranked.filter((place) => place.category !== 'food' && place.category !== 'cafe')[seedIndex]
+  const seed = ranked.find(p=>isRequiredPlace(p,preferences))
+    ?? ranked.filter((place) => place.category !== 'food' && place.category !== 'cafe')[seedIndex]
     ?? ranked[seedIndex];
   if (!seed) return [];
   const used = new Set([seed.id]);
@@ -548,7 +511,9 @@ export function buildRulePlannedCourses(preferences: TravelPreferences, candidat
     ...Array.from({ length: 5 }, (_, index) => buildRuleOutline(preferences, candidates, index)),
     ...Array.from({ length: 3 }, (_, index) => buildProximityOutline(preferences, candidates, index)),
   ];
-  for (const places of outlines) {
+  const variants=preferences.scheduleMode==='course-first'
+    ? outlines.flatMap(places=>[places,...Array.from({length:Math.max(0,places.length-1)},(_,i)=>places.slice(0,places.length-i-1))]) : outlines;
+  for (const places of variants) {
     const course = buildCourse(preferences, places, courses.length, 'rules');
     if (course && !courses.some((item) => item.places.map((place) => place.id).join('|') === course.places.map((place) => place.id).join('|'))) {
       courses.push(course);
@@ -572,7 +537,8 @@ function repairOutlinePlaces(preferences: TravelPreferences, selected: Place[], 
   );
   const cafePool = preferences.interests.includes('cafe') ? [...selectedCafes, ...additionalCafes] : [];
 
-  const selectedActivities = selected.filter((place) => !isMeal(place) && !isCafe(place));
+  const selectedActivities = selected.filter((place) => !isMeal(place) && !isCafe(place))
+    .sort((a,b)=>Number(isRequiredPlace(b,preferences))-Number(isRequiredPlace(a,preferences)));
   const additionalActivities = candidates
     .filter((candidate) => !isMeal(candidate) && !isCafe(candidate) && !selected.some((place) => place.id === candidate.id))
     .sort((a, b) => {
@@ -629,7 +595,7 @@ export function buildCoursesFromOutlines(
   return outlines.flatMap((outline, index) => {
     const ids = [...new Set(outline.placeIds)];
     const places = ids.map((id) => byId.get(id)).filter((place): place is Place => Boolean(place));
-    if (places.length < 2 || places.length !== ids.length) return [];
+    if (places.length < (preferences.scheduleMode==='course-first'?1:2) || places.length !== ids.length) return [];
     const repaired = repairOutlinePlaces(preferences, places, candidates);
     const adjusted = repaired.map((place) => place.id).join('|') !== places.map((place) => place.id).join('|');
     const course = buildCourse(preferences, repaired, index, 'ollama', outline.title, adjusted);
@@ -653,7 +619,7 @@ export function mergePlannedCourses(
   for (const course of [...llmCourses, ...globalRuleCourses, ...ruleCourses]) {
     const signature = course.places.map((place) => place.id).join('|');
     if (!merged.some((item) => item.places.map((place) => place.id).join('|') === signature)) merged.push(course);
-    if (merged.length === 8) break;
+    if (merged.length === 24) break;
   }
   return assignGroundedCourseTitles(preferences, merged);
 }

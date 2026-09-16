@@ -17,18 +17,33 @@ model User {
   displayName    String?
   password       String?  // 비밀번호 (bcrypt 해시)
   tokenVersion   Int      @default(0)  // 토큰 무효화용 버전 (비밀번호 변경 시 증가)
+  consentVersion String?
+  consentedAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   // 관계
   bookmarks      Bookmark[]
   searchHistory  SearchHistory[]
+  oauthIdentities OAuthIdentity[]
 
   @@map("users")
 }
 
+model OAuthIdentity {
+  id       String @id @default(cuid())
+  provider String
+  subject  String
+  userId   String
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, subject])
+  @@index([userId])
+  @@map("oauth_identities")
+}
+
 // 코스 북마크 (찜하기)
 model Bookmark {
+  snapshot  Json?
   id        String   @id @default(cuid())
   userId    String
   courseId  String   // 외부 참조: Course ID
@@ -47,6 +62,7 @@ model Bookmark {
 
 // 검색 이력
 model SearchHistory {
+  preferences Json?
   id        String   @id @default(cuid())
   userId    String
   query     String   // 원본 검색어
@@ -60,4 +76,29 @@ model SearchHistory {
   @@index([userId])
   @@index([createdAt])
   @@map("search_history")
+}
+
+// Internal-only tables. RLS intentionally has no public client policies.
+model OAuthFlow {
+  id String @id
+  payload String
+  revision Int @default(0)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  @@index([expiresAt], map: "oauth_flows_expires_at_idx")
+  @@map("oauth_flows")
+}
+
+model ApiQuotaBucket {
+  key String @id
+  count Int @default(0)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  @@index([expiresAt], map: "api_quota_buckets_expires_at_idx")
+  @@map("api_quota_buckets")
+}
+
+model AuthRevocation {
+  sessionHash String @id @map("session_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  @@index([expiresAt], map: "auth_revocations_expires_at_idx")
+  @@map("auth_revocations")
 }

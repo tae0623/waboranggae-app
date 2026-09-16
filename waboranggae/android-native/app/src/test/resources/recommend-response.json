@@ -1,0 +1,2026 @@
+{
+  "courses": [
+    {
+      "id": "planned-순천-1-tour-3505810-tour-2819607-tour-2782457-tour-4070879",
+      "city": "순천",
+      "title": "순천 웃장·드로잉라이프 미식·카페길",
+      "subtitle": "한국관광공사 장소 · 시간 규칙 일정 구성 · 시간표 검증 완료",
+      "accent": "#0D5C45",
+      "softAccent": "#DDF3A7",
+      "durationHours": 6,
+      "distanceKm": 3.5,
+      "walkMinutes": 37,
+      "transitMinutes": 10,
+      "metrics": {
+        "transitAccess": 82,
+        "walkingEase": 99,
+        "nearbyLinks": 100
+      },
+      "places": [
+        {
+          "id": "tour-3505810",
+          "name": "순천 웃장",
+          "category": "market",
+          "address": "전남광주통합특별시 순천시 북문길 40 (동외동)",
+          "stayMinutes": 50,
+          "arrival": "10:16",
+          "moveLabel": "도보 약 6분 → 2번 버스 약 10분 · 버스터미널 → 웃장",
+          "description": "한국관광공사 관광정보에 등록된 시장·쇼핑 장소예요.",
+          "tags": [
+            "market",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 106.7786871002275,
+            "y": 36
+          },
+          "latitude": 34.9586141,
+          "longitude": 127.4849124008,
+          "moveMinutes": 16,
+          "walkMinutesFromPrevious": 6,
+          "transitMinutesFromPrevious": 10,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            },
+            {
+              "mode": "bus",
+              "route": "2",
+              "label": "2번 버스",
+              "minutes": 10,
+              "fromStop": "버스터미널",
+              "toStop": "웃장"
+            }
+          ]
+        },
+        {
+          "id": "tour-2819607",
+          "name": "드로잉라이프",
+          "category": "culture",
+          "address": "전남광주통합특별시 순천시 서문로 2 (저전동)",
+          "stayMinutes": 103,
+          "arrival": "11:18",
+          "moveLabel": "도보 약 12분",
+          "description": "한국관광공사 관광정보에 등록된 문화 관광 장소예요.",
+          "tags": [
+            "photo"
+          ],
+          "mapPoint": {
+            "x": 55.325324150956675,
+            "y": 189.28048856458975
+          },
+          "latitude": 34.9512593457,
+          "longitude": 127.4834627151,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/48/3014748_image2_1.jpg",
+          "moveMinutes": 12,
+          "walkMinutesFromPrevious": 12,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ]
+        },
+        {
+          "id": "tour-2782457",
+          "name": "원조동경낙지",
+          "category": "food",
+          "address": "전남광주통합특별시 순천시 금곡길 11 (행동)",
+          "stayMinutes": 70,
+          "arrival": "13:07",
+          "moveLabel": "도보 약 6분 · 식사시간 맞춤",
+          "description": "한국관광공사 관광정보에 등록된 음식 장소예요.",
+          "tags": [
+            "food"
+          ],
+          "mapPoint": {
+            "x": 36,
+            "y": 115.88226826250065
+          },
+          "latitude": 34.954781163,
+          "longitude": 127.4829182289,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/30/2788230_image2_1.jpg",
+          "moveMinutes": 6,
+          "walkMinutesFromPrevious": 6,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            }
+          ]
+        },
+        {
+          "id": "tour-4070879",
+          "name": "기억공장1945카페",
+          "category": "cafe",
+          "address": "전남광주통합특별시 순천시 장천2길 30-26 (장천동)",
+          "stayMinutes": 90,
+          "arrival": "14:30",
+          "moveLabel": "도보 약 13분",
+          "description": "한국관광공사 관광정보에 등록된 카페 장소예요.",
+          "tags": [
+            "cafe",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 284,
+            "y": 224
+          },
+          "latitude": 34.9495934228,
+          "longitude": 127.4899055672,
+          "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/31/4069231_image2_1.jpg",
+          "moveMinutes": 13,
+          "walkMinutesFromPrevious": 13,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 13
+            }
+          ]
+        }
+      ],
+      "planningSource": "rules",
+      "validationNotes": [
+        "출발 거점 순천종합버스터미널 반영",
+        "식사 시간 검증",
+        "식사 후 카페 순서 검증",
+        "동일 식음 장소 연속 배치 방지",
+        "선택 시간 6시간 충족 검증",
+        "출발 거점 실좌표 반영 · 이동시간은 예상값이며 구간별 카카오맵 길찾기로 확인하세요."
+      ],
+      "origin": {
+        "name": "순천종합버스터미널",
+        "address": "전남광주통합특별시 순천시 장천3길 13",
+        "latitude": 34.947593057805214,
+        "longitude": 127.49136190692242,
+        "source": "places"
+      },
+      "routeSource": "estimated",
+      "routeSegments": [
+        {
+          "fromName": "순천종합버스터미널",
+          "toName": "순천 웃장",
+          "distanceKm": 1.4,
+          "totalMinutes": 16,
+          "walkMinutes": 6,
+          "transitMinutes": 10,
+          "modeLabel": "대중교통",
+          "instruction": "도보 약 6분 → 버스 약 10분 · 순천종합버스터미널 → 순천 웃장",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            },
+            {
+              "mode": "bus",
+              "label": "버스",
+              "minutes": 10,
+              "fromStop": "순천종합버스터미널",
+              "toStop": "순천 웃장"
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.947593057805214,
+              "longitude": 127.49136190692242
+            },
+            {
+              "latitude": 34.9586141,
+              "longitude": 127.4849124008
+            }
+          ]
+        },
+        {
+          "fromName": "순천 웃장",
+          "toName": "드로잉라이프",
+          "distanceKm": 0.8,
+          "totalMinutes": 12,
+          "walkMinutes": 12,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 12분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9586141,
+              "longitude": 127.4849124008
+            },
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            }
+          ]
+        },
+        {
+          "fromName": "드로잉라이프",
+          "toName": "원조동경낙지",
+          "distanceKm": 0.4,
+          "totalMinutes": 6,
+          "walkMinutes": 6,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 6분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            },
+            {
+              "latitude": 34.954781163,
+              "longitude": 127.4829182289
+            }
+          ]
+        },
+        {
+          "fromName": "원조동경낙지",
+          "toName": "기억공장1945카페",
+          "distanceKm": 0.9,
+          "totalMinutes": 13,
+          "walkMinutes": 13,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 13분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 13
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.954781163,
+              "longitude": 127.4829182289
+            },
+            {
+              "latitude": 34.9495934228,
+              "longitude": 127.4899055672
+            }
+          ]
+        }
+      ],
+      "conveniences": [],
+      "transitAccessEvidence": [
+        {
+          "placeId": "tour-3505810",
+          "placeName": "순천 웃장",
+          "stopName": "웃장",
+          "distanceMeters": 118,
+          "routeCount": 0,
+          "sampleRouteNumbers": [],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2819607",
+          "placeName": "드로잉라이프",
+          "stopName": "남교정문앞",
+          "distanceMeters": 50,
+          "routeCount": 2,
+          "sampleRouteNumbers": [
+            "2",
+            "55"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2782457",
+          "placeName": "원조동경낙지",
+          "stopName": "문화의거리",
+          "distanceMeters": 160,
+          "routeCount": 1,
+          "sampleRouteNumbers": [
+            "55"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-4070879",
+          "placeName": "기억공장1945카페",
+          "stopName": "순천문화원",
+          "distanceMeters": 117,
+          "routeCount": 11,
+          "sampleRouteNumbers": [
+            "63",
+            "85",
+            "62",
+            "64",
+            "84"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        }
+      ],
+      "fitScore": 73,
+      "walkingScore": 81,
+      "preferenceScore": 51,
+      "timeFitScore": 100,
+      "courseQualityScore": 90,
+      "scoreBreakdown": {
+        "transitAccess": 86,
+        "walkingEase": 63,
+        "nearbyLinks": 100
+      },
+      "walkingBreakdown": {
+        "walk": 63,
+        "transit": 86,
+        "time": 87,
+        "transfer": 100,
+        "distance": 81,
+        "efficiency": 100
+      },
+      "recommendationBreakdown": {
+        "preference": 51,
+        "walking": 81,
+        "timeFit": 100,
+        "courseQuality": 90
+      },
+      "scoreFacts": {
+        "walkMinutes": 37,
+        "transitMinutes": 10,
+        "moveMinutes": 47,
+        "stayMinutes": 313,
+        "tripMinutes": 360,
+        "transferCount": 0,
+        "distanceKm": 3.5,
+        "averageMoveMinutes": 12,
+        "stayRatio": 0.8694444444444445,
+        "averageStopDistanceMeters": 111
+      },
+      "constraintPassed": true,
+      "constraintViolations": [],
+      "matchedInterests": [
+        "food",
+        "cafe"
+      ],
+      "reason": {
+        "headline": "취향과 뚜벅이 동선이 맞는 73점 코스",
+        "summary": "맛집·카페 취향을 반영했고, 총 도보 37분 · 환승 0회 · 평균 이동 12분으로 구성했어요. 순천종합버스터미널의 출발 좌표를 반영한 이동 추정이에요.",
+        "evidence": [
+          "취향 적합도 51점 · 뚜벅이 적합도 81점",
+          "총 도보 37분 · 환승 0회 · 평균 이동 12분",
+          "최근접 정류장 평균 111m · 이동 효율 87%",
+          "시간 적합도 100점 · 코스 완성도 90점"
+        ],
+        "source": "rules"
+      }
+    },
+    {
+      "id": "planned-순천-4-tour-3505810-tour-2819607-tour-2782457-tour-2718761",
+      "city": "순천",
+      "title": "순천 웃장·드로잉라이프 미식·카페길·원조동경낙지",
+      "subtitle": "한국관광공사 장소 · 시간 규칙 일정 구성 · 시간표 검증 완료",
+      "accent": "#0D5C45",
+      "softAccent": "#DDF3A7",
+      "durationHours": 6,
+      "distanceKm": 3.4,
+      "walkMinutes": 36,
+      "transitMinutes": 10,
+      "metrics": {
+        "transitAccess": 78,
+        "walkingEase": 100,
+        "nearbyLinks": 100
+      },
+      "places": [
+        {
+          "id": "tour-3505810",
+          "name": "순천 웃장",
+          "category": "market",
+          "address": "전남광주통합특별시 순천시 북문길 40 (동외동)",
+          "stayMinutes": 50,
+          "arrival": "10:16",
+          "moveLabel": "도보 약 6분 → 2번 버스 약 10분 · 버스터미널 → 웃장",
+          "description": "한국관광공사 관광정보에 등록된 시장·쇼핑 장소예요.",
+          "tags": [
+            "market",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 104.55491044794384,
+            "y": 36
+          },
+          "latitude": 34.9586141,
+          "longitude": 127.4849124008,
+          "moveMinutes": 16,
+          "walkMinutesFromPrevious": 6,
+          "transitMinutesFromPrevious": 10,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            },
+            {
+              "mode": "bus",
+              "route": "2",
+              "label": "2번 버스",
+              "minutes": 10,
+              "fromStop": "버스터미널",
+              "toStop": "웃장"
+            }
+          ]
+        },
+        {
+          "id": "tour-2819607",
+          "name": "드로잉라이프",
+          "category": "culture",
+          "address": "전남광주통합특별시 순천시 서문로 2 (저전동)",
+          "stayMinutes": 104,
+          "arrival": "11:18",
+          "moveLabel": "도보 약 12분",
+          "description": "한국관광공사 관광정보에 등록된 문화 관광 장소예요.",
+          "tags": [
+            "photo"
+          ],
+          "mapPoint": {
+            "x": 54.718146956727914,
+            "y": 224
+          },
+          "latitude": 34.9512593457,
+          "longitude": 127.4834627151,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/48/3014748_image2_1.jpg",
+          "moveMinutes": 12,
+          "walkMinutesFromPrevious": 12,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ]
+        },
+        {
+          "id": "tour-2782457",
+          "name": "원조동경낙지",
+          "category": "food",
+          "address": "전남광주통합특별시 순천시 금곡길 11 (행동)",
+          "stayMinutes": 70,
+          "arrival": "13:08",
+          "moveLabel": "도보 약 6분 · 식사시간 맞춤",
+          "description": "한국관광공사 관광정보에 등록된 음식 장소예요.",
+          "tags": [
+            "food"
+          ],
+          "mapPoint": {
+            "x": 36,
+            "y": 133.97637373149323
+          },
+          "latitude": 34.954781163,
+          "longitude": 127.4829182289,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/30/2788230_image2_1.jpg",
+          "moveMinutes": 6,
+          "walkMinutesFromPrevious": 6,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            }
+          ]
+        },
+        {
+          "id": "tour-2718761",
+          "name": "베니샤프커피",
+          "category": "cafe",
+          "address": "전남광주통합특별시 순천시 용당둑길 153 (조곡동)",
+          "stayMinutes": 90,
+          "arrival": "14:30",
+          "moveLabel": "도보 약 12분",
+          "description": "한국관광공사 관광정보에 등록된 카페 장소예요.",
+          "tags": [
+            "cafe",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 284,
+            "y": 40.750003929457705
+          },
+          "latitude": 34.9584282749371,
+          "longitude": 127.490132221712,
+          "moveMinutes": 12,
+          "walkMinutesFromPrevious": 12,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ]
+        }
+      ],
+      "planningSource": "rules",
+      "validationNotes": [
+        "출발 거점 순천종합버스터미널 반영",
+        "식사 시간 검증",
+        "식사 후 카페 순서 검증",
+        "동일 식음 장소 연속 배치 방지",
+        "선택 시간 6시간 충족 검증",
+        "출발 거점 실좌표 반영 · 이동시간은 예상값이며 구간별 카카오맵 길찾기로 확인하세요."
+      ],
+      "origin": {
+        "name": "순천종합버스터미널",
+        "address": "전남광주통합특별시 순천시 장천3길 13",
+        "latitude": 34.947593057805214,
+        "longitude": 127.49136190692242,
+        "source": "places"
+      },
+      "routeSource": "estimated",
+      "routeSegments": [
+        {
+          "fromName": "순천종합버스터미널",
+          "toName": "순천 웃장",
+          "distanceKm": 1.4,
+          "totalMinutes": 16,
+          "walkMinutes": 6,
+          "transitMinutes": 10,
+          "modeLabel": "대중교통",
+          "instruction": "도보 약 6분 → 버스 약 10분 · 순천종합버스터미널 → 순천 웃장",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            },
+            {
+              "mode": "bus",
+              "label": "버스",
+              "minutes": 10,
+              "fromStop": "순천종합버스터미널",
+              "toStop": "순천 웃장"
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.947593057805214,
+              "longitude": 127.49136190692242
+            },
+            {
+              "latitude": 34.9586141,
+              "longitude": 127.4849124008
+            }
+          ]
+        },
+        {
+          "fromName": "순천 웃장",
+          "toName": "드로잉라이프",
+          "distanceKm": 0.8,
+          "totalMinutes": 12,
+          "walkMinutes": 12,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 12분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9586141,
+              "longitude": 127.4849124008
+            },
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            }
+          ]
+        },
+        {
+          "fromName": "드로잉라이프",
+          "toName": "원조동경낙지",
+          "distanceKm": 0.4,
+          "totalMinutes": 6,
+          "walkMinutes": 6,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 6분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            },
+            {
+              "latitude": 34.954781163,
+              "longitude": 127.4829182289
+            }
+          ]
+        },
+        {
+          "fromName": "원조동경낙지",
+          "toName": "베니샤프커피",
+          "distanceKm": 0.8,
+          "totalMinutes": 12,
+          "walkMinutes": 12,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 12분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.954781163,
+              "longitude": 127.4829182289
+            },
+            {
+              "latitude": 34.9584282749371,
+              "longitude": 127.490132221712
+            }
+          ]
+        }
+      ],
+      "conveniences": [],
+      "transitAccessEvidence": [
+        {
+          "placeId": "tour-3505810",
+          "placeName": "순천 웃장",
+          "stopName": "웃장",
+          "distanceMeters": 118,
+          "routeCount": 0,
+          "sampleRouteNumbers": [],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2819607",
+          "placeName": "드로잉라이프",
+          "stopName": "남교정문앞",
+          "distanceMeters": 50,
+          "routeCount": 2,
+          "sampleRouteNumbers": [
+            "2",
+            "55"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2782457",
+          "placeName": "원조동경낙지",
+          "stopName": "문화의거리",
+          "distanceMeters": 160,
+          "routeCount": 1,
+          "sampleRouteNumbers": [
+            "55"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2718761",
+          "placeName": "베니샤프커피",
+          "stopName": "조곡이편한세상A",
+          "distanceMeters": 174,
+          "routeCount": 1,
+          "sampleRouteNumbers": [
+            "21"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        }
+      ],
+      "fitScore": 73,
+      "walkingScore": 81,
+      "preferenceScore": 51,
+      "timeFitScore": 100,
+      "courseQualityScore": 90,
+      "scoreBreakdown": {
+        "transitAccess": 85,
+        "walkingEase": 64,
+        "nearbyLinks": 100
+      },
+      "walkingBreakdown": {
+        "walk": 64,
+        "transit": 85,
+        "time": 87,
+        "transfer": 100,
+        "distance": 81,
+        "efficiency": 100
+      },
+      "recommendationBreakdown": {
+        "preference": 51,
+        "walking": 81,
+        "timeFit": 100,
+        "courseQuality": 90
+      },
+      "scoreFacts": {
+        "walkMinutes": 36,
+        "transitMinutes": 10,
+        "moveMinutes": 46,
+        "stayMinutes": 314,
+        "tripMinutes": 360,
+        "transferCount": 0,
+        "distanceKm": 3.4,
+        "averageMoveMinutes": 12,
+        "stayRatio": 0.8722222222222222,
+        "averageStopDistanceMeters": 126
+      },
+      "constraintPassed": true,
+      "constraintViolations": [],
+      "matchedInterests": [
+        "food",
+        "cafe"
+      ],
+      "reason": {
+        "headline": "취향과 뚜벅이 동선이 맞는 73점 코스",
+        "summary": "맛집·카페 취향을 반영했고, 총 도보 36분 · 환승 0회 · 평균 이동 12분으로 구성했어요. 순천종합버스터미널의 출발 좌표를 반영한 이동 추정이에요.",
+        "evidence": [
+          "취향 적합도 51점 · 뚜벅이 적합도 81점",
+          "총 도보 36분 · 환승 0회 · 평균 이동 12분",
+          "최근접 정류장 평균 126m · 이동 효율 87%",
+          "시간 적합도 100점 · 코스 완성도 90점"
+        ],
+        "source": "rules"
+      }
+    },
+    {
+      "id": "planned-순천-5-tour-2819607-tour-3505810-tour-2858600-tour-4070879",
+      "city": "순천",
+      "title": "순천 드로잉라이프·웃장 미식·카페길",
+      "subtitle": "한국관광공사 장소 · 시간 규칙 일정 구성 · 시간표 검증 완료",
+      "accent": "#347D91",
+      "softAccent": "#C9E8E8",
+      "durationHours": 6,
+      "distanceKm": 2.7,
+      "walkMinutes": 41,
+      "transitMinutes": 0,
+      "metrics": {
+        "transitAccess": 86,
+        "walkingEase": 96,
+        "nearbyLinks": 100
+      },
+      "places": [
+        {
+          "id": "tour-2819607",
+          "name": "드로잉라이프",
+          "category": "culture",
+          "address": "전남광주통합특별시 순천시 서문로 2 (저전동)",
+          "stayMinutes": 70,
+          "arrival": "10:12",
+          "moveLabel": "순천종합버스터미널에서 10:00 출발 · 도보 약 12분",
+          "description": "한국관광공사 관광정보에 등록된 문화 관광 장소예요.",
+          "tags": [
+            "photo"
+          ],
+          "mapPoint": {
+            "x": 36,
+            "y": 189.28048856458975
+          },
+          "latitude": 34.9512593457,
+          "longitude": 127.4834627151,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/48/3014748_image2_1.jpg",
+          "moveMinutes": 12,
+          "walkMinutesFromPrevious": 12,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ]
+        },
+        {
+          "id": "tour-3505810",
+          "name": "순천 웃장",
+          "category": "market",
+          "address": "전남광주통합특별시 순천시 북문길 40 (동외동)",
+          "stayMinutes": 89,
+          "arrival": "11:34",
+          "moveLabel": "도보 약 12분",
+          "description": "한국관광공사 관광정보에 등록된 시장·쇼핑 장소예요.",
+          "tags": [
+            "market",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 91.80169279366467,
+            "y": 36
+          },
+          "latitude": 34.9586141,
+          "longitude": 127.4849124008,
+          "moveMinutes": 12,
+          "walkMinutesFromPrevious": 12,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ]
+        },
+        {
+          "id": "tour-2858600",
+          "name": "금빈회관",
+          "category": "food",
+          "address": "전남광주통합특별시 순천시 장명4길 8 금빈회관 ",
+          "stayMinutes": 70,
+          "arrival": "13:15",
+          "moveLabel": "도보 약 12분 · 식사시간 맞춤",
+          "description": "한국관광공사 관광정보에 등록된 음식 장소예요.",
+          "tags": [
+            "food"
+          ],
+          "mapPoint": {
+            "x": 210.05502212280112,
+            "y": 182.96937928342044
+          },
+          "latitude": 34.9515621674,
+          "longitude": 127.4879845327,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/96/2858596_image2_1.jpg",
+          "moveMinutes": 12,
+          "walkMinutesFromPrevious": 12,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ]
+        },
+        {
+          "id": "tour-4070879",
+          "name": "기억공장1945카페",
+          "category": "cafe",
+          "address": "전남광주통합특별시 순천시 장천2길 30-26 (장천동)",
+          "stayMinutes": 90,
+          "arrival": "14:30",
+          "moveLabel": "도보 약 5분",
+          "description": "한국관광공사 관광정보에 등록된 카페 장소예요.",
+          "tags": [
+            "cafe",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 284,
+            "y": 224
+          },
+          "latitude": 34.9495934228,
+          "longitude": 127.4899055672,
+          "imageUrl": "https://tong.visitkorea.or.kr/cms/resource/31/4069231_image2_1.jpg",
+          "moveMinutes": 5,
+          "walkMinutesFromPrevious": 5,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 5
+            }
+          ]
+        }
+      ],
+      "planningSource": "rules",
+      "validationNotes": [
+        "출발 거점 순천종합버스터미널 반영",
+        "식사 시간 검증",
+        "식사 후 카페 순서 검증",
+        "동일 식음 장소 연속 배치 방지",
+        "선택 시간 6시간 충족 검증",
+        "출발 거점 실좌표 반영 · 이동시간은 예상값이며 구간별 카카오맵 길찾기로 확인하세요."
+      ],
+      "origin": {
+        "name": "순천종합버스터미널",
+        "address": "전남광주통합특별시 순천시 장천3길 13",
+        "latitude": 34.947593057805214,
+        "longitude": 127.49136190692242,
+        "source": "places"
+      },
+      "routeSource": "estimated",
+      "routeSegments": [
+        {
+          "fromName": "순천종합버스터미널",
+          "toName": "드로잉라이프",
+          "distanceKm": 0.8,
+          "totalMinutes": 12,
+          "walkMinutes": 12,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 12분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.947593057805214,
+              "longitude": 127.49136190692242
+            },
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            }
+          ]
+        },
+        {
+          "fromName": "드로잉라이프",
+          "toName": "순천 웃장",
+          "distanceKm": 0.8,
+          "totalMinutes": 12,
+          "walkMinutes": 12,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 12분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            },
+            {
+              "latitude": 34.9586141,
+              "longitude": 127.4849124008
+            }
+          ]
+        },
+        {
+          "fromName": "순천 웃장",
+          "toName": "금빈회관",
+          "distanceKm": 0.8,
+          "totalMinutes": 12,
+          "walkMinutes": 12,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 12분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9586141,
+              "longitude": 127.4849124008
+            },
+            {
+              "latitude": 34.9515621674,
+              "longitude": 127.4879845327
+            }
+          ]
+        },
+        {
+          "fromName": "금빈회관",
+          "toName": "기억공장1945카페",
+          "distanceKm": 0.3,
+          "totalMinutes": 5,
+          "walkMinutes": 5,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 5분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 5
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9515621674,
+              "longitude": 127.4879845327
+            },
+            {
+              "latitude": 34.9495934228,
+              "longitude": 127.4899055672
+            }
+          ]
+        }
+      ],
+      "conveniences": [],
+      "transitAccessEvidence": [
+        {
+          "placeId": "tour-2819607",
+          "placeName": "드로잉라이프",
+          "stopName": "남교정문앞",
+          "distanceMeters": 50,
+          "routeCount": 2,
+          "sampleRouteNumbers": [
+            "2",
+            "55"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-3505810",
+          "placeName": "순천 웃장",
+          "stopName": "웃장",
+          "distanceMeters": 118,
+          "routeCount": 0,
+          "sampleRouteNumbers": [],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2858600",
+          "placeName": "금빈회관",
+          "stopName": "시청",
+          "distanceMeters": 51,
+          "routeCount": 13,
+          "sampleRouteNumbers": [
+            "63",
+            "64",
+            "25",
+            "62",
+            "82"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-4070879",
+          "placeName": "기억공장1945카페",
+          "stopName": "순천문화원",
+          "distanceMeters": 117,
+          "routeCount": 11,
+          "sampleRouteNumbers": [
+            "63",
+            "85",
+            "62",
+            "64",
+            "84"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        }
+      ],
+      "fitScore": 73,
+      "walkingScore": 81,
+      "preferenceScore": 51,
+      "timeFitScore": 100,
+      "courseQualityScore": 90,
+      "scoreBreakdown": {
+        "transitAccess": 90,
+        "walkingEase": 59,
+        "nearbyLinks": 100
+      },
+      "walkingBreakdown": {
+        "walk": 59,
+        "transit": 90,
+        "time": 89,
+        "transfer": 100,
+        "distance": 85,
+        "efficiency": 100
+      },
+      "recommendationBreakdown": {
+        "preference": 51,
+        "walking": 81,
+        "timeFit": 100,
+        "courseQuality": 90
+      },
+      "scoreFacts": {
+        "walkMinutes": 41,
+        "transitMinutes": 0,
+        "moveMinutes": 41,
+        "stayMinutes": 319,
+        "tripMinutes": 360,
+        "transferCount": 0,
+        "distanceKm": 2.7,
+        "averageMoveMinutes": 10,
+        "stayRatio": 0.8861111111111111,
+        "averageStopDistanceMeters": 84
+      },
+      "constraintPassed": true,
+      "constraintViolations": [],
+      "matchedInterests": [
+        "food",
+        "cafe"
+      ],
+      "reason": {
+        "headline": "취향과 뚜벅이 동선이 맞는 73점 코스",
+        "summary": "맛집·카페 취향을 반영했고, 총 도보 41분 · 환승 0회 · 평균 이동 10분으로 구성했어요. 순천종합버스터미널의 출발 좌표를 반영한 이동 추정이에요.",
+        "evidence": [
+          "취향 적합도 51점 · 뚜벅이 적합도 81점",
+          "총 도보 41분 · 환승 0회 · 평균 이동 10분",
+          "최근접 정류장 평균 84m · 이동 효율 89%",
+          "시간 적합도 100점 · 코스 완성도 90점"
+        ],
+        "source": "rules"
+      }
+    },
+    {
+      "id": "planned-순천-3-tour-1957403-tour-2819607-tour-2778096-tour-2718743",
+      "city": "순천",
+      "title": "순천 미강서원·드로잉라이프 미식·카페길",
+      "subtitle": "한국관광공사 장소 · 시간 규칙 일정 구성 · 시간표 검증 완료",
+      "accent": "#7A5A3A",
+      "softAccent": "#F0D7B3",
+      "durationHours": 6,
+      "distanceKm": 15,
+      "walkMinutes": 33,
+      "transitMinutes": 65,
+      "metrics": {
+        "transitAccess": 87,
+        "walkingEase": 100,
+        "nearbyLinks": 67
+      },
+      "places": [
+        {
+          "id": "tour-1957403",
+          "name": "미강서원",
+          "category": "history",
+          "address": "전남광주통합특별시 순천시 해룡면 해광로 175",
+          "stayMinutes": 70,
+          "arrival": "10:36",
+          "moveLabel": "도보 약 10분 → 2번 버스 약 26분 · 버스터미널 → 미강서원",
+          "description": "한국관광공사 관광정보에 등록된 역사·문화 장소예요.",
+          "tags": [
+            "history",
+            "photo"
+          ],
+          "mapPoint": {
+            "x": 284,
+            "y": 224
+          },
+          "latitude": 34.9243802087,
+          "longitude": 127.551626859,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/65/3346565_image2_1.JPG",
+          "moveMinutes": 36,
+          "walkMinutesFromPrevious": 10,
+          "transitMinutesFromPrevious": 26,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 10
+            },
+            {
+              "mode": "bus",
+              "route": "2",
+              "label": "2번 버스",
+              "minutes": 26,
+              "fromStop": "버스터미널",
+              "toStop": "미강서원"
+            }
+          ]
+        },
+        {
+          "id": "tour-2819607",
+          "name": "드로잉라이프",
+          "category": "culture",
+          "address": "전남광주통합특별시 순천시 서문로 2 (저전동)",
+          "stayMinutes": 70,
+          "arrival": "12:25",
+          "moveLabel": "도보 약 11분 → 2번·55번 버스 약 28분 · 미강서원 → 남교정문앞",
+          "description": "한국관광공사 관광정보에 등록된 문화 관광 장소예요.",
+          "tags": [
+            "photo"
+          ],
+          "mapPoint": {
+            "x": 36,
+            "y": 59.07485520616771
+          },
+          "latitude": 34.9512593457,
+          "longitude": 127.4834627151,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/48/3014748_image2_1.jpg",
+          "moveMinutes": 39,
+          "walkMinutesFromPrevious": 11,
+          "transitMinutesFromPrevious": 28,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 11
+            },
+            {
+              "mode": "bus",
+              "route": "2",
+              "label": "2번·55번 버스",
+              "minutes": 28,
+              "fromStop": "미강서원",
+              "toStop": "남교정문앞"
+            }
+          ]
+        },
+        {
+          "id": "tour-2778096",
+          "name": "양지쌈밥",
+          "category": "food",
+          "address": "전남광주통합특별시 순천시 금곡길 8 (행동)",
+          "stayMinutes": 60,
+          "arrival": "13:41",
+          "moveLabel": "도보 약 6분 · 식사시간 맞춤",
+          "description": "한국관광공사 관광정보에 등록된 음식 장소예요.",
+          "tags": [
+            "food"
+          ],
+          "mapPoint": {
+            "x": 36.110811713714035,
+            "y": 36
+          },
+          "latitude": 34.9550200348,
+          "longitude": 127.4834931723,
+          "moveMinutes": 6,
+          "walkMinutesFromPrevious": 6,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            }
+          ]
+        },
+        {
+          "id": "tour-2718743",
+          "name": "브루웍스",
+          "category": "cafe",
+          "address": "전남광주통합특별시 순천시 역전길 61",
+          "stayMinutes": 62,
+          "arrival": "14:58",
+          "moveLabel": "도보 약 6분 → 63번·85번 버스 약 11분 · 의료원로터리 → 청춘창고",
+          "description": "한국관광공사 관광정보에 등록된 카페 장소예요.",
+          "tags": [
+            "cafe",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 90.38782308537924,
+            "y": 83.37514603583858
+          },
+          "latitude": 34.9472989378,
+          "longitude": 127.498411503,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/14/3444514_image2_1.jpg",
+          "moveMinutes": 17,
+          "walkMinutesFromPrevious": 6,
+          "transitMinutesFromPrevious": 11,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            },
+            {
+              "mode": "bus",
+              "route": "63",
+              "label": "63번·85번 버스",
+              "minutes": 11,
+              "fromStop": "의료원로터리",
+              "toStop": "청춘창고"
+            }
+          ]
+        }
+      ],
+      "planningSource": "rules",
+      "validationNotes": [
+        "출발 거점 순천종합버스터미널 반영",
+        "식사 시간 검증",
+        "식사 후 카페 순서 검증",
+        "동일 식음 장소 연속 배치 방지",
+        "선택 시간 6시간 충족 검증",
+        "출발 거점 실좌표 반영 · 이동시간은 예상값이며 구간별 카카오맵 길찾기로 확인하세요."
+      ],
+      "origin": {
+        "name": "순천종합버스터미널",
+        "address": "전남광주통합특별시 순천시 장천3길 13",
+        "latitude": 34.947593057805214,
+        "longitude": 127.49136190692242,
+        "source": "places"
+      },
+      "routeSource": "estimated",
+      "routeSegments": [
+        {
+          "fromName": "순천종합버스터미널",
+          "toName": "미강서원",
+          "distanceKm": 6.1,
+          "totalMinutes": 36,
+          "walkMinutes": 10,
+          "transitMinutes": 26,
+          "modeLabel": "대중교통",
+          "instruction": "도보 약 10분 → 버스 약 26분 · 순천종합버스터미널 → 미강서원",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 10
+            },
+            {
+              "mode": "bus",
+              "label": "버스",
+              "minutes": 26,
+              "fromStop": "순천종합버스터미널",
+              "toStop": "미강서원"
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.947593057805214,
+              "longitude": 127.49136190692242
+            },
+            {
+              "latitude": 34.9243802087,
+              "longitude": 127.551626859
+            }
+          ]
+        },
+        {
+          "fromName": "미강서원",
+          "toName": "드로잉라이프",
+          "distanceKm": 6.9,
+          "totalMinutes": 39,
+          "walkMinutes": 11,
+          "transitMinutes": 28,
+          "modeLabel": "대중교통",
+          "instruction": "도보 약 11분 → 버스 약 28분 · 미강서원 → 드로잉라이프",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 11
+            },
+            {
+              "mode": "bus",
+              "label": "버스",
+              "minutes": 28,
+              "fromStop": "미강서원",
+              "toStop": "드로잉라이프"
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9243802087,
+              "longitude": 127.551626859
+            },
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            }
+          ]
+        },
+        {
+          "fromName": "드로잉라이프",
+          "toName": "양지쌈밥",
+          "distanceKm": 0.4,
+          "totalMinutes": 6,
+          "walkMinutes": 6,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 6분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            },
+            {
+              "latitude": 34.9550200348,
+              "longitude": 127.4834931723
+            }
+          ]
+        },
+        {
+          "fromName": "양지쌈밥",
+          "toName": "브루웍스",
+          "distanceKm": 1.6,
+          "totalMinutes": 17,
+          "walkMinutes": 6,
+          "transitMinutes": 11,
+          "modeLabel": "대중교통",
+          "instruction": "도보 약 6분 → 버스 약 11분 · 양지쌈밥 → 브루웍스",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 6
+            },
+            {
+              "mode": "bus",
+              "label": "버스",
+              "minutes": 11,
+              "fromStop": "양지쌈밥",
+              "toStop": "브루웍스"
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9550200348,
+              "longitude": 127.4834931723
+            },
+            {
+              "latitude": 34.9472989378,
+              "longitude": 127.498411503
+            }
+          ]
+        }
+      ],
+      "conveniences": [],
+      "transitAccessEvidence": [
+        {
+          "placeId": "tour-1957403",
+          "placeName": "미강서원",
+          "stopName": "미강서원",
+          "distanceMeters": 188,
+          "routeCount": 0,
+          "sampleRouteNumbers": [],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2819607",
+          "placeName": "드로잉라이프",
+          "stopName": "남교정문앞",
+          "distanceMeters": 50,
+          "routeCount": 2,
+          "sampleRouteNumbers": [
+            "2",
+            "55"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2778096",
+          "placeName": "양지쌈밥",
+          "stopName": "의료원로터리",
+          "distanceMeters": 120,
+          "routeCount": 43,
+          "sampleRouteNumbers": [
+            "63",
+            "21",
+            "31",
+            "2",
+            "85"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2718743",
+          "placeName": "브루웍스",
+          "stopName": "청춘창고",
+          "distanceMeters": 33,
+          "routeCount": 15,
+          "sampleRouteNumbers": [
+            "63",
+            "59",
+            "85",
+            "62",
+            "64"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        }
+      ],
+      "fitScore": 67,
+      "walkingScore": 71,
+      "preferenceScore": 46,
+      "timeFitScore": 100,
+      "courseQualityScore": 90,
+      "scoreBreakdown": {
+        "transitAccess": 78,
+        "walkingEase": 67,
+        "nearbyLinks": 91
+      },
+      "walkingBreakdown": {
+        "walk": 67,
+        "transit": 78,
+        "time": 73,
+        "transfer": 75,
+        "distance": 17,
+        "efficiency": 91
+      },
+      "recommendationBreakdown": {
+        "preference": 46,
+        "walking": 71,
+        "timeFit": 100,
+        "courseQuality": 90
+      },
+      "scoreFacts": {
+        "walkMinutes": 33,
+        "transitMinutes": 65,
+        "moveMinutes": 98,
+        "stayMinutes": 262,
+        "tripMinutes": 360,
+        "transferCount": 2,
+        "distanceKm": 15,
+        "averageMoveMinutes": 25,
+        "stayRatio": 0.7277777777777777,
+        "averageStopDistanceMeters": 98
+      },
+      "constraintPassed": true,
+      "constraintViolations": [],
+      "matchedInterests": [
+        "food",
+        "cafe"
+      ],
+      "reason": {
+        "headline": "취향과 뚜벅이 동선이 맞는 67점 코스",
+        "summary": "맛집·카페 취향을 반영했고, 총 도보 33분 · 환승 2회 · 평균 이동 25분으로 구성했어요. 순천종합버스터미널의 출발 좌표를 반영한 이동 추정이에요.",
+        "evidence": [
+          "취향 적합도 46점 · 뚜벅이 적합도 71점",
+          "총 도보 33분 · 환승 2회 · 평균 이동 25분",
+          "최근접 정류장 평균 98m · 이동 효율 73%",
+          "시간 적합도 100점 · 코스 완성도 90점"
+        ],
+        "source": "rules"
+      }
+    },
+    {
+      "id": "planned-순천-2-tour-2819607-tour-1957403-tour-2858535-tour-2718743",
+      "city": "순천",
+      "title": "순천 드로잉라이프·미강서원 미식·카페길",
+      "subtitle": "한국관광공사 장소 · 시간 규칙 일정 구성 · 시간표 검증 완료",
+      "accent": "#347D91",
+      "softAccent": "#C9E8E8",
+      "durationHours": 6,
+      "distanceKm": 14.4,
+      "walkMinutes": 43,
+      "transitMinutes": 53,
+      "metrics": {
+        "transitAccess": 83,
+        "walkingEase": 95,
+        "nearbyLinks": 69
+      },
+      "places": [
+        {
+          "id": "tour-2819607",
+          "name": "드로잉라이프",
+          "category": "culture",
+          "address": "전남광주통합특별시 순천시 서문로 2 (저전동)",
+          "stayMinutes": 70,
+          "arrival": "10:12",
+          "moveLabel": "순천종합버스터미널에서 10:00 출발 · 도보 약 12분",
+          "description": "한국관광공사 관광정보에 등록된 문화 관광 장소예요.",
+          "tags": [
+            "photo"
+          ],
+          "mapPoint": {
+            "x": 36,
+            "y": 36
+          },
+          "latitude": 34.9512593457,
+          "longitude": 127.4834627151,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/48/3014748_image2_1.jpg",
+          "moveMinutes": 12,
+          "walkMinutesFromPrevious": 12,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ]
+        },
+        {
+          "id": "tour-1957403",
+          "name": "미강서원",
+          "category": "history",
+          "address": "전남광주통합특별시 순천시 해룡면 해광로 175",
+          "stayMinutes": 70,
+          "arrival": "12:01",
+          "moveLabel": "도보 약 11분 → 2번·55번 버스 약 28분 · 남교정문앞 → 미강서원",
+          "description": "한국관광공사 관광정보에 등록된 역사·문화 장소예요.",
+          "tags": [
+            "history",
+            "photo"
+          ],
+          "mapPoint": {
+            "x": 284,
+            "y": 185.94623851916987
+          },
+          "latitude": 34.9243802087,
+          "longitude": 127.551626859,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/65/3346565_image2_1.JPG",
+          "moveMinutes": 39,
+          "walkMinutesFromPrevious": 11,
+          "transitMinutesFromPrevious": 28,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 11
+            },
+            {
+              "mode": "bus",
+              "route": "2",
+              "label": "2번·55번 버스",
+              "minutes": 28,
+              "fromStop": "남교정문앞",
+              "toStop": "미강서원"
+            }
+          ]
+        },
+        {
+          "id": "tour-2858535",
+          "name": "순천 산들담은 순천본점",
+          "category": "food",
+          "address": "전남광주통합특별시 순천시 해룡면 정채봉길 30",
+          "stayMinutes": 60,
+          "arrival": "13:22",
+          "moveLabel": "도보 약 11분 · 식사시간 맞춤",
+          "description": "한국관광공사 관광정보에 등록된 음식 장소예요.",
+          "tags": [
+            "food"
+          ],
+          "mapPoint": {
+            "x": 283.25282935742257,
+            "y": 224
+          },
+          "latitude": 34.9175587487,
+          "longitude": 127.5514214951,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/27/2858527_image2_1.jpg",
+          "moveMinutes": 11,
+          "walkMinutesFromPrevious": 11,
+          "transitMinutesFromPrevious": 0,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 11
+            }
+          ]
+        },
+        {
+          "id": "tour-2718743",
+          "name": "브루웍스",
+          "category": "cafe",
+          "address": "전남광주통합특별시 순천시 역전길 61",
+          "stayMinutes": 64,
+          "arrival": "14:56",
+          "moveLabel": "도보 약 9분 → 63번·59번 버스 약 25분 · 대법 → 청춘창고",
+          "description": "한국관광공사 관광정보에 등록된 카페 장소예요.",
+          "tags": [
+            "cafe",
+            "food"
+          ],
+          "mapPoint": {
+            "x": 90.38782308537924,
+            "y": 58.093278798608566
+          },
+          "latitude": 34.9472989378,
+          "longitude": 127.498411503,
+          "imageUrl": "http://tong.visitkorea.or.kr/cms/resource/14/3444514_image2_1.jpg",
+          "moveMinutes": 34,
+          "walkMinutesFromPrevious": 9,
+          "transitMinutesFromPrevious": 25,
+          "routeSource": "estimated",
+          "transitSteps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 9
+            },
+            {
+              "mode": "bus",
+              "route": "63",
+              "label": "63번·59번 버스",
+              "minutes": 25,
+              "fromStop": "대법",
+              "toStop": "청춘창고"
+            }
+          ]
+        }
+      ],
+      "planningSource": "rules",
+      "validationNotes": [
+        "출발 거점 순천종합버스터미널 반영",
+        "식사 시간 검증",
+        "식사 후 카페 순서 검증",
+        "동일 식음 장소 연속 배치 방지",
+        "선택 시간 6시간 충족 검증",
+        "출발 거점 실좌표 반영 · 이동시간은 예상값이며 구간별 카카오맵 길찾기로 확인하세요."
+      ],
+      "origin": {
+        "name": "순천종합버스터미널",
+        "address": "전남광주통합특별시 순천시 장천3길 13",
+        "latitude": 34.947593057805214,
+        "longitude": 127.49136190692242,
+        "source": "places"
+      },
+      "routeSource": "estimated",
+      "routeSegments": [
+        {
+          "fromName": "순천종합버스터미널",
+          "toName": "드로잉라이프",
+          "distanceKm": 0.8,
+          "totalMinutes": 12,
+          "walkMinutes": 12,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 12분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 12
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.947593057805214,
+              "longitude": 127.49136190692242
+            },
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            }
+          ]
+        },
+        {
+          "fromName": "드로잉라이프",
+          "toName": "미강서원",
+          "distanceKm": 6.9,
+          "totalMinutes": 39,
+          "walkMinutes": 11,
+          "transitMinutes": 28,
+          "modeLabel": "대중교통",
+          "instruction": "도보 약 11분 → 버스 약 28분 · 드로잉라이프 → 미강서원",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 11
+            },
+            {
+              "mode": "bus",
+              "label": "버스",
+              "minutes": 28,
+              "fromStop": "드로잉라이프",
+              "toStop": "미강서원"
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9512593457,
+              "longitude": 127.4834627151
+            },
+            {
+              "latitude": 34.9243802087,
+              "longitude": 127.551626859
+            }
+          ]
+        },
+        {
+          "fromName": "미강서원",
+          "toName": "순천 산들담은 순천본점",
+          "distanceKm": 0.8,
+          "totalMinutes": 11,
+          "walkMinutes": 11,
+          "transitMinutes": 0,
+          "modeLabel": "도보",
+          "instruction": "도보 약 11분",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 11
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9243802087,
+              "longitude": 127.551626859
+            },
+            {
+              "latitude": 34.9175587487,
+              "longitude": 127.5514214951
+            }
+          ]
+        },
+        {
+          "fromName": "순천 산들담은 순천본점",
+          "toName": "브루웍스",
+          "distanceKm": 5.9,
+          "totalMinutes": 34,
+          "walkMinutes": 9,
+          "transitMinutes": 25,
+          "modeLabel": "대중교통",
+          "instruction": "도보 약 9분 → 버스 약 25분 · 순천 산들담은 순천본점 → 브루웍스",
+          "steps": [
+            {
+              "mode": "walk",
+              "label": "도보",
+              "minutes": 9
+            },
+            {
+              "mode": "bus",
+              "label": "버스",
+              "minutes": 25,
+              "fromStop": "순천 산들담은 순천본점",
+              "toStop": "브루웍스"
+            }
+          ],
+          "source": "estimated",
+          "geometry": [
+            {
+              "latitude": 34.9175587487,
+              "longitude": 127.5514214951
+            },
+            {
+              "latitude": 34.9472989378,
+              "longitude": 127.498411503
+            }
+          ]
+        }
+      ],
+      "conveniences": [],
+      "transitAccessEvidence": [
+        {
+          "placeId": "tour-2819607",
+          "placeName": "드로잉라이프",
+          "stopName": "남교정문앞",
+          "distanceMeters": 50,
+          "routeCount": 2,
+          "sampleRouteNumbers": [
+            "2",
+            "55"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-1957403",
+          "placeName": "미강서원",
+          "stopName": "미강서원",
+          "distanceMeters": 188,
+          "routeCount": 0,
+          "sampleRouteNumbers": [],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2858535",
+          "placeName": "순천 산들담은 순천본점",
+          "stopName": "대법",
+          "distanceMeters": 92,
+          "routeCount": 0,
+          "sampleRouteNumbers": [],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        },
+        {
+          "placeId": "tour-2718743",
+          "placeName": "브루웍스",
+          "stopName": "청춘창고",
+          "distanceMeters": 33,
+          "routeCount": 15,
+          "sampleRouteNumbers": [
+            "63",
+            "59",
+            "85",
+            "62",
+            "64"
+          ],
+          "typicalIntervalMinutes": null,
+          "source": "bus-stop"
+        }
+      ],
+      "fitScore": 67,
+      "walkingScore": 70,
+      "preferenceScore": 46,
+      "timeFitScore": 100,
+      "courseQualityScore": 90,
+      "scoreBreakdown": {
+        "transitAccess": 79,
+        "walkingEase": 57,
+        "nearbyLinks": 92
+      },
+      "walkingBreakdown": {
+        "walk": 57,
+        "transit": 79,
+        "time": 73,
+        "transfer": 90,
+        "distance": 20,
+        "efficiency": 92
+      },
+      "recommendationBreakdown": {
+        "preference": 46,
+        "walking": 70,
+        "timeFit": 100,
+        "courseQuality": 90
+      },
+      "scoreFacts": {
+        "walkMinutes": 43,
+        "transitMinutes": 53,
+        "moveMinutes": 96,
+        "stayMinutes": 264,
+        "tripMinutes": 360,
+        "transferCount": 1,
+        "distanceKm": 14.4,
+        "averageMoveMinutes": 24,
+        "stayRatio": 0.7333333333333333,
+        "averageStopDistanceMeters": 91
+      },
+      "constraintPassed": true,
+      "constraintViolations": [],
+      "matchedInterests": [
+        "food",
+        "cafe"
+      ],
+      "reason": {
+        "headline": "취향과 뚜벅이 동선이 맞는 67점 코스",
+        "summary": "맛집·카페 취향을 반영했고, 총 도보 43분 · 환승 1회 · 평균 이동 24분으로 구성했어요. 순천종합버스터미널의 출발 좌표를 반영한 이동 추정이에요.",
+        "evidence": [
+          "취향 적합도 46점 · 뚜벅이 적합도 70점",
+          "총 도보 43분 · 환승 1회 · 평균 이동 24분",
+          "최근접 정류장 평균 91m · 이동 효율 73%",
+          "시간 적합도 100점 · 코스 완성도 90점"
+        ],
+        "source": "rules"
+      }
+    }
+  ],
+  "source": "tour-api",
+  "planningSource": "rules",
+  "fetchedAt": "2026-09-14T18:51:00.081Z",
+  "fallbackReason": null,
+  "tourApiConfigured": true
+}

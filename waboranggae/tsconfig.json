@@ -8,6 +8,7 @@
   },
   "include": [
     "App.tsx",
+    "web/src/styles.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.json",

@@ -3,7 +3,8 @@ const apiBaseUrl = (process.env.API_BASE_URL || 'http://127.0.0.1:8787').replace
 async function request(path, options = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
-    headers: options.body ? { 'Content-Type': 'application/json', ...options.headers } : options.headers,
+    headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(process.env.TEAM_ACCESS_KEY ? { 'X-Dev-Access-Key': process.env.TEAM_ACCESS_KEY } : {}), ...options.headers },
     signal: AbortSignal.timeout(180_000),
   });
   const payload = await response.json().catch(() => ({}));
@@ -55,8 +56,8 @@ if (!Number.isFinite(course.origin?.latitude) || !Number.isFinite(course.origin?
 if (course.routeSegments?.[0]?.fromName !== `${analysis.preferences.city} 터미널`) {
   throw new Error(`첫 길찾기 구간이 터미널에서 시작하지 않습니다: ${course.routeSegments?.[0]?.fromName}`);
 }
-if (health.tmapTransitConfigured && course.routeSource !== 'tmap-transit') {
-  throw new Error(`TMAP 키가 설정됐지만 실제 길찾기가 반영되지 않았습니다: ${course.routeSource}`);
+if (course.routeSource !== 'estimated') {
+  throw new Error(`추천 미리보기는 좌표 기반 예상 경로여야 합니다: ${course.routeSource}`);
 }
 if (!course.validationNotes?.some((note) => note.includes(`${analysis.preferences.city} 터미널`))) {
   throw new Error('터미널 출발 거점 검증 기록이 없습니다.');
@@ -110,7 +111,6 @@ console.log(JSON.stringify({
     ollamaModelAvailable: health.ollamaModelAvailable,
     ollamaModel: health.ollamaModel,
     tourApiConfigured: health.tourApiConfigured,
-    tmapTransitConfigured: health.tmapTransitConfigured,
   },
   analysis: {
     source: analysis.source,

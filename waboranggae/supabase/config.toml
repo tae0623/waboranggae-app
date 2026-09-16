@@ -1,0 +1,7 @@
+project_id = "waboranggae-edge"
+
+[functions.waboranggae-api]
+enabled = true
+# Own JWT authentication and guest recommendations; user routes remain protected.
+verify_jwt = false
+entrypoint = "./functions/waboranggae-api/index.ts"

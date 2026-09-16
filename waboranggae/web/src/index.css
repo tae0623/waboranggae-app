@@ -1,5 +1,4 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
-@import 'tailwindcss';
 
 html, body, #root {
   height: 100%;
@@ -19,6 +18,8 @@ body {
 }
 
 * { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; }
+button { line-height: inherit; }
 
 .hide-scroll::-webkit-scrollbar { display: none; }
 .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }

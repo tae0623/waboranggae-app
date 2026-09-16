@@ -10,9 +10,20 @@ import {
   RecommendationReason,
   RegionCity,
   TravelPreferences,
+  RoutingPoint,
+  TravelMode,
+  SegmentResponse,
 } from '../types/travel';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+const configuredBase = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+export const API_BASE_URL = configuredBase === 'same-origin'
+  ? (typeof window !== 'undefined' ? window.location.origin : undefined)
+  : configuredBase;
+
+export function devAccessHeaders(): Record<string, string> {
+  const key = process.env.EXPO_PUBLIC_DEV_ACCESS_KEY;
+  return key ? { 'X-Dev-Access-Key': key } : {};
+}
 
 export function resolveTourImageUrl(value?: string, apiBaseUrl = API_BASE_URL) {
   if (!value || !apiBaseUrl) return value;
@@ -85,6 +96,7 @@ async function fetchJson<T>(
   try {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...devAccessHeaders(),
       ...options.headers,
     };
 
@@ -155,6 +167,8 @@ async function fetchJson<T>(
 }
 
 export const apiClient = {
+  routeSegment: (from: RoutingPoint, to: RoutingPoint, mode: TravelMode) =>
+    fetchJson<SegmentResponse>('/api/routes/segment', { body: { from, to, mode }, timeoutMs: 15000 }),
   /**
    * 인증 관련 API
    */

@@ -10,8 +10,14 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Build outputs
+.runtime/
+.tools/
+dist-team/
 dist/
 web/dist/
 build/
@@ -52,3 +58,10 @@ coverage/
 *.lock
 yarn.lock
 package-lock.json
+!deployment/edge/package-lock.json
+deployment/edge/generated/
+deployment/edge/schema.prisma
+supabase/.temp/
+supabase/.branches/
+supabase/functions/waboranggae-api/app.mjs
+supabase/functions/waboranggae-api/app-*.mjs

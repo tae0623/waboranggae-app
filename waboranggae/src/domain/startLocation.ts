@@ -36,7 +36,10 @@ export function normalizeStartLocation(city: string, type: StartLocationType, va
 export function normalizeTravelStart<T extends TravelPreferences>(preferences: T): T {
   return {
     ...preferences,
-    startLocation: normalizeStartLocation(preferences.city, preferences.startType, preferences.startLocation),
+    // An explicitly selected nationwide place outranks the destination-city hub shortcut.
+    startLocation: Number.isFinite(preferences.startLatitude)&&Number.isFinite(preferences.startLongitude)&&preferences.startLocation.trim()
+      ? preferences.startLocation.trim()
+      : normalizeStartLocation(preferences.city, preferences.startType, preferences.startLocation),
   };
 }
 

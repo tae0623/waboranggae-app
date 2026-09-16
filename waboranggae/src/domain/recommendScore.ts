@@ -1,6 +1,6 @@
 import { INTEREST_LABELS } from './labels';
 import { clampScore } from './walkability';
-import { distanceKmBetween, lodgingProximityScore, mealsFromPreference, planningHours, unfoldClock, wallLimitMinutes } from './tripWindow';
+import { distanceKmBetween, lodgingProximityScore, mealWindowsFor, planningHours, unfoldClock, wallLimitMinutes } from './tripWindow';
 import {
   Course,
   CourseScoreFacts,
@@ -112,9 +112,9 @@ export function collectCourseFacts(course: Course): CourseScoreFacts {
       + (first.walkMinutesFromPrevious ?? 0)
       + (first.transitMinutesFromPrevious ?? 0);
   }
-  const tripMinutes = scheduledMinutes > 0
+  const tripMinutes = course.timeBreakdown?.totalMinutes ?? (scheduledMinutes > 0
     ? scheduledMinutes
-    : Math.max(Math.round(course.durationHours * 60), stayMinutes + moveMinutes);
+    : Math.max(Math.round(course.durationHours * 60), stayMinutes + moveMinutes));
   const hopCount = Math.max(1, course.routeSegments?.length ?? Math.max(1, course.places.length - (course.origin ? 0 : 1)));
   const evidence = course.transitAccessEvidence ?? [];
   const averageStopDistanceMeters = evidence.length
@@ -143,7 +143,7 @@ export function hardConstraintViolations(preferences: TravelPreferences, facts: 
   if (facts.transferCount > transferLimit(preferences)) {
     violations.push(`환승 ${facts.transferCount}회가 허용 ${transferLimit(preferences)}회를 넘습니다.`);
   }
-  if (facts.tripMinutes > wallLimitMinutes(preferences) + 30) {
+  if (facts.tripMinutes > wallLimitMinutes(preferences) + (preferences.scheduleMode==='course-first'||preferences.timeBudgetMode==='local'?0:30)) {
     violations.push(`총 소요 ${facts.tripMinutes}분이 선택한 여행 시간을 넘습니다.`);
   }
   return violations;
@@ -153,6 +153,8 @@ export function userPreferenceVector(preferences: TravelPreferences): Record<Int
   const selected = new Set(preferences.interests);
   const vector = Object.fromEntries(INTERESTS.map((key) => [key, selected.has(key) ? 1 : 0])) as Record<Interest, number>;
 
+  // Photo is a cross-category preference, not a second competing destination category.
+  if (selected.has('photo') && selected.size>1) vector.photo=0.35;
   if (preferences.preferLocal) {
     vector.market = Math.min(1, vector.market + 0.35);
     vector.food = Math.min(1, vector.food + 0.2);
@@ -335,6 +337,12 @@ export function walkingScore(breakdown: WalkingScoreBreakdown) {
 }
 
 export function timeFitScore(preferences: TravelPreferences, facts: CourseScoreFacts) {
+  if(preferences.scheduleMode==='course-first'){
+    // No reward for padding stays to a hidden six-hour target. Prefer usable time over waiting.
+    const waiting=Math.max(0,facts.tripMinutes-facts.stayMinutes-facts.moveMinutes);
+    return clampScore(100-waiting/Math.max(1,facts.tripMinutes)*100
+      -Math.max(0,facts.tripMinutes-wallLimitMinutes(preferences)));
+  }
   const requested = planningHours(preferences) * 60;
   const actual = facts.stayMinutes + facts.moveMinutes;
   const delta = Math.abs(actual - requested);
@@ -350,7 +358,7 @@ function isCafe(place: Place) {
 }
 
 function requestedMealCount(preferences: TravelPreferences) {
-  return mealsFromPreference(preferences.mealPreference, preferences.meals).length;
+  return mealWindowsFor(preferences).length;
 }
 
 export function courseQualityScore(preferences: TravelPreferences, course: Course) {
@@ -425,8 +433,8 @@ function scoreReason(
   const interestText = matched.length
     ? matched.slice(0, 3).map((item) => INTEREST_LABELS[item]).join('·')
     : '전남 로컬 경험';
-  const routeText = course.routeSource === 'tmap-transit'
-    ? `${course.origin?.name ?? preferences.startLocation}부터 TMAP 대중교통 길찾기를 반영했어요.`
+  const routeText = course.routeSource === 'kakao'
+    ? `${course.origin?.name ?? preferences.startLocation}부터 조회한 카카오 구간 경로를 반영했어요.`
     : course.origin
       ? `${course.origin.name}의 출발 좌표를 반영한 이동 추정이에요.`
       : `선택한 ${preferences.startLocation}에서 시작하는 동선이에요.`;

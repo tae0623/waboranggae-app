@@ -12,41 +12,6 @@ function cleanName(value?: string) {
     .trim();
 }
 
-function extractBusNumber(route: string) {
-  const text = route.trim();
-  if (!text || /호선|지하철|열차|기차/.test(text)) return '';
-  const numbered = text.match(/(\d+(?:-\d+)?[A-Za-z]?)(?:\s*번)?/);
-  if (/^\d+(?:-\d+)?[A-Za-z]?$/.test(text)) return text;
-  if (/\d/.test(text) && /버스|좌석|순환|지선|간선|농어촌/.test(text) && numbered) {
-    return numbered[1] || '';
-  }
-  return '';
-}
-
-export function vehicleFromTmap(mode?: string, route?: string): Pick<TransitStep, 'mode' | 'label' | 'route'> {
-  const raw = cleanName(route);
-  switch (mode) {
-    case 'WALK':
-      return { mode: 'walk', label: '도보' };
-    case 'BUS': {
-      const number = extractBusNumber(raw);
-      if (number) return { mode: 'bus', label: `${number}번 버스`, route: number };
-      if (raw) return { mode: 'bus', label: /버스/.test(raw) ? raw : `${raw} 버스`, route: raw };
-      return { mode: 'bus', label: '버스' };
-    }
-    case 'SUBWAY':
-      return { mode: 'subway', label: raw || '지하철', route: raw || undefined };
-    case 'EXPRESSBUS':
-      return { mode: 'expressbus', label: raw ? `${raw} 시외·고속버스` : '시외·고속버스', route: raw || undefined };
-    case 'TRAIN':
-      return { mode: 'train', label: raw || '기차', route: raw || undefined };
-    case 'FERRY':
-      return { mode: 'ferry', label: raw || '여객선', route: raw || undefined };
-    default:
-      return { mode: 'other', label: raw || '대중교통', route: raw || undefined };
-  }
-}
-
 export function formatTransitInstruction(steps: TransitStep[], options?: { estimated?: boolean }) {
   const visible = steps.filter((step) => step.minutes > 0);
   if (!visible.length) return options?.estimated ? '이동 시간 확인 중' : '이동';
@@ -141,7 +106,7 @@ export function applyStopBasedTransitHints(
   originHint?: StopHint | null,
 ): Place[] {
   return places.map((place, index) => {
-    if (place.routeSource === 'tmap-transit' && place.transitSteps?.length) return place;
+    if (place.routeSource === 'kakao' && place.transitSteps?.length) return place;
     if ((place.transitMinutesFromPrevious ?? 0) <= 0) return place;
     const fromHint = index === 0 ? originHint : evidenceByPlaceId.get(places[index - 1]!.id);
     const toHint = evidenceByPlaceId.get(place.id);

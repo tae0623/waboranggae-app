@@ -97,18 +97,16 @@ function interestsFromCondition(cond: Condition): TravelPreferences['interests']
 }
 
 export function conditionToPreferences(cond: Condition): TravelPreferences {
+  const automaticMeals=cond.meals.includes('자동');
   const meals = mealsFromCondition(cond.meals);
   const interests = interestsFromCondition(cond);
   const pace = WALK_TO_PACE[cond.walkLevel] ?? 'balanced';
   const companions = COMPANION_TO_API[cond.companion] ?? cond.companion;
-  const durationHours = wallClockHours(cond);
-  const dateLabel = cond.date === cond.endDate
-    ? `${cond.date} ${cond.startTime}–${cond.endTime}`
-    : `${cond.date} ${cond.startTime} – ${cond.endDate} ${cond.endTime}`;
+  const durationHours = cond.endTimeLimited ? wallClockHours({...cond,endDate:cond.date}) : 6;
+  const dateLabel = `${cond.date} ${cond.startTime} 시작${cond.endTimeLimited ? ` · ${cond.endTime}까지` : ''}`;
   const summary = [
     cond.region,
     dateLabel,
-    `약 ${durationHours}시간`,
     cond.departure,
     cond.walkLevel,
     companions,
@@ -119,6 +117,8 @@ export function conditionToPreferences(cond: Condition): TravelPreferences {
   ].filter(Boolean).join(' · ');
 
   return {
+    scheduleMode: 'course-first',
+    timeBudgetMode: 'local',
     region: '전라남도',
     city: cond.region || '순천',
     startLocation: cond.departure || `${cond.region || '순천'}역`,
@@ -127,12 +127,12 @@ export function conditionToPreferences(cond: Condition): TravelPreferences {
     startLatitude: cond.departureLat,
     startLongitude: cond.departureLng,
     travelDate: cond.date || null,
-    travelEndDate: cond.endDate || cond.date || null,
+    travelEndDate: cond.date || null,
     startTime: cond.startTime,
-    endTime: cond.endTime,
+    endTime: cond.endTimeLimited ? cond.endTime : undefined,
     durationHours,
-    mealPreference: mealPreferenceFromMeals(meals),
-    meals,
+    mealPreference: automaticMeals ? 'auto' : mealPreferenceFromMeals(meals),
+    meals: automaticMeals ? undefined : meals,
     pace,
     preferLocal: cond.isLocal || cond.purpose.includes('시장·골목'),
     interests,
@@ -173,9 +173,10 @@ export function preferencesToCondition(prefs: TravelPreferences, fallback?: Cond
     endDate: prefs.travelEndDate ?? prefs.travelDate ?? localISODate(),
     startTime: prefs.startTime,
     endTime: prefs.endTime ?? '16:00',
+    endTimeLimited: Boolean(prefs.endTime),
     duration: prefs.durationHours,
-    meal: meals.length ? meals.join('+') : '식사 제외',
-    meals,
+    meal: prefs.mealPreference==='auto'&&prefs.meals===undefined ? '자동' : meals.length ? meals.join('+') : '식사 제외',
+    meals: prefs.mealPreference==='auto'&&prefs.meals===undefined ? ['자동'] : meals,
     walkLevel,
     companion,
     interests: fallback?.interests ?? [],
@@ -227,7 +228,7 @@ function hopFromPlace(place: RankedCourse['places'][number]) {
 
 export function rankedToUiCourse(course: RankedCourse): Course {
   const cover = course.places.find((place) => place.imageUrl)?.imageUrl
-    || 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=700&h=500&fit=crop&auto=format';
+    || '';
   const transferCount = course.scoreFacts?.transferCount
     ?? Math.max(0, course.places.filter((place) => (place.transitMinutesFromPrevious ?? 0) > 0).length - 1);
   const walking = course.walkingScore ?? course.scoreBreakdown.walkingEase;
@@ -241,6 +242,7 @@ export function rankedToUiCourse(course: RankedCourse): Course {
   const stopDistance = course.scoreFacts?.averageStopDistanceMeters;
   return {
     id: course.id,
+    apiCourse: course,
     city: course.city,
     title: course.title,
     subtitle: course.subtitle,
@@ -264,7 +266,7 @@ export function rankedToUiCourse(course: RankedCourse): Course {
     ].filter(Boolean),
     reason: course.reason.summary,
     dataSource: course.id.startsWith('tour-') || course.id.startsWith('planned-') ? 'real' : 'demo',
-    routeSource: course.routeSource === 'tmap-transit' ? 'tmap' : course.routeSource === 'mixed' ? 'mixed' : 'estimated',
+    routeSource: course.routeSource === 'kakao' ? 'kakao' : course.routeSource === 'mixed' ? 'mixed' : 'estimated',
     places: (() => {
       const mapped = course.places.map((place) => ({
         id: place.id,
@@ -281,7 +283,7 @@ export function rankedToUiCourse(course: RankedCourse): Course {
         category: 'transit' as PlaceCat,
         name: course.origin.name,
         address: course.origin.address,
-        arriveAt: course.places[0]?.arrival || '',
+        arriveAt: course.places[0]?.moveLabel.match(/\d{2}:\d{2}/)?.[0] || '출발',
         stayMin: 0,
         description: '선택한 출발 거점',
         interests: [] as string[],

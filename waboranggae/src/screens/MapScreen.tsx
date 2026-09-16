@@ -1,9 +1,12 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { SegmentDirections } from '../components/SegmentDirections';
+import { courseLeg, courseLegKey, isRoutingPoint, withVerifiedMapSegments } from '../domain/kakaoLinks';
 import { Ionicons } from '../components/AppIcon';
 import { CourseMap } from '../components/CourseMap';
 import { CATEGORY_LABELS } from '../domain/labels';
 import { colors, radii, shadows } from '../theme';
-import { RankedCourse } from '../types/travel';
+import { RankedCourse, RouteSegment } from '../types/travel';
 
 export function MapScreen({
   course,
@@ -17,9 +20,14 @@ export function MapScreen({
   onOpenDetail: () => void;
 }) {
   const nextPlace = course.places[0];
+  const [verified, setVerified] = useState<Record<string, RouteSegment>>({});
+  const legKey = (index: number) => courseLegKey(course, index);
+  const mapCourse = withVerifiedMapSegments(course, verified);
   const hasGeo = Boolean(course.origin) || course.places.some((place) => typeof place.latitude === 'number');
-  const routeSourceLabel = course.routeSource === 'tmap-transit'
-    ? 'TMAP 실제 경로'
+  const routeSourceLabel = mapCourse.routeSegments?.some(segment => segment.source === 'kakao')
+    ? '조회 구간 실경로'
+    : course.routeSource === 'kakao'
+    ? '카카오 조회 경로'
     : course.routeSource === 'mixed'
       ? '일부 실제 경로'
       : '좌표 기반 예상';
@@ -50,14 +58,14 @@ export function MapScreen({
         ) : null}
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>{hasGeo ? 'MAP SDK · OPENSTREETMAP' : 'ROUTE PREVIEW'}</Text>
+            <Text style={styles.eyebrow}>{hasGeo ? '카카오맵 · 여행 동선' : '방문 순서'}</Text>
             <Text style={styles.title}>{course.title}</Text>
           </View>
           <View style={styles.estimateBadge}><Ionicons name="navigate-outline" size={14} color={colors.forest} /><Text style={styles.estimateText}>{routeSourceLabel}</Text></View>
         </View>
 
         <View style={styles.mapWrap}>
-          <CourseMap course={course} />
+          <CourseMap course={mapCourse} />
         </View>
 
         <View style={styles.progressCard}>
@@ -108,6 +116,13 @@ export function MapScreen({
                   <Text style={styles.stopArrival}>{place.arrival}</Text>
                 </View>
                 <Text style={styles.stopMeta}>{CATEGORY_LABELS[place.category]} · 머무름 {place.stayMinutes}분</Text>
+                {isRoutingPoint(place) ? <SegmentDirections key={legKey(index)}
+                  from={courseLeg(course, index)?.from} to={place}
+                  onResult={(segment) => setVerified(previous => {
+                    const next = { ...previous }; const key = legKey(index);
+                    if (segment) next[key] = segment; else delete next[key];
+                    return next;
+                  })} /> : null}
               </View>
               <Ionicons name="chevron-forward" size={17} color={colors.muted} />
             </View>
@@ -116,7 +131,7 @@ export function MapScreen({
 
         <View style={styles.legendCard}>
           <Text style={styles.legendTitle}>지도 범례</Text>
-          <Text style={styles.legendText}>주황 ‘출’: 선택한 출발 거점 · 초록 숫자: 방문 순서 · 점선은 좌표 기반 예상 구간</Text>
+          <Text style={styles.legendText}>주황 ‘출’: 출발 거점 · 초록 숫자: 방문 순서 · 점선: 예상 구간 · 실선: 조회한 경로. 코스 전체 시간표는 예상값입니다. 카카오맵 대중교통 길찾기는 한 구간씩 확인할 수 있습니다.</Text>
         </View>
       </ScrollView>
     </View>

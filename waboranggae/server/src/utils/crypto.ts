@@ -13,6 +13,8 @@ export async function hashPassword(password: string): Promise<string> {
  * 비밀번호 검증
  */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  // bcrypt ignores bytes after 72, including a suffix added to a valid password.
+  if (Buffer.byteLength(password, 'utf8') > 72) return false;
   return bcrypt.compare(password, hash);
 }
 
@@ -20,6 +22,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
  * 비밀번호 요구사항 검증
  */
 export function validatePasswordRequirements(password: string): string | null {
+  if (Buffer.byteLength(password, 'utf8') > 72) return '비밀번호는 UTF-8 기준 72바이트 이하여야 합니다.';
   const requirements = {
     minLength: 8,
     maxLength: 128,

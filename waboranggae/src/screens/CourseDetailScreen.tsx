@@ -33,7 +33,7 @@ export function CourseDetailScreen({
       ...(course.origin ? [`출발. ${course.origin.name}`] : []),
       ...course.places.map((place, index) => `${index + 1}. ${place.name} (${place.arrival})`),
     ].join('\n');
-    Share.share({ message: `[와보랑께] ${course.title}\n${course.subtitle}\n\n${route}` }).catch(() => undefined);
+    Share.share({ message: `[뚜버기] ${course.title}\n${course.subtitle}\n\n${route}` }).catch(() => undefined);
   };
 
   return (
@@ -171,7 +171,7 @@ export function CourseDetailScreen({
                     </Text>
                   </View>
                 ))}
-                <Text style={styles.transitEvidenceSource}>공공데이터포털 TAGO 실데이터 · 길찾기 경로는 TMAP 사용</Text>
+                <Text style={styles.transitEvidenceSource}>공공데이터포털 TAGO 실데이터 · 실제 운행·길찾기는 카카오맵에서 확인</Text>
               </View>
             ) : null}
           </View>

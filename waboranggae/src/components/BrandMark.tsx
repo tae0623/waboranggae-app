@@ -4,12 +4,12 @@ import { colors } from '../theme';
 
 export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
-    <View style={styles.row} accessibilityLabel="와보랑께">
+    <View style={styles.row} accessibilityLabel="뚜버기">
       <View style={[styles.mark, compact && styles.markCompact]}>
         <MaterialCommunityIcons name="shoe-print" size={compact ? 18 : 22} color={colors.cream} />
       </View>
       <View>
-        <Text style={[styles.name, compact && styles.nameCompact]}>와보랑께</Text>
+        <Text style={[styles.name, compact && styles.nameCompact]}>뚜버기</Text>
         {!compact && <Text style={styles.caption}>AI 전남 뚜벅이 여행</Text>}
       </View>
     </View>

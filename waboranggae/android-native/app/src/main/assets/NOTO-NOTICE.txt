@@ -1,0 +1,8 @@
+Walking-person artwork: Google Noto Emoji, svg/emoji_u1f6b6.svg.
+Copyright 2013 Google, Inc. All Rights Reserved.
+License: Apache License 2.0 (APACHE-2.0.txt and NOTO-SVG-LICENSE.txt).
+Source: https://github.com/googlefonts/noto-emoji/blob/main/svg/emoji_u1f6b6.svg
+Retrieved 2026-09-15. SVG SHA256:
+5b397ef0189cffbec8566af7a886d26af41b000cb2f1c7ca81553f93c530b63a
+Modification: unmodified SVG bundled; launcher bitmap rendered at 216px inside a 432px transparent canvas.
+The Samsung system emoji raster previously used is not the source of this asset.

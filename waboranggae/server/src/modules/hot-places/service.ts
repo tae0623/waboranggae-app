@@ -5,9 +5,10 @@ import {
   composeFestivalCopy,
   pickAdmissionFee,
   cleanTourText,
+  currentOrUpcomingEvent,
 } from './copy';
 import { rankJeonnamCities } from './datalab';
-import { searchPhotoKorea } from './photokorea';
+import { searchPhotoKoreaDetails,PhotoKoreaImage } from './photokorea';
 
 export interface HotPlaceDto {
   id: string;
@@ -17,8 +18,12 @@ export interface HotPlaceDto {
   desc: string;
   story?: string;
   img: string;
+  imageCredit?:string;
+  imageContentId?:string;
   visitors: number;
   metricLabel: string;
+  metricNote?: string;
+  demand?: { baseMonth: string; stayScore: number; spendScore: number; score: number };
   tags: string[];
   isNew?: boolean;
   isTrending?: boolean;
@@ -27,6 +32,8 @@ export interface HotPlaceDto {
   periodLabel?: string;
   periodShort?: string;
   statusLabel?: string;
+  eventStartDate?: string;
+  eventEndDate?: string;
   fee?: string;
   hours?: string;
   eventPlace?: string;
@@ -39,7 +46,7 @@ export interface HotPlaceDto {
   homepage?: string;
 }
 
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=700&h=500&fit=crop&auto=format';
+const PLACEHOLDER_IMAGE = '';
 let cache: { expiresAt: number; value: { places: HotPlaceDto[]; source: string; fetchedAt: string } } | null = null;
 const CACHE_TTL_MS = 30 * 60 * 1_000;
 
@@ -82,6 +89,8 @@ async function enrichHighlight(highlight: TourHighlight) {
     });
     const admission = pickAdmissionFee(detail?.fee, detail?.hours);
     return {
+      eventStartDate: startDate,
+      eventEndDate: endDate,
       story: copy.story,
       desc: copy.teaser,
       periodLabel: copy.periodLabel,
@@ -144,15 +153,18 @@ function proxiedImage(url?: string) {
   return url;
 }
 
-async function withPhoto(highlight: TourHighlight) {
-  if (highlight.imageUrl) return highlight.imageUrl;
-  return await searchPhotoKorea(`${highlight.city} ${highlight.name}`)
-    || await searchPhotoKorea(highlight.name)
-    || await searchPhotoKorea(highlight.city);
+async function withPhoto(highlight: TourHighlight):Promise<PhotoKoreaImage|undefined> {
+  if (highlight.imageUrl) return {url:highlight.imageUrl,title:highlight.name};
+  return await searchPhotoKoreaDetails(`${highlight.city} ${highlight.name}`)
+    || await searchPhotoKoreaDetails(highlight.name);
+}
+
+export function isVisibleHomePlace(place:Pick<HotPlaceDto,'category'|'source'|'eventStartDate'|'eventEndDate'>,now=new Date()) {
+  return place.category!=='축제·행사' && place.source!=='festival' || currentOrUpcomingEvent(place.eventStartDate,place.eventEndDate,now);
 }
 
 export async function listHotPlaces(limit = 6) {
-  if (cache && cache.expiresAt > Date.now()) return cache.value;
+  if (cache && cache.expiresAt > Date.now()) return {...cache.value,places:cache.value.places.filter(place=>isVisibleHomePlace(place)).slice(0,limit)};
 
   const [rankedCities, festivals] = await Promise.all([
     rankJeonnamCities(),
@@ -164,7 +176,7 @@ export async function listHotPlaces(limit = 6) {
     const picked = highlights.find((item) => item.imageUrl) ?? highlights[0];
     if (!picked) return null;
     const imageUrl = await withPhoto(picked);
-    const visitors = city.visitors == null ? Math.round(city.score) : Math.round(city.visitors);
+    const visitors = city.source === 'fallback' ? 0 : city.visitors == null ? Math.round(city.score) : Math.round(city.visitors);
     const demandLabel = city.source === 'visitors'
       ? `최근 방문자 규모를 반영한 ${city.name} 인기 장소예요.`
       : city.source === 'demand'
@@ -178,11 +190,18 @@ export async function listHotPlaces(limit = 6) {
       city: picked.city,
       category: categoryLabel(picked),
       desc: extra.desc || describePlace(picked, demandLabel),
-      img: proxiedImage(imageUrl),
+      img: proxiedImage(imageUrl?.url),
+      imageCredit: imageUrl?.photographer || '한국관광공사',
+      imageContentId: imageUrl?.contentId,
       visitors,
-      metricLabel: city.source === 'visitors' ? '최근 방문자' : '수요 지수',
+      metricLabel: city.source === 'fallback' ? '관광정보' : city.source === 'visitors' ? '최근 방문자'
+        : `지역 수요 ${city.baseMonth?.slice(0, 4)}.${city.baseMonth?.slice(4)}`,
+      metricNote: city.source === 'demand'
+        ? `한국관광공사 데이터랩 ${city.baseMonth?.slice(0, 4)}년 ${city.baseMonth?.slice(4)}월 기준. 체류·소비 강도 각 50%를 반영한 앱의 지역 비교 점수입니다. 개별 장소 방문자 수나 실시간 인기 순위가 아닙니다.` : undefined,
+      demand: city.source === 'demand' && city.baseMonth && city.stayScore !== undefined && city.spendScore !== undefined
+        ? { baseMonth: city.baseMonth, stayScore: city.stayScore, spendScore: city.spendScore, score: city.score } : undefined,
       tags: toTags(picked),
-      isTrending: index < 2,
+      isTrending: city.source !== 'fallback' && index < 2,
       isNew: false,
       source: city.source === 'fallback' ? 'tour-api' : city.source,
       address: picked.address,
@@ -198,11 +217,13 @@ export async function listHotPlaces(limit = 6) {
       name: festival.name,
       city: festival.city,
       category: categoryLabel(festival),
-      img: proxiedImage(imageUrl),
+      img: proxiedImage(imageUrl?.url),
+      imageCredit: imageUrl?.photographer || '한국관광공사',
+      imageContentId: imageUrl?.contentId,
       visitors: 0,
       metricLabel: extra.statusLabel || '진행 중 행사',
       tags: toTags(festival),
-      isTrending: index === 0,
+      isTrending: false,
       isNew: extra.statusLabel === '곧 열려요' || extra.statusLabel === '지금 진행 중',
       source: 'festival' as const,
       address: extra.eventPlace || festival.address,
@@ -214,7 +235,7 @@ export async function listHotPlaces(limit = 6) {
   const cityHits = cityPlaces.filter((item): item is NonNullable<typeof item> => item != null);
   for (const place of [...festivalPlaces, ...cityHits]) {
     const key = `${place.city}:${place.name}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key) || !isVisibleHomePlace(place)) continue;
     seen.add(key);
     merged.push(place);
     if (merged.length >= limit) break;
@@ -225,6 +246,6 @@ export async function listHotPlaces(limit = 6) {
     source: rankedCities[0]?.source ?? 'tour-api',
     fetchedAt: new Date().toISOString(),
   };
-  cache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+  cache = { value, expiresAt: Date.now() + (value.source === 'fallback' ? 5 * 60_000 : CACHE_TTL_MS) };
   return value;
 }

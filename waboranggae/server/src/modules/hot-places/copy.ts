@@ -60,11 +60,16 @@ export function formatEventPeriodShort(start?: string | null, end?: string | nul
   return `${stamp(from)}–${stamp(to)}`;
 }
 
+export function koreaDateKey(now=new Date()) { return new Date(now.getTime()+9*60*60*1000).toISOString().slice(0,10).replace(/-/g,''); }
+export function currentOrUpcomingEvent(start?:string|null,end?:string|null,now=new Date()) {
+  const status=eventStatus(start,end,now);
+  return status==='ongoing'||status==='upcoming';
+}
 export function eventStatus(start?: string | null, end?: string | null, now = new Date()): EventStatus {
   const from = parseYmd(start);
   const to = parseYmd(end) || from;
-  if (!from || !to) return 'unknown';
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (!from || !to || to < from) return 'unknown';
+  const today = parseYmd(koreaDateKey(now))!;
   if (today < from) return 'upcoming';
   if (today > to) return 'ended';
   return 'ongoing';

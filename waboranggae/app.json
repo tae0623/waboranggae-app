@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "와보랑께",
+    "name": "뚜버기",
     "slug": "waboranggae",
     "version": "1.0.0",
     "description": "전남 관광정보를 실제 이동 가능한 대중교통·도보 일정으로 연결하는 뚜벅이 여행 앱",
@@ -8,6 +8,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "waboranggae",
+    "plugins": ["expo-secure-store"],
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -35,7 +36,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "name": "와보랑께",
+      "name": "뚜버기",
       "favicon": "./assets/favicon.png"
     }
   }

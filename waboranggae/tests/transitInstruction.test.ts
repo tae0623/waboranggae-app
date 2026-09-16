@@ -3,18 +3,10 @@ import { routingTestUtils } from '../server/src/modules/recommendation/routing';
 import {
   applyStopBasedTransitHints,
   formatTransitInstruction,
-  hintTransitFromStops,
-  vehicleFromTmap,
-} from '../server/src/modules/recommendation/transit-instruction';
+  hintTransitFromStops,} from '../server/src/modules/recommendation/transit-instruction';
 import { Place } from '../src/types/travel';
 
 describe('transit instruction', () => {
-  it('turns TMAP bus routes into numbered labels', () => {
-    expect(vehicleFromTmap('BUS', '67')).toEqual({ mode: 'bus', label: '67번 버스', route: '67' });
-    expect(vehicleFromTmap('BUS', '24-1')).toEqual({ mode: 'bus', label: '24-1번 버스', route: '24-1' });
-    expect(vehicleFromTmap('WALK')).toEqual({ mode: 'walk', label: '도보' });
-  });
-
   it('writes ride minutes and stops into one sentence', () => {
     expect(formatTransitInstruction([
       { mode: 'walk', label: '도보', minutes: 5 },
@@ -38,7 +30,7 @@ describe('transit instruction', () => {
     expect(transit.steps.some((step) => step.mode === 'bus' && !step.route)).toBe(true);
   });
 
-  it('fills bus numbers from shared nearby stops when TMAP is missing', () => {
+  it('fills bus numbers from shared nearby stops when directions are estimated', () => {
     const hinted = hintTransitFromStops(
       { stopName: '순천역', sampleRouteNumbers: ['67', '71', '960'] },
       { stopName: '국가정원', sampleRouteNumbers: ['67', '16'] },
@@ -49,7 +41,7 @@ describe('transit instruction', () => {
     expect(hinted?.steps[1]).toMatchObject({ route: '67', label: '67번 버스', minutes: 16 });
   });
 
-  it('does not overwrite a live TMAP instruction', () => {
+  it('does not overwrite a verified Kakao instruction', () => {
     const place = {
       id: 'garden',
       name: '순천만국가정원',
@@ -63,7 +55,7 @@ describe('transit instruction', () => {
       mapPoint: { x: 0, y: 0 },
       walkMinutesFromPrevious: 5,
       transitMinutesFromPrevious: 16,
-      routeSource: 'tmap-transit',
+      routeSource: 'kakao',
       transitSteps: [
         { mode: 'walk', label: '도보', minutes: 5 },
         { mode: 'bus', route: '67', label: '67번 버스', minutes: 16 },

@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken, JWTPayload } from '../auth/jwt';
+import { prisma } from '../db/client';
+import { isSessionRevoked } from '../auth/session-revocations';
 
 declare global {
   namespace Express {
@@ -13,9 +15,9 @@ declare global {
  * JWT 검증 미들웨어
  * Authorization: Bearer {token}
  */
-export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
+export async function authenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.split(' ')[1]; // "Bearer token" → "token"
+  const token = authHeader?.match(/^Bearer\s+(\S+)$/i)?.[1];
 
   if (!token) {
     res.status(401).json({ error: '인증이 필요합니다' });
@@ -29,25 +31,23 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  req.user = payload;
-  next();
+  try {
+    const user = await prisma.user.findUnique({ where: { id: payload.userId }, select: { id: true, tokenVersion: true } });
+    if (!user || user.tokenVersion !== payload.tokenVersion || await isSessionRevoked(payload.sessionId)) {
+      res.status(401).json({ error: '계정이 삭제되었거나 인증이 만료되었습니다. 다시 로그인해 주세요.' });
+      return;
+    }
+    req.user = payload;
+    next();
+  } catch (error) { next(error); }
 }
 
 /**
  * 선택적 JWT 검증 (없으면 통과)
  */
-export function optionalAuthenticateToken(req: Request, res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.split(' ')[1];
-
-  if (token) {
-    const payload = verifyAccessToken(token);
-    if (payload) {
-      req.user = payload;
-    }
-  }
-
-  next();
+export async function optionalAuthenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!req.headers.authorization) { next(); return; }
+  await authenticateToken(req, res, next);
 }
 
 /**

@@ -1,0 +1,14 @@
+node_modules/
+.git/
+.env
+.env.*
+.runtime/
+.tools/
+.expo/
+dist/
+dist-team/
+web/dist/
+*.log
+*.zip
+*.aab
+*.apk

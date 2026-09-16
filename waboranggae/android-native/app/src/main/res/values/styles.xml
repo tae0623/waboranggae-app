@@ -1,0 +1,14 @@
+<resources>
+    <color name="brand_background">#FFFFFF</color>
+    <style name="Theme.Waboranggae" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#166534</item>
+    </style>
+    <style name="Theme.Waboranggae.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#FFFFFF</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.Waboranggae</item>
+    </style>
+</resources>

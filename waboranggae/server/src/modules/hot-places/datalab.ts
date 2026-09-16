@@ -1,8 +1,14 @@
 import { JEONNAM_CITIES } from '../../../../src/domain/jeonnamCities';
 
 const serviceKey = (process.env.DATA_GO_KR_KEY || '').trim();
-const STAY_BASE = (process.env.DATALAB_DEMAND_STAY_URL || 'https://apis.data.go.kr/B551011/TatsStayngService1').replace(/\/$/, '');
-const CONSUME_BASE = (process.env.DATALAB_DEMAND_CONSUME_URL || 'https://apis.data.go.kr/B551011/TatsCnsmrService1').replace(/\/$/, '');
+const DEMAND_BASE = 'https://apis.data.go.kr/B551011/AreaTarDemDsService';
+function demandBase(configured: string | undefined) {
+  const base = configured?.trim().replace(/\/$/, '');
+  // Accept older example .env files without continuing to call nonexistent services.
+  return !base || /^https?:\/\/apis\.data\.go\.kr\/B551011\/Tats(?:Stayng|Cnsmr)Service1$/.test(base) ? DEMAND_BASE : base;
+}
+const STAY_BASE = demandBase(process.env.DATALAB_DEMAND_STAY_URL);
+const CONSUME_BASE = demandBase(process.env.DATALAB_DEMAND_CONSUME_URL);
 const VISITOR_BASE = (process.env.DATALAB_VISITOR_URL || 'https://apis.data.go.kr/B551011/DataLabService').replace(/\/$/, '');
 
 const JEONNAM_SIGNGU: Record<string, string> = {
@@ -18,6 +24,9 @@ export interface CityDemand {
   score: number;
   visitors: number | null;
   source: 'demand' | 'visitors' | 'fallback';
+  baseMonth?: string;
+  stayScore?: number;
+  spendScore?: number;
 }
 
 function decodedServiceKey() {
@@ -41,7 +50,7 @@ function itemArray(payload: unknown): Array<Record<string, unknown>> {
     throw new Error(denied.returnAuthMsg || denied.errMsg || '공공데이터 권한 오류');
   }
   const header = root.response?.header;
-  if (header?.resultCode && header.resultCode !== '0000') {
+  if (header?.resultCode && !['0000', '00'].includes(header.resultCode)) {
     throw new Error(header.resultMsg || `DataLab 오류 ${header.resultCode}`);
   }
   const item = typeof root.response?.body?.items === 'object' ? root.response.body.items.item : undefined;
@@ -49,7 +58,7 @@ function itemArray(payload: unknown): Array<Record<string, unknown>> {
   return Array.isArray(item) ? item : [item];
 }
 
-async function requestJson(baseUrl: string, operation: string, params: Record<string, string>) {
+async function requestJson(baseUrl: string, operation: string, params: Record<string, string>, signal?: AbortSignal) {
   if (!serviceKey) throw new Error('DATA_GO_KR_KEY 미설정');
   const url = new URL(`${baseUrl}/${operation}`);
   Object.entries({
@@ -59,7 +68,8 @@ async function requestJson(baseUrl: string, operation: string, params: Record<st
     _type: 'json',
     ...params,
   }).forEach(([key, value]) => url.searchParams.set(key, value));
-  const response = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+  const timeout = AbortSignal.timeout(12_000);
+  const response = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   const text = await response.text();
   let payload: unknown = {};
   try {
@@ -79,27 +89,28 @@ function normalizeCity(value: unknown) {
 }
 
 export function cityFromItem(item: Record<string, unknown>) {
+  const code = String(item.signguCd ?? item.signguCode ?? '');
+  if (code === '0' || item.signguNm === '_') return null; // Province total, not a city.
+  const mapped = Object.entries(JEONNAM_SIGNGU).find(([, value]) => value === code)?.[0];
+  if (mapped) return mapped;
   const raw = item.signguNm || item.signguName || item.areaNm || item.areaName || item.signguCode || item.signguCd;
   const name = normalizeCity(raw);
   return JEONNAM_CITIES.find((city) => city === name || name.includes(city)) ?? null;
 }
 
-function numericScore(item: Record<string, unknown>) {
-  const keys = ['stayngStrngth', 'cnsmrStrngth', 'tatsScore', 'score', 'index', 'touNum', 'visitrCo', 'dmandValue'];
-  for (const key of keys) {
-    const value = Number(item[key]);
-    if (Number.isFinite(value)) return value;
-  }
-  const fallback = Object.values(item)
-    .map((value) => Number(value))
-    .find((value) => Number.isFinite(value) && value > 0);
-  return fallback ?? 0;
+function nonNegativeNumber(raw: unknown) {
+  if ((typeof raw !== 'string' && typeof raw !== 'number') || String(raw).trim() === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function recentMonth() {
-  const date = new Date();
-  date.setMonth(date.getMonth() - 2);
-  return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+export function demandMonths(now = new Date()) {
+  // Anchor at day 1, avoiding setMonth() overflow on the 29th–31st.
+  const koreaDate = new Date(now.getTime() + 9 * 60 * 60 * 1_000);
+  return Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(Date.UTC(koreaDate.getUTCFullYear(), koreaDate.getUTCMonth() - index - 1, 1));
+    return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+  });
 }
 
 function recentDayRange() {
@@ -111,29 +122,42 @@ function recentDayRange() {
   return { startYmd: stamp(start), endYmd: stamp(end) };
 }
 
-async function fetchDemandScores() {
-  const baseYm = recentMonth();
-  const pages = await Promise.allSettled([
-    requestJson(STAY_BASE, 'areaBasedList1', { numOfRows: '50', pageNo: '1', baseYm, areaCd: '46' }),
-    requestJson(CONSUME_BASE, 'areaBasedList1', { numOfRows: '50', pageNo: '1', baseYm, areaCd: '46' }),
-  ]);
-  const scores = new Map<string, number[]>();
-  for (const page of pages) {
-    if (page.status !== 'fulfilled') continue;
-    for (const item of page.value) {
+export function combineDemandScores(stay: Array<Record<string, unknown>>, spend: Array<Record<string, unknown>>, baseMonth: string): CityDemand[] {
+  const read = (items: Array<Record<string, unknown>>, prefix: 'tarSjrnDs' | 'tarExpDs', metric: string) => {
+    const scores = new Map<string, number>();
+    for (const item of items) {
+      if (String(item.baseYm) !== baseMonth || String(item[`${prefix}IxCd`]) !== metric) continue;
       const city = cityFromItem(item);
-      if (!city) continue;
-      const list = scores.get(city) ?? [];
-      list.push(numericScore(item));
-      scores.set(city, list);
+      const score = nonNegativeNumber(item[`${prefix}IxVal`]);
+      if (!city || score === null || score > 100) continue;
+      scores.set(city, score);
     }
+    return scores;
+  };
+  const stayScores = read(stay, 'tarSjrnDs', '21');
+  const spendScores = read(spend, 'tarExpDs', '22');
+  return [...stayScores.entries()].flatMap(([name, stayScore]) => {
+    const spendScore = spendScores.get(name);
+    if (spendScore === undefined) return []; // Do not compare a partial score with a complete one.
+    return [{ name, score: (stayScore + spendScore) / 2, stayScore, spendScore,
+      visitors: null, source: 'demand' as const, baseMonth }];
+  });
+}
+
+async function fetchDemandScores() {
+  const signal = AbortSignal.timeout(20_000);
+  for (const baseYm of demandMonths()) {
+    const params = { numOfRows: '500', pageNo: '1', baseYm, areaCd: '46' };
+    // Explicit aggregate metric codes are essential: omitted codes return zero rows.
+    // A failed request stops the scan; only successful empty months are searched backwards.
+    const [stay, spend] = await Promise.all([
+      requestJson(STAY_BASE, 'areaTarSjrnDsList', { ...params, tarSjrnDsIxCd: '21' }, signal),
+      requestJson(CONSUME_BASE, 'areaTarExpDsList', { ...params, tarExpDsIxCd: '22' }, signal),
+    ]);
+    const scores = combineDemandScores(stay, spend, baseYm);
+    if (scores.length) return scores;
   }
-  return [...scores.entries()].map(([name, values]) => ({
-    name,
-    score: values.reduce((sum, value) => sum + value, 0) / values.length,
-    visitors: null as number | null,
-    source: 'demand' as const,
-  }));
+  return [];
 }
 
 async function fetchVisitorScores() {
@@ -148,7 +172,9 @@ async function fetchVisitorScores() {
   for (const item of items) {
     const city = cityFromItem(item);
     if (!city) continue;
-    totals.set(city, (totals.get(city) ?? 0) + numericScore(item));
+    const visitors = nonNegativeNumber(item.touNum ?? item.visitrCo);
+    if (visitors === null) continue;
+    totals.set(city, (totals.get(city) ?? 0) + visitors);
   }
   return [...totals.entries()].map(([name, visitors]) => ({
     name,
@@ -160,7 +186,7 @@ async function fetchVisitorScores() {
 
 const FALLBACK_ORDER = ['여수', '순천', '목포', '담양', '보성', '해남', '구례', '완도', '나주', '광양'];
 
-export async function rankJeonnamCities(): Promise<CityDemand[]> {
+async function loadRankedCities(): Promise<CityDemand[]> {
   for (const loader of [fetchDemandScores, fetchVisitorScores]) {
     try {
       const ranked = (await loader())
@@ -168,8 +194,8 @@ export async function rankJeonnamCities(): Promise<CityDemand[]> {
         .sort((a, b) => b.score - a.score);
       if (ranked.length) return ranked;
     } catch (error) {
-      const message = error instanceof Error ? error.message : '알 수 없는 오류';
-      console.warn(`[waboranggae] 핫플레이스 지역 순위 조회 실패: ${message}`);
+      // Network errors can contain request URLs. Never log URLs carrying serviceKey.
+      console.warn(`[waboranggae] 핫플레이스 지역 순위 조회 실패 (${error instanceof Error ? error.name : 'Error'}); 대체 정보를 확인합니다.`);
     }
   }
   return FALLBACK_ORDER
@@ -180,6 +206,19 @@ export async function rankJeonnamCities(): Promise<CityDemand[]> {
       visitors: null,
       source: 'fallback' as const,
     }));
+}
+
+let rankCache: { expiresAt: number; value: CityDemand[] } | undefined;
+let rankPending: Promise<CityDemand[]> | undefined;
+export async function rankJeonnamCities(): Promise<CityDemand[]> {
+  if (rankCache && rankCache.expiresAt > Date.now()) return rankCache.value;
+  if (rankPending) return rankPending;
+  rankPending = loadRankedCities().then((value) => {
+    // Monthly rankings need no per-visitor refresh; failures retry after five minutes.
+    rankCache = { value, expiresAt: Date.now() + (value[0]?.source === 'fallback' ? 5 * 60_000 : 6 * 60 * 60_000) };
+    return value;
+  }).finally(() => { rankPending = undefined; });
+  return rankPending;
 }
 
 export function signguCodeFor(city: string) {

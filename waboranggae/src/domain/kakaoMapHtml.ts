@@ -1,0 +1,101 @@
+import { RankedCourse } from '../types/travel';
+
+/** Public POI metadata only. The URL fragment is never sent to server logs. */
+export function mapPayload(course: RankedCourse) {
+  return {
+    origin: course.origin,
+    places: course.places.filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
+      .map(p => ({ name: p.name, latitude: p.latitude, longitude: p.longitude,
+        address: p.address, arrival: p.arrival, description: p.description, imageUrl: p.imageUrl })),
+    routeSegments: course.routeSegments,
+    conveniences: course.conveniences,
+  };
+}
+
+export function mapEmbedUrl(course: RankedCourse, baseUrl?: string) {
+  return baseUrl ? `${baseUrl}/maps/embed#${encodeURIComponent(JSON.stringify(mapPayload(course)))}` : undefined;
+}
+
+/** A real registered origin also works in native WebViews, unlike srcDoc. */
+export function buildKakaoMapHtml(javascriptKey: string) {
+  const safeKey = JSON.stringify(javascriptKey).replace(/</g, '\\u003c');
+  const sdkUrl = 'https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=' + encodeURIComponent(javascriptKey);
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+html,body,#map{height:100%;margin:0;font:13px sans-serif;background:#edf3ea}
+#message{position:absolute;z-index:20;top:10px;left:10px;right:10px;padding:10px;border-radius:10px;background:#fff;color:#254738}
+#source{position:absolute;z-index:10;top:8px;right:8px;background:white;padding:7px;border-radius:8px;font-size:11px}
+.pin{border:2px solid white;border-radius:50%;background:#0D5C45;color:white;width:28px;height:28px;font-weight:bold;cursor:pointer}
+.origin{background:#E4572E;border-radius:8px}.locker{background:#A35025}
+.popup{background:white;border-radius:12px;padding:12px;width:220px;box-shadow:0 3px 15px #0004;white-space:normal}
+.popup img{display:block;width:220px;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px}
+.popup strong{display:block;color:#17352c}.popup p{font-size:11px;line-height:1.5;margin:6px 0;color:#596c63}.popup a{color:#096348}
+#fallback{padding:68px 12px 12px;display:none}#fallback .popup{margin:0 auto 12px}
+#detail{display:none;position:absolute;z-index:30;left:10px;top:40px;max-height:calc(100% - 50px);overflow:auto;border-radius:12px;box-shadow:0 3px 15px #0004;background:white}
+#detail img{height:96px}#detail p{max-height:42px;overflow:auto}#detail .popup{box-shadow:none}
+</style></head><body><div id="map"></div><div id="source">점선: 방문 순서 · 실선: 조회한 경로</div>
+<div id="message">카카오 지도를 불러오는 중입니다.</div><div id="detail"></div><div id="fallback"></div>
+<script>
+let data={places:[]};
+try{data=JSON.parse(decodeURIComponent(location.hash.slice(1)))}catch{}
+const valid=p=>p&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&Math.abs(p.latitude)<=90&&Math.abs(p.longitude)<=180;
+const places=Array.isArray(data.places)?data.places.filter(valid):[];
+const origin=valid(data.origin)?data.origin:null;
+const safeUrl=v=>{if(typeof v!=='string'||!v)return null;try{const u=new URL(v,location.origin);return ['https:','http:'].includes(u.protocol)?u.href:null}catch{return null}};
+function card(p,label){
+  const box=document.createElement('div');box.className='popup';
+  const url=safeUrl(p.imageUrl);
+  if(url){const img=document.createElement('img');img.src=url;img.alt=p.name+' 관광 이미지';img.loading='eager';
+    img.onerror=()=>{img.style.display='none'};box.appendChild(img);}
+  const title=document.createElement('strong');title.textContent=label;box.appendChild(title);
+  const meta=document.createElement('p');meta.textContent=[p.arrival,p.address,p.description].filter(Boolean).join(' · ');box.appendChild(meta);
+  const link=document.createElement('a');link.textContent='카카오맵에서 장소 보기';link.href='https://map.kakao.com/link/map/'+encodeURIComponent(p.name)+','+p.latitude+','+p.longitude;link.target='_blank';link.rel='noopener noreferrer';box.appendChild(link);
+  return box;
+}
+function fallback(text){
+  document.getElementById('message').textContent=text;document.getElementById('map').style.display='none';document.getElementById('source').style.display='none';
+  const list=document.getElementById('fallback');list.style.display='block';list.replaceChildren();
+  places.forEach((p,i)=>list.appendChild(card(p,(i+1)+'. '+p.name)));
+}
+let ready=false;
+const timer=setTimeout(()=>{if(!ready)fallback('지도를 불러오지 못했습니다. 장소 정보와 카카오맵 바로가기를 이용해 주세요.');},12000);
+function init(){
+ try{
+  if(!places.length){fallback('좌표가 있는 관광지가 없습니다.');return;}
+  ready=true;clearTimeout(timer);document.getElementById('message').style.display='none';
+  document.getElementById('fallback').style.display='none';document.getElementById('map').style.display='block';document.getElementById('source').style.display='block';
+  const point=p=>new kakao.maps.LatLng(p.latitude,p.longitude);
+  const map=new kakao.maps.Map(document.getElementById('map'),{center:point(origin||places[0]),level:5});
+  map.addControl(new kakao.maps.ZoomControl(),kakao.maps.ControlPosition.RIGHT);
+  const bounds=new kakao.maps.LatLngBounds();
+  const detail=document.getElementById('detail');let closeTimer;
+  const hide=()=>{detail.style.display='none';detail.replaceChildren()};
+  detail.addEventListener('mouseenter',()=>clearTimeout(closeTimer));
+  detail.addEventListener('mouseleave',()=>{closeTimer=setTimeout(hide,250)});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')hide()});
+  function marker(p,label,number,cls){
+    bounds.extend(point(p));const button=document.createElement('button');button.className='pin '+cls;button.textContent=number;button.setAttribute('aria-label',label);
+    new kakao.maps.CustomOverlay({position:point(p),content:button,map,yAnchor:0.5,zIndex:3});
+    const content=card(p,label);
+    const closeButton=document.createElement('button');closeButton.textContent='닫기';closeButton.setAttribute('aria-label','관광지 정보 닫기');closeButton.style.cssText='float:right;margin-left:8px';closeButton.onclick=hide;content.appendChild(closeButton);
+    const open=()=>{clearTimeout(closeTimer);detail.replaceChildren(content);detail.style.display='block'};
+    const close=()=>{closeTimer=setTimeout(hide,250)};
+    button.addEventListener('mouseenter',open);button.addEventListener('mouseleave',close);button.addEventListener('click',open);
+  }
+  if(origin)marker(origin,'출발 · '+origin.name,'출','origin');
+  places.forEach((p,i)=>marker(p,(i+1)+'. '+p.name,String(i+1),''));
+  (data.conveniences||[]).filter(valid).forEach(p=>marker(p,'물품보관함 · '+p.name,'짐','locker'));
+  const points=[...(origin?[origin]:[]),...places];
+  const lines=data.routeSegments?.length?data.routeSegments:[{source:'estimated',geometry:points}];
+  lines.forEach(line=>{const coords=(line.geometry||[]).filter(valid);if(coords.length<2)return;
+    const live=line.source==='kakao';
+    new kakao.maps.Polyline({map,path:coords.map(point),strokeWeight:5,strokeColor:live?'#0D5C45':'#85968c',strokeOpacity:0.85,strokeStyle:live?'solid':'shortdash'});});
+  map.setBounds(bounds,35,35,35,35);
+  window.addEventListener('resize',()=>{map.relayout();map.setBounds(bounds,35,35,35,35)});
+ }catch{fallback('카카오 지도 설정을 확인해 주세요. 카카오맵 바로가기는 계속 사용할 수 있습니다.');}
+}
+if(!${safeKey}){clearTimeout(timer);fallback('카카오 지도 키 설정 대기 중 · 장소 정보와 바로가기를 이용할 수 있습니다.');}
+else{const script=document.createElement('script');script.src=${JSON.stringify(sdkUrl)};script.onload=()=>{if(window.kakao?.maps)kakao.maps.load(init);else fallback('카카오 지도 사용 설정과 등록 도메인을 확인해 주세요.');};script.onerror=()=>fallback('카카오 지도 연결 실패 · 등록 도메인과 키를 확인해 주세요.');document.head.appendChild(script);}
+</script></body></html>`;
+}

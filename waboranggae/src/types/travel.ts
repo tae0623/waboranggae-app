@@ -1,7 +1,7 @@
 export type Pace = 'easy' | 'balanced' | 'full';
 
 export type AnalysisSource = 'ollama' | 'rules';
-export type CourseDataSource = 'tour-api' | 'demo';
+export type CourseDataSource = 'tour-api' | 'kakao' | 'mixed' | 'demo';
 
 export type Interest =
   | 'nature'
@@ -23,7 +23,7 @@ export type PlaceCategory =
 export type StartLocationType = 'station' | 'terminal' | 'current' | 'lodging' | 'custom';
 export type MealPreference = 'auto' | 'none' | 'lunch' | 'dinner' | 'both';
 export type CoursePlanningSource = 'ollama' | 'rules';
-export type RoutingSource = 'tmap-transit' | 'mixed' | 'estimated';
+export type RoutingSource = 'kakao' | 'mixed' | 'estimated';
 
 export interface RouteCoordinate {
   latitude: number;
@@ -33,7 +33,7 @@ export interface RouteCoordinate {
 export interface RouteOrigin extends RouteCoordinate {
   name: string;
   address: string;
-  source: 'nominatim' | 'configured' | 'demo' | 'places' | 'tmap';
+  source: 'nominatim' | 'kakao' | 'configured' | 'demo' | 'places';
 }
 
 export type TransitMode = 'walk' | 'bus' | 'subway' | 'train' | 'expressbus' | 'ferry' | 'other';
@@ -63,7 +63,16 @@ export interface RouteSegment {
   geometry: RouteCoordinate[];
 }
 
+export interface RoutingPoint extends RouteCoordinate { name: string; }
+export type TravelMode = 'walk' | 'transit';
+export interface SegmentResponse { segment: RouteSegment | null; externalUrl: string; notice: string; }
+
 export interface TravelPreferences {
+  scheduleMode?: 'fixed' | 'course-first';
+  /** Explicit home-card selection, not a location inferred from the device. */
+  requiredContentId?: string;
+  requiredPlaceName?: string;
+  timeBudgetMode?: 'local' | 'door-to-door';
   region: string;
   city: string;
   startLocation: string;
@@ -132,6 +141,8 @@ export interface CourseScoreFacts {
 }
 
 export interface Place {
+  dataSource?: 'tour-api' | 'kakao';
+  placeUrl?: string;
   id: string;
   name: string;
   category: PlaceCategory;
@@ -175,7 +186,19 @@ export interface TransitAccessEvidence {
   source: 'bus-stop' | 'bus-stop-and-route';
 }
 
+export interface CourseTimeBreakdown {
+  originToFirstMinutes: number;
+  betweenPlacesMinutes: number;
+  stayMinutes: number;
+  waitAndRestMinutes: number;
+  totalMinutes: number;
+  requestedMinutes?: number;
+  overBudgetMinutes: number;
+}
+
 export interface Course {
+  timeBudgetMode?: 'local' | 'door-to-door';
+  accessTrip?: { origin: RouteOrigin; arrival: RouteOrigin; segment: RouteSegment | null; externalUrl?: string; excludedFromBudget: true };
   id: string;
   city: string;
   title: string;
@@ -194,7 +217,9 @@ export interface Course {
   validationNotes?: string[];
   origin?: RouteOrigin;
   routeSource?: RoutingSource;
+  routingCheckedAt?: string;
   routeSegments?: RouteSegment[];
+  timeBreakdown?: CourseTimeBreakdown;
 }
 
 export interface RecommendationReason {

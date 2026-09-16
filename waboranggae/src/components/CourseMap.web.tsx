@@ -1,15 +1,16 @@
 import { StyleSheet, View } from 'react-native';
-import { buildLeafletHtml } from '../domain/mapHtml';
+import { mapEmbedUrl } from '../domain/kakaoMapHtml';
+import { API_BASE_URL } from '../services/apiClient';
 import { colors, radii } from '../theme';
 import { RankedCourse } from '../types/travel';
 import { RouteMap } from './RouteMap';
 
 export function CourseMap({ course }: { course: RankedCourse }) {
-  const html = buildLeafletHtml(course);
-  if (!html) return <RouteMap course={course} />;
+  const url = mapEmbedUrl(course, API_BASE_URL);
+  if (!url) return <RouteMap course={course} />;
   return (
     <View style={styles.wrap}>
-      <iframe title={`${course.title} 실제 좌표 지도`} srcDoc={html} style={iframeStyle} />
+      <iframe key={url} title={`${course.title} 카카오 지도`} src={url} style={iframeStyle} />
     </View>
   );
 }

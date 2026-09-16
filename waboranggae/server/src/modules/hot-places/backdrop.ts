@@ -31,6 +31,9 @@ export async function pickLoginBackdrop() {
       title: photo.title ?? null,
       location: photo.location ?? null,
       source: 'photokorea' as const,
+      imageCredit: photo.photographer || '한국관광공사 포토코리아',
+      imageContentId: photo.contentId || null,
+      imageLicense: '원 제공처 이용조건 확인 필요',
     };
   }
 

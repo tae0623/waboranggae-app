@@ -1,13 +1,15 @@
 import { z } from 'zod';
 import { ExplainRequest, Place, RecommendationReason, TravelPreferences } from '../../../../src/types/travel';
-import { reasonSchema, travelPreferencesSchema } from '../../shared/schemas';
+import { reasonSchema, analysisPreferencesSchema } from '../../shared/schemas';
 import { desiredStopCount, mealWindowsFor, PlannedCourseOutline, stopBudgetHours } from '../recommendation/planner';
+import { OptionalServiceGate } from '../../runtime/bulkhead';
 
 const ollamaUrl = (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
 const ollamaModel = process.env.OLLAMA_MODEL || 'qwen3:8b';
-const ollamaTimeoutMs = positiveInteger(process.env.OLLAMA_TIMEOUT_MS, 90_000);
+const ollamaTimeoutMs = Math.min(20_000, positiveInteger(process.env.OLLAMA_TIMEOUT_MS, 15_000));
 const ollamaContextLength = positiveInteger(process.env.OLLAMA_NUM_CTX, 4_096);
 const ollamaKeepAlive = process.env.OLLAMA_KEEP_ALIVE || '30m';
+const ollamaGate = new OptionalServiceGate(1);
 
 interface OllamaChatResponse {
   message?: {
@@ -102,7 +104,8 @@ async function generateStructured<T>(
   task: string,
   maxPredict: number,
 ): Promise<T | null> {
-  if (!isOllamaEnabled()) return null;
+  if (!isOllamaEnabled() || !ollamaGate.acquire()) return null;
+  let successful = false;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ollamaTimeoutMs);
@@ -139,7 +142,7 @@ async function generateStructured<T>(
 
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 300);
-      throw new Error(`HTTP ${response.status}${detail ? ` · ${detail}` : ''}`);
+      throw new Error(`HTTP ${response.status}${/CUDA|0xc0000409/.test(detail)?' (CUDA 초기화 실패)':''}`);
     }
 
     const payload = await response.json() as OllamaChatResponse;
@@ -151,29 +154,32 @@ async function generateStructured<T>(
     if (!parsed.success) {
       throw new Error(parsed.error.issues.map((issue) => issue.message).join(', '));
     }
+    successful = true;
     return parsed.data;
   } catch (error) {
-    const message = error instanceof Error ? error.message : '알 수 없는 오류';
+    const message = error instanceof Error && /^(HTTP \d{3}|This operation was aborted|The operation was aborted)/.test(error.message) ? error.message : '연결 또는 응답 형식 확인 필요';
     console.warn(`[waboranggae] Ollama ${task} 실패 (${Date.now() - startedAt}ms), 검증된 규칙 엔진으로 전환합니다: ${message}`);
     return null;
   } finally {
     clearTimeout(timeout);
+    ollamaGate.release(successful);
   }
 }
 
 export async function analyzeWithOllama(query: string): Promise<TravelPreferences | null> {
-  return generateStructured(
-    travelPreferencesSchema,
+  const value = await generateStructured(
+    analysisPreferencesSchema,
     [
       '당신은 전라남도 대중교통·도보 여행 조건 분석기입니다.',
       '사용자의 한국어 문장을 추천 필터로 변환하세요.',
-      '명시되지 않은 날짜는 null로 두세요.',
+      '주소, 좌표, 숙소명, 날짜, 종료시각을 생성하지 마세요. 날짜와 시각 계산은 서버가 담당합니다.',
       '출발 시간이 없으면 startTime은 10:00으로 두세요.',
       'mealPreference는 식사 제외면 none, 점심이면 lunch, 저녁이면 dinner, 둘 다면 both, 명시가 없으면 auto입니다.',
       'startType이 terminal이면 startLocation도 터미널이어야 하고, station이면 역, lodging이면 숙소여야 합니다.',
       '역이 없거나 사용자가 버스정류장·여객터미널·관광지 등 다른 거점을 지정하면 startType은 custom으로 두고 그 장소명을 보존하세요.',
       '항구나 선착장 이름은 터미널로 바꾸지 말고 반드시 startType custom과 원래 장소명을 보존하세요.',
       '지역이 없으면 전라남도 순천을 사용하세요.',
+      '사용자가 명시한 전남 시·군 이름을 순천으로 바꾸지 마세요. 제외·빼고·안 함은 해당 조건을 원하지 않는다는 뜻입니다.',
       'pace는 적게 걷기나 이동약자 조건이면 easy, 최대한 많이 보기면 full, 그 외에는 balanced입니다.',
       '알차게·빽빽하게·최대한 많이는 pace full입니다. 점심·저녁·식사를 원하면 interests에 food를 포함하세요.',
       'summary는 60자 이내의 자연스러운 한국어 문장으로 작성하세요.',
@@ -183,6 +189,7 @@ export async function analyzeWithOllama(query: string): Promise<TravelPreference
     '조건분석',
     420,
   );
+  return value ? { ...value, travelDate: null } : null;
 }
 
 export async function planCoursesWithOllama(
