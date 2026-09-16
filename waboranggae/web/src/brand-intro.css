@@ -1,0 +1,8 @@
+.brand-intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:24px 20px;background:linear-gradient(155deg,#fff 0%,#f0fdf4 48%,#fff 100%)}
+.brand-intro-art{position:relative;width:100%;max-width:420px;min-height:0;aspect-ratio:272/380;flex:0 1 auto}
+.brand-intro-art>img,.brand-intro-art>svg{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain}
+.brand-intro h1{flex:none;margin:18px 0 0;font-size:clamp(38px,9vw,46px);font-weight:900;letter-spacing:-.035em;line-height:1.15;color:#14532d}
+.brand-intro p{flex:none;margin:8px 0 0;font-size:14px;line-height:1.5;letter-spacing:.04em;color:#15803d}
+.intro-footprint{fill:#16a34a;opacity:0;animation:intro-footstep var(--step-duration) linear var(--step-delay) forwards}
+@keyframes intro-footstep{0%{opacity:0}25%{opacity:1}70%{opacity:.75}100%{opacity:.4}}
+@media(prefers-reduced-motion:reduce){.intro-footprint{animation:none;opacity:.6}}

@@ -7,7 +7,7 @@ import { SocialLoginButtons } from './SocialLoginButtons'
 import { AccountActions } from './AccountActions'
 import { PrivacyConsent } from './PrivacyConsent'
 import brandMark from './assets/brand-mark.svg'
-import splashMap from './assets/splash-map.svg'
+import { BrandIntro } from './BrandIntro'
 import { PlanWizard, defaultCondition } from './PlanWizard'
 import { HOME_SCENERY_URL, todayKorea, visibleHomePlaces, hotPlaceSeed, acceptedCourses, canPreviewCourse, formatMinutes } from './parity'
 import { useDialogs } from './Dialogs'
@@ -210,16 +210,6 @@ const Sheet = ({ children, onClose, maxH = '90%' }: { children: React.ReactNode;
     </div>
   </div>
 )
-
-function Splash({onDone}:{onDone:()=>void}) {
-  const done=useRef(onDone);done.current=onDone;
-  useEffect(()=>{const timer=setTimeout(()=>done.current(),1800);return()=>clearTimeout(timer);},[]);
-  return <div style={{position:'absolute',inset:0,background:'#f0fdf4',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:28}}>
-    <img src={splashMap} alt="전남 광주 지도를 걷는 사람" style={{width:'75%',maxWidth:300,height:300,objectFit:'contain'}}/>
-    <h1 style={{fontSize:36,color:'#174438',margin:0}}>뚜버기</h1>
-    <p style={{fontSize:13,color:'#43785c'}}>전남을 걷는 가장 쉬운 방법</p>
-  </div>;
-}
 
 function readRememberedEmail(){try{return localStorage.getItem('ddubugi.rememberedEmail')||''}catch{return ''}}
 function rememberEmail(value:string|null){try{if(value)localStorage.setItem('ddubugi.rememberedEmail',value);else localStorage.removeItem('ddubugi.rememberedEmail')}catch{/* Storage can be disabled by the browser. */}}
@@ -1540,7 +1530,7 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
       <div style={{ width: '100%', maxWidth: 520, height: '100%', position: 'relative', overflow: 'hidden', background: L.bg, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>
         {dialog}
         {user && needsPrivacyConsent(user) && <PrivacyConsent onAgree={async()=>{setUser(await api.acceptPrivacy());await refreshAccount();setScreen('main');}} onDecline={()=>{void tokenStore.clear();setUser(null);setBookmarkItems([]);setHistory([]);setScreen('main');}} onDelete={async()=>{await api.deleteAccount();await tokenStore.clear();setUser(null);setBookmarkItems([]);setHistory([]);setScreen('login');}}/>}
-        {screen === 'splash' && <Splash onDone={() => setScreen(tokenStore.getAccess() ? 'main' : 'login')} />}
+        {screen === 'splash' && <BrandIntro onDone={() => setScreen(tokenStore.getAccess() ? 'main' : 'login')} />}
         {screen === 'login' && <Login onAuthenticated={applyAuth} onLogin={handleLogin} onSignup={handleSignup} onGuest={() => setScreen('main')} error={authError} />}
         {screen === 'main' && (
           <>

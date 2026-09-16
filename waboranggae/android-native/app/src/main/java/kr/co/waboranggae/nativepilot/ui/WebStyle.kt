@@ -9,19 +9,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.ImageLoader
-import coil.compose.AsyncImage
-import coil.decode.SvgDecoder
 import kr.co.waboranggae.nativepilot.R
-import kotlinx.coroutines.delay
 
 val WebMuted=Color(0xFFAEAEB2)
 val WebBorder=Color(0xFFE4E4E9)
@@ -51,20 +45,6 @@ fun webTypography():Typography {
                     Spacer(Modifier.height(3.dp));Text(label,fontSize=10.sp,fontWeight=if(selected)FontWeight.Bold else FontWeight.Normal,color=if(selected)Ink else WebMuted)
                 }
             }
-        }
-    }
-}
-@Composable fun BrandIntro(onDone:()->Unit) {
-    val context=LocalContext.current
-    val loader=remember { ImageLoader.Builder(context).components{add(SvgDecoder.Factory())}.build() }
-    var artLoaded by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { delay(2500);onDone() }
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color.White,Color(0xFFF0FDF4),Color.White))).testTag("brand-intro")) {
-        AsyncImage("file:///android_asset/web_splash_map.svg","전남 지도와 발자국",loader,
-            Modifier.fillMaxSize().then(if(artLoaded)Modifier.testTag("intro-art-loaded") else Modifier),onSuccess={artLoaded=true})
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom=180.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-            Text("뚜버기",fontSize=46.sp,fontWeight=FontWeight.Black,color=Color(0xFF14532D),letterSpacing=(-1.6).sp)
-            Text("전남 뚜벅이 여행",fontSize=14.sp,color=Color(0xFF15803D))
         }
     }
 }

@@ -1,0 +1,13 @@
+{
+  "viewport": { "x": 8, "y": 64, "width": 272, "height": 380 },
+  "durationMs": 2800,
+  "stepDurationMs": 1100,
+  "steps": [
+    { "x": 28, "y": 420, "rotation": -22, "right": false, "delayMs": 400 },
+    { "x": 52, "y": 392, "rotation": -22, "right": true, "delayMs": 620 },
+    { "x": 74, "y": 362, "rotation": -22, "right": false, "delayMs": 840 },
+    { "x": 98, "y": 332, "rotation": -22, "right": true, "delayMs": 1060 },
+    { "x": 118, "y": 300, "rotation": -22, "right": false, "delayMs": 1280 },
+    { "x": 140, "y": 270, "rotation": -22, "right": true, "delayMs": 1500 }
+  ]
+}

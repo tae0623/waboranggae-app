@@ -19,7 +19,7 @@ describe('뚜버기 display name', () => {
     expect(app.name).toBe('뚜버기');
     expect(app.web.name).toBe('뚜버기');
     expect(read('android-native/app/src/main/AndroidManifest.xml')).toContain('android:label="뚜버기"');
-    for (const file of ['AccountScreens.kt', 'TravelApp.kt', 'WebHome.kt', 'WebStyle.kt']) {
+    for (const file of ['AccountScreens.kt', 'TravelApp.kt', 'WebHome.kt', 'BrandIntro.kt']) {
       expect(read(nativeUi + file), file).toContain('뚜버기');
     }
     expect(read('web/index.html')).toContain('<title>뚜버기</title>');
