@@ -10,6 +10,9 @@ import androidx.compose.ui.unit.dp
 
 // Small code-native line icons; avoids bundling the entire extended icon catalogue in a debug APK.
 object PilotIcons {
+    val Edit by lazy { icon("Edit","M14,5 L19,10 M4,20 L9,19 L21,7 Q23,5 21,3 Q19,1 17,3 L5,15 Z M4,20 L4,20") }
+    val Back by lazy { icon("Back","M15,19 L8,12 L15,5") }
+    val Star by lazy { ImageVector.Builder("Star",24.dp,24.dp,24f,24f).apply { addPath(pathData=PathParser().parsePathString("M12,2 L15.1,8.3 L22,9.3 L17,14.2 L18.2,21 L12,17.8 L5.8,21 L7,14.2 L2,9.3 L8.9,8.3 Z").toNodes(),fill=SolidColor(Color.Black)) }.build() }
     val Home by lazy { icon("Home","M3,12 L5,10 M5,10 L12,3 L19,10 M5,10 V20 A1,1 0,0,0 6,21 H9 M19,10 L21,12 M19,10 V20 A1,1 0,0,1 18,21 H15 M9,21 A1,1 0,0,0 10,20 V16 A1,1 0,0,1 11,15 H13 A1,1 0,0,1 14,16 V20 A1,1 0,0,0 15,21 M9,21 H15") }
     val List by lazy { icon("List","M4 6h16M4 10h16M4 14h16M4 18h16") }
     val User by lazy { icon("User","M16,7 A4,4 0,1,1 8,7 A4,4 0,1,1 16,7 Z M12,14 A7,7 0,0,0 5,21 H19 A7,7 0,0,0 12,14 Z") }

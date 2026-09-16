@@ -5,7 +5,7 @@ import {conditionToPreferences,preferencesToCondition,rankedToUiCourse} from '..
 import {availableMeals,normalizeMeals,conditionError,hotPlaceSeed,visibleHomePlaces,acceptedCourses,canPreviewCourse} from '../web/src/parity';
 import {forecastWindow} from '../web/src/useWeather';
 import type {HotPlace,RankedCourse} from '../web/src/api';
-const form=()=>({...defaultCondition(),departure:'선택한 출발지',departureLat:35.18,departureLng:126.9,date:'2026-09-20'});
+const form=()=>({...defaultCondition(),region:'순천',endDate:'2026-09-20',departure:'선택한 출발지',departureLat:35.18,departureLng:126.9,date:'2026-09-20'});
 const festival={id:'festival-123',name:'행사',city:'나주',category:'축제·행사',desc:'테스트 행사',img:'',visitors:0,source:'festival',eventStartDate:'20260921',eventEndDate:'20260925',tags:[]} as HotPlace;
 afterEach(()=>{vi.useRealTimers()});
 describe('Android / web parity',()=>{
@@ -61,7 +61,7 @@ describe('Android / web parity',()=>{
     const c={...form(),...seed,departure:'출발지',departureLat:35.1,departureLng:126.8};
     const p=conditionToPreferences(c);expect(p.requiredContentId).toBe('123');expect(p.requiredPlaceName).toBe('행사');
     expect(conditionError({...c,region:'순천'})).toContain('같은 여행지');
-    expect(conditionError({...c,date:'2026-09-26'})).toContain('행사 기간');
+    expect(conditionError({...c,date:'2026-09-26',endDate:'2026-09-26'})).toContain('행사 기간');
   });
   it('excludes expired, malformed and undated events, but retains future events and destinations',()=>{
     const places=[festival,{...festival,id:'old',eventEndDate:'20260901'},{...festival,id:'bad',eventStartDate:'20260931'}, {...festival,id:'missing',eventEndDate:undefined}, {...festival,id:'tour',source:'tour-api',category:'명소'}] as HotPlace[];

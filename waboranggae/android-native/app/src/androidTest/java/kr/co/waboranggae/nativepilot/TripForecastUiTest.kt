@@ -18,7 +18,7 @@ import java.time.ZoneId
 @RunWith(AndroidJUnit4::class)
 class TripForecastUiTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
-    @Test fun tomorrowForecastAppearsOnCourseDetail():Unit=runBlocking {
+    @Test fun tomorrowForecastAppearsOnConfirmedJourney():Unit=runBlocking {
         ui.runOnUiThread{ui.activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)}
         ui.waitUntil(35000){ui.onAllNodesWithTag("home").fetchSemanticsNodes().isNotEmpty() || ui.onAllNodesWithTag("guest-login").fetchSemanticsNodes().isNotEmpty()}
         if(ui.onAllNodesWithTag("guest-login").fetchSemanticsNodes().isNotEmpty())ui.onNodeWithTag("guest-login").performScrollTo().performClick()
@@ -26,12 +26,14 @@ class TripForecastUiTest {
         ui.runOnUiThread{vm=ViewModelProvider(ui.activity)[TravelViewModel::class.java]}
         val date=LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1).toString()
         val departure=vm.repository.search("순천 종합버스터미널").first{it.name.contains("터미널")}
-        ui.runOnUiThread{vm.chooseDeparture(departure);vm.updateForm{it.copy(date=date,startTime="10:00",hours=6)};vm.recommend()}
+        ui.runOnUiThread{vm.chooseDeparture(departure);vm.chooseDestination("순천");vm.updateForm{it.copy(date=date,endDate=date,startTime="10:00",hours=6)};vm.recommend()}
         ui.waitUntil(140000){ui.onAllNodesWithTag("results").fetchSemanticsNodes().isNotEmpty()}
         ui.onAllNodesWithTag("course-card")[0].performClick()
+        ui.onNodeWithTag("trip-forecast").assertDoesNotExist()
+        ui.runOnUiThread{vm.confirmTravel(requireNotNull(vm.state.value.selectedCourse).id)}
         ui.waitUntil(45000){ui.onAllNodesWithTag("trip-forecast").fetchSemanticsNodes().isNotEmpty()}
-        ui.onNodeWithTag("trip-forecast").performScrollTo().assertTextContains(date,substring=true)
-        ui.onNodeWithTag("trip-forecast").assertTextContains("여행 시간대",substring=true)
+        ui.onNodeWithTag("trip-forecast").performScrollTo().assertExists()
+        Assert.assertEquals(date,vm.state.value.weatherDate)
         ui.onNodeWithTag("trip-forecast-unavailable").assertDoesNotExist()
         ui.waitForIdle()
         val image=requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())

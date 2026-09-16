@@ -1,5 +1,6 @@
 import type { Condition } from './App';
 import type { HotPlace, RankedCourse } from './api';
+import { tripDates } from '../../src/domain/tripDays';
 
 export const HOME_SCENERY_URL = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=700&fit=crop&auto=format';
 export const PURPOSES = ['자연 명소', '맛집 탐방', '카페', '역사·문화', '시장·골목'];
@@ -24,7 +25,7 @@ export function hotPlaceSeed(place: HotPlace, today = todayKorea()): Partial<Con
   const contentId = place.id.replace(/^festival-/, '');
   const date = normalizeDate(place.eventStartDate);
   return { region: place.city, departure: '', departureAddress: undefined, departureLat: undefined, departureLng: undefined,
-    date: date > today ? date : today,
+    date: date > today ? date : today, endDate: date > today ? date : today,
     requiredPlace: /^\d{1,20}$/.test(contentId) ? place : undefined,
     requiredContentId: /^\d{1,20}$/.test(contentId) ? contentId : undefined,
     requiredPlaceName: /^\d{1,20}$/.test(contentId) ? place.name : undefined };
@@ -47,6 +48,7 @@ export function conditionError(cond: Condition, step = 4) {
   if (step < 2) return '';
   if (!cond.region) return '여행지를 선택해 주세요.';
   if (!normalizeDate(cond.date) || cond.date < todayKorea()) return '오늘 이후의 여행 날짜를 선택해 주세요.';
+  if (!tripDates(cond.date,cond.endDate||cond.date).length) return '여행 기간은 시작일부터 최대 7일로 선택해 주세요.';
   if (!Number.isFinite(minutes(cond.startTime))) return '시작 시간을 확인해 주세요.';
   if (cond.endTimeLimited && (!Number.isFinite(minutes(cond.endTime)) || minutes(cond.endTime)-minutes(cond.startTime)<60)) return '종료 시간은 시작 시간보다 1시간 이상 뒤로 선택해 주세요.';
   if (cond.requiredPlace) {

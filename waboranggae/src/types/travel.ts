@@ -46,6 +46,9 @@ export interface TransitStep {
   minutes: number;
   fromStop?: string;
   toStop?: string;
+  geometry?: RouteCoordinate[];
+  stops?: string[];
+  routes?: string[];
 }
 
 export interface RouteSegment {

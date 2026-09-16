@@ -147,10 +147,10 @@ class AccountViewModel(private val repository:TravelRepository):ViewModel() {
         repository.setLoginOptions(LoginOptions())
         mutable.update{AccountState(checking=false,showLogin=true,providers=it.providers,message="계정과 연결된 북마크·여행 이력을 삭제했습니다.")}
     }
-    fun save(course:Course)=task{
+    fun save(course:Course,onSaved:()->Unit={})=task{
         val snapshot=repository.snapshot(course.id)?:throw ApiFailure("원본 코스 정보가 없습니다. 다시 추천받아 주세요.")
         repository.api("/api/user/bookmarks/add","POST",buildJsonObject{put("courseId",course.id);put("courseName",course.title);put("city",course.city);put("snapshot",snapshot)},true)
-        refreshLists();mutable.update{it.copy(message="코스를 저장했습니다.")}
+        refreshLists();mutable.update{it.copy(message="코스를 저장했습니다.")};onSaved()
     }
     fun saveHistory(preferences:Preferences)=task{
         val json=Json{encodeDefaults=true;explicitNulls=false}

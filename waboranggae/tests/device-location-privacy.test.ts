@@ -24,7 +24,7 @@ describe('device location stays on device',()=>{
   expect(map).toContain('selected?:accuracyResults.firstOrNull()');
   expect(map).not.toMatch(/DeviceOnlyLocation|LocationManager|sortOnDevice|NearbyDepartureCandidates/);
   const wizard=readFileSync(ui+'WebWizard.kt','utf8');
-  expect(wizard).toContain('DepartureSearchMap(f.departure,state.suggestions)');
+  expect(wizard).toContain('DepartureSearchMap(f.departure,state.suggestions,model::resolveMapPoint)');
  });
  it('location UI has no network/storage/model channel and discards its state on exit',()=>{
   const local=readFileSync(ui+'NearbyDepartureCandidates.kt','utf8');

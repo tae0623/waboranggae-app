@@ -31,25 +31,25 @@ class TravelContractTest {
         assertNotNull(TravelForm(query="순천역").validationError())
     }
     @Test fun exactTerminalCoordinatesAreSent() {
-        val p=TravelForm(departure=terminal,startType="terminal").preferences()
+        val p=TravelForm(city="순천",departure=terminal,startType="terminal").preferences()
         assertEquals("terminal",p.startType); assertEquals(terminal.name,p.startLocation)
         assertEquals(terminal.latitude,p.startLatitude,0.00000001)
         assertEquals(terminal.longitude,p.startLongitude,0.00000001)
         assertEquals("course-first",p.scheduleMode);assertNull(p.endTime)
     }
     @Test fun shortTripKeepsCafeAndFoodChoices() {
-        val p=TravelForm(departure=terminal,endTime="12:00",limitEndTime=true,interests=setOf("food","cafe")).preferences()
+        val p=TravelForm(city="순천",departure=terminal,endTime="12:00",limitEndTime=true,interests=setOf("food","cafe")).preferences()
         assertEquals(listOf("cafe","food"),p.interests)
         assertTrue(p.publicTransportOnly)
     }
     @Test fun emptyInterestsAreRejected() {
-        assertNotNull(TravelForm(departure=terminal,interests=emptySet()).validationError())
+        assertNotNull(TravelForm(city="순천",departure=terminal,interests=emptySet()).validationError())
     }
     @Test fun removedCompanionIsNeutralButWalkingAndTransitChoicesReachAPI() {
-        val p=TravelForm(departure=terminal,companion="가족과 함께",lowMobility=true,transitModes=setOf("bus","train")).preferences()
+        val p=TravelForm(city="순천",departure=terminal,companion="가족과 함께",lowMobility=true,transitModes=setOf("bus","train")).preferences()
         assertEquals("혼자",p.companions);assertTrue(p.lowMobility)
         assertEquals(listOf("bus","train"),p.preferredTransit)
-        assertNotNull(TravelForm(departure=terminal,transitModes=emptySet()).validationError())
+        assertNotNull(TravelForm(city="순천",departure=terminal,transitModes=emptySet()).validationError())
     }
     @Test fun hotPlaceResponseDecodesAndUsesAuthenticatedAPI()=runBlocking {
         val body="""{"places":[{"id":"tour:1","name":"전남 축제","city":"담양","visitors":0,"img":"/api/media/tour-image?url=x","periodShort":"9.15~9.20","unknownFutureField":true}],"source":"tour-api","fetchedAt":"2026-09-15"}"""
@@ -64,13 +64,13 @@ class TravelContractTest {
         assertEquals("담양",payload.places.single().city);assertEquals("9.15~9.20",payload.places.single().periodShort)
     }
     @Test fun overnightIsNotSilentlyWrapped() {
-        assertNotNull(TravelForm(departure=terminal,startTime="20:00",limitEndTime=true).validationError())
+        assertNotNull(TravelForm(city="순천",departure=terminal,startTime="20:00",limitEndTime=true).validationError())
     }
     @Test fun invalidCoordinatesAreRejected() {
-        assertNotNull(TravelForm(departure=terminal.copy(latitude=Double.NaN)).validationError())
+        assertNotNull(TravelForm(city="순천",departure=terminal.copy(latitude=Double.NaN)).validationError())
     }
     @Test fun requestPreservesAPIEnvelope() {
-        val text=Json.encodeToString(RecommendRequest(TravelForm(departure=terminal).preferences()))
+        val text=Json.encodeToString(RecommendRequest(TravelForm(city="순천",departure=terminal).preferences()))
         assertTrue(text.startsWith("{\"preferences\":"));assertTrue(text.contains("\"startLatitude\""))
     }
     @Test fun actualRepositorySendsServerRequiredDefaults() = runBlocking {
@@ -83,7 +83,7 @@ class TravelContractTest {
             Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
                 .code(200).message("OK").body(fixture.toResponseBody()).build()
         }.build()
-        HttpTravelRepository("https://example.com","",client).recommend(TravelForm(departure=terminal).preferences())
+        HttpTravelRepository("https://example.com","",client).recommend(TravelForm(city="순천",departure=terminal).preferences())
         val p=Json.parseToJsonElement(requireNotNull(sent)).jsonObject.getValue("preferences").jsonObject
         assertEquals("전라남도",p.getValue("region").jsonPrimitive.content)
         assertEquals("혼자",p.getValue("companions").jsonPrimitive.content)

@@ -6,22 +6,41 @@ const origin={name:'순천종합버스터미널',latitude:34.9476,longitude:127.
 const place={name:'순천만국가정원',latitude:34.929,longitude:127.5095};
 // Run our generated JavaScript with a minimal DOM/SDK contract, without network.
 function render(data:unknown, fail=false){
-  const elements:Record<string,any>={};const scripts:any[]=[];
-  const element=()=>({style:{},children:[] as any[],textContent:'',appendChild(child:any){this.children.push(child);},replaceChildren(...children:any[]){this.children=children;},setAttribute:vi.fn(),addEventListener:vi.fn()});
+  const elements:Record<string,any>={};const scripts:any[]=[];const events:Record<string,Function>={};const mapEvents:Record<string,Function>={};const parent={postMessage:vi.fn()};
+  const element=()=>({remove:vi.fn(),style:{},children:[] as any[],textContent:'',appendChild(child:any){this.children.push(child);},replaceChildren(...children:any[]){this.children=children;},setAttribute:vi.fn(),addEventListener:vi.fn()});
   for(const id of ['map','message','source','detail','fallback'])elements[id]=element();
-  const map={addControl:vi.fn(),setBounds:vi.fn(),setCenter:vi.fn(),setLevel:vi.fn(),relayout:vi.fn()};
+  const map={panTo:vi.fn(),addControl:vi.fn(),setBounds:vi.fn(),setCenter:vi.fn(),setLevel:vi.fn(),relayout:vi.fn()};
   const Map=vi.fn(function(){if(fail)throw Error('SDK_ERROR');return map;});
   const Overlay=vi.fn(function(){});const clearTimeout=vi.fn();
-  const kakao={maps:{Map,CustomOverlay:Overlay,Polyline:vi.fn(function(){}),LatLng:vi.fn(function(lat:number,lng:number){return {lat,lng};}),
+  const kakao={maps:{event:{addListener:(_map:unknown,name:string,callback:Function)=>{mapEvents[name]=callback}},Map,CustomOverlay:Overlay,Polyline:vi.fn(function(_options:unknown){}),LatLng:vi.fn(function(lat:number,lng:number){return {lat,lng};}),
     LatLngBounds:vi.fn(function(){return {extend:vi.fn()};}),ZoomControl:vi.fn(function(){}),ControlPosition:{RIGHT:1},load:(init:()=>void)=>init()}};
   const doc={getElementById:(id:string)=>elements[id],createElement:element,addEventListener:vi.fn(),head:{appendChild:(script:any)=>scripts.push(script)}};
   const script=buildKakaoMapHtml('fixture-key').match(/<script>([\s\S]*?)<\/script>/)![1]!;
   runInNewContext(script,{document:doc,location:{hash:'#'+encodeURIComponent(JSON.stringify(data)),origin:'https://example.invalid',pathname:'/maps/embed'},
-    URL,kakao,window:{kakao,addEventListener:vi.fn()},setTimeout:vi.fn(()=>1),clearTimeout});
+    URL,kakao,window:{kakao,parent,addEventListener:(name:string,callback:Function)=>{events[name]=callback}},setTimeout:vi.fn(()=>1),clearTimeout});
   scripts[0].onload();
-  return {elements,map,Map,Overlay,clearTimeout};
+  return {elements,map,Map,Overlay,clearTimeout,events,mapEvents,parent,Polyline:kakao.maps.Polyline};
 }
 describe('departure and course map initialization',()=>{
+  it('sends only explicit map taps to the exact parent origin',()=>{
+    const r=render({origin,places:[],selectDeparture:true,parentOrigin:'https://team.example'});
+    r.mapEvents.click!({latLng:{getLat:()=>35,getLng:()=>127}});
+    expect(r.parent.postMessage).toHaveBeenCalledWith({type:'ddubugi:map-point',point:{latitude:35,longitude:127,name:undefined}},'https://team.example');
+    expect(render({origin,places:[]}).mapEvents.click).toBeUndefined();
+  });
+  it('ignores forged focus messages and focuses the correct place for the trusted parent',()=>{
+    const r=render({origin,places:[place],parentOrigin:'https://team.example'});
+    const msg={source:r.parent,origin:'https://team.example',data:{type:'ddubugi:focus-place',index:0}};
+    r.events.message!({...msg,origin:'https://evil.example'});r.events.message!({...msg,source:{}});
+    expect(r.map.panTo).not.toHaveBeenCalled();
+    r.events.message!(msg);expect(r.map.panTo).toHaveBeenCalledWith({lat:place.latitude,lng:place.longitude});
+  });
+  it('draws discontinuous provider steps separately instead of fabricating a road between them',()=>{
+    const r=render({origin,places:[place],routeSegments:[{source:'kakao',geometry:[origin,place],steps:[{mode:'walk',geometry:[origin,{...origin,latitude:34.948}]},{mode:'bus',geometry:[{...place,latitude:34.93},place]}]}]});
+    expect(r.Polyline).toHaveBeenCalledTimes(2);
+    expect(r.Polyline.mock.calls[0]![0]).toMatchObject({strokeColor:'#64748b',strokeStyle:'solid'});
+    expect(r.Polyline.mock.calls[1]![0]).toMatchObject({strokeColor:'#15803d',strokeStyle:'solid'});
+  });
   it('renders a street-scale map for only the searched departure',()=>{
     const {elements,map,Map,Overlay,clearTimeout}=render({origin,places:[],routeSegments:[]});
     expect(Map).toHaveBeenCalledOnce();expect(Overlay).toHaveBeenCalledOnce();

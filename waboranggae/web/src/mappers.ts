@@ -111,7 +111,7 @@ export function conditionToPreferences(cond: Condition): TravelPreferences {
     requiredPlaceName: cond.requiredPlaceName,
     timeBudgetMode: 'local',
     region: '전라남도',
-    city: cond.region || '순천',
+    city: cond.region,
     startLocation: cond.departure,
     startType: inferStartType(cond.departure),
     startAddress: cond.departureAddress,
@@ -290,12 +290,12 @@ export function rankedToUiCourse(course: RankedCourse): Course {
       { label: '코스 완성도', value: quality, weight: 10 },
     ],
     walkBreakdown: ([
-      ['walk','도보 부담',`${course.unclassifiedMinutes?'확인된':'총'} 도보 ${walkMinutes}분${course.unclassifiedMinutes?` · 미분류 ${course.unclassifiedMinutes}분 포함해 보수적으로 평가`:''}`],
-      ['transit','대중교통 접근성',stopDistance==null?'정류장 거리 미확인':`정류장 평균 ${stopDistance}m`],
-      ['time','시간 적합도','현지 일정 기준'],
-      ['transfer','환승 편의성',`환승 ${transferCount}회`],
-      ['distance','이동 거리',`${course.distanceKm}km`],
-      ['efficiency','이동 효율',`체류 ${Math.round(stayRatio*100)}%`],
+      ['walk','도보 부담',`${course.unclassifiedMinutes?'확인된':'총'} 도보 ${walkMinutes}분 · 걷기 부담이 적을수록 높아요.${course.unclassifiedMinutes?` · 미분류 ${course.unclassifiedMinutes}분 포함해 보수적으로 평가`:''}`],
+      ['transit','대중교통 접근성',(stopDistance==null?'정류장 거리 미확인':`정류장 평균 ${stopDistance}m`)+' · 정류장 거리, 운행 간격·노선 수, 이동 시간과 환승 횟수를 함께 봐요.'],
+      ['time','시간 적합도','현지 일정에서 이동에 드는 시간이 적을수록 높아요.'],
+      ['transfer','환승 편의성',`환승 ${transferCount}회 · 갈아타는 횟수가 적을수록 높아요.`],
+      ['distance','이동 거리',`${course.distanceKm}km · 장소가 모여 있어 동선이 짧을수록 높아요.`],
+      ['efficiency','이동 효율',`체류 ${Math.round(stayRatio*100)}% · 이동보다 장소에서 보내는 시간의 비중이 클수록 높아요.`],
     ] as const).map(([key,label,detail])=>({label,detail,value:course.walkingBreakdown?.[key] ?? 0,stars:starsFromScore(course.walkingBreakdown?.[key] ?? 0)})),
   };
 }

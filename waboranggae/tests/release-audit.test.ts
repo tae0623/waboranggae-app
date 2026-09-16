@@ -16,7 +16,7 @@ describe('pre-release safety and attribution', () => {
   it('states the institution as source, not only the API product name', () => {
     expect(attributionHtml).toContain('출처: ⓒ한국관광공사');
     expect(attributionHtml).not.toContain('여행일 예보가 아닙니다');
-    for (const file of ['WebCourses.kt', 'CourseDetail.kt', 'WebHome.kt', 'TravelApp.kt'])
-      expect(readFileSync('android-native/app/src/main/java/kr/co/waboranggae/nativepilot/ui/' + file, 'utf8')).toContain('출처: ⓒ한국관광공사');
+    expect(readFileSync('android-native/app/src/main/java/kr/co/waboranggae/nativepilot/ui/AccountScreens.kt','utf8')).toContain('한국관광공사 TourAPI');
+    expect(readFileSync('web/src/AppInfo.tsx','utf8')).toContain('한국관광공사');
   });
 });

@@ -58,11 +58,11 @@ class SessionContractTest {
         assertEquals(raw,repo.snapshot(c.id))
         assertTrue(repo.snapshot(c.id)!!.containsKey("scoreBreakdown"))
     }
-    @Test fun legacyMultiDayAndCompanionFieldsAreRemovedWithoutChangingOrigin() {
+    @Test fun legacyCompanionIsRemovedAndMultiDayUsesSeparateDailyRequests() {
         val terminal=PlaceSuggestion("1","터미널","주소",34.9,127.5)
         val lodging=terminal.copy(id="hotel",name="선택 숙소",latitude=34.91)
-        val old=TravelForm(departure=terminal,date="2026-10-01",startTime="10:00",endDate="2026-10-02",endTime="18:00",limitEndTime=true,lodging=lodging,companion="가족과 함께",interests=setOf("photo"),meals=setOf("breakfast","dinner"))
-        assertNotNull(old.validationError())
+        val old=TravelForm(city="순천",departure=terminal,date="2026-10-01",startTime="10:00",endDate="2026-10-02",endTime="18:00",limitEndTime=true,lodging=lodging,companion="가족과 함께",interests=setOf("photo"),meals=setOf("breakfast","dinner"))
+        assertEquals(2,old.tripDates().size)
         val form=old.forCurrentApp().normalizeMeals()
         assertNull(form.validationError())
         val p=form.preferences()

@@ -53,9 +53,6 @@ fun webTypography():Typography {
         androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_brand),"전남 지도를 걷는 사람",Modifier.fillMaxSize())
     }
 }
-@Composable fun SourceFooter(text:String,modifier:Modifier=Modifier) {
-    Text(text,modifier.padding(top=12.dp,bottom=20.dp),fontSize=11.sp,color=Muted)
-}
 @Composable fun WebChip(label:String,on:Boolean=false,onClick:()->Unit={}) {
     Surface(onClick=onClick,shape=RoundedCornerShape(100.dp),color=if(on)Ink else Color.White,
         border=androidx.compose.foundation.BorderStroke(1.dp,if(on)Ink else WebBorder),modifier=Modifier.heightIn(min=42.dp)) {

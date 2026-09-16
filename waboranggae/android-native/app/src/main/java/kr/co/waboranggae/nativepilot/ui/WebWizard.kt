@@ -33,12 +33,12 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
     if(regions)DestinationPicker(state.cities,f.city,{city->model.chooseDestination(city);regions=false},{regions=false})
     var datePicker by remember{mutableStateOf<String?>(null)}
     var timePicker by remember{mutableStateOf<String?>(null)}
-    datePicker?.let{target->TravelDateDialog(f.date,{value->model.updateForm{it.copy(date=value)};datePicker=null},{datePicker=null})}
+    datePicker?.let{target->TravelDateDialog(if(target=="end")f.endDate?:f.date else f.date,{value->model.updateForm{if(target=="end")it.copy(endDate=value) else it.copy(date=value,endDate=it.endDate?.let{end->maxOf(end,value)})};datePicker=null},{datePicker=null})}
     timePicker?.let{target->TravelTimeDialog(if(target=="start")f.startTime else f.endTime,{value->model.updateForm{if(target=="start")it.copy(startTime=value)else it.copy(endTime=value)};timePicker=null},{timePicker=null})}
     Column(Modifier.fillMaxSize().background(WebSoft).imePadding()) {
         Row(Modifier.padding(start=20.dp,end=20.dp,top=16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Surface(onClick=model::back,shape=RoundedCornerShape(100.dp),color=Soft,border=BorderStroke(1.dp,WebBorder)) {
-                Box(Modifier.size(44.dp),contentAlignment=Alignment.Center) { Text(if(step>1)"‹" else "×",fontSize=26.sp) }
+                Box(Modifier.size(44.dp),contentAlignment=Alignment.Center) { Icon(PilotIcons.Back,"이전 단계",Modifier.size(22.dp),tint=Ink) }
             }
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement=Arrangement.spacedBy(4.dp)) { repeat(4) { index->Box(Modifier.weight(1f).height(3.dp).background(if(index<step)Ink else WebBorder,RoundedCornerShape(2.dp))) } }
@@ -75,7 +75,8 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
                     f.departure?.let { p->Surface(color=Color(0xFFECFDF5),shape=RoundedCornerShape(14.dp),modifier=Modifier.padding(top=14.dp).fillMaxWidth()) {
                         Column(Modifier.padding(14.dp)) { Text("✓ ${p.name}",fontWeight=FontWeight.Bold,fontSize=14.sp,modifier=Modifier.testTag("selected-departure"));Text(p.address,fontSize=12.sp,color=Muted) }
                     } }
-                    DepartureSearchMap(f.departure,state.suggestions)
+                    DepartureSearchMap(f.departure,state.suggestions,model::resolveMapPoint)
+                    if(state.mapResolving)Text("선택한 위치 확인 중…",fontSize=12.sp,color=Muted,modifier=Modifier.padding(top=10.dp))
                 }
                 2->{
                     Surface(onClick={regions=true},enabled=state.cities.isNotEmpty(),shape=RoundedCornerShape(20.dp),color=Color.White,
@@ -84,17 +85,19 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
                             Surface(shape=RoundedCornerShape(14.dp),color=Color(0xFFE1F1E7)) {
                                 Box(Modifier.size(46.dp),contentAlignment=Alignment.Center){Icon(PilotIcons.Map,null,Modifier.size(23.dp),tint=Purple)}
                             }
-                            Column(Modifier.weight(1f)){Text("여행 지역",fontSize=12.sp,color=WebMuted);Text(f.city,fontSize=19.sp,fontWeight=FontWeight.Bold,color=Ink)}
+                            Column(Modifier.weight(1f)){Text("여행 지역",fontSize=12.sp,color=WebMuted);Text(f.city.ifBlank{"여행지 선택"},fontSize=19.sp,fontWeight=FontWeight.Bold,color=if(f.city.isBlank())Muted else Ink)}
                             Icon(PilotIcons.Down,"여행지 변경",Modifier.size(20.dp),tint=Purple)
                         }
                     }
                     state.cityError?.let { Text(it,fontSize=12.sp);TextButton(model::loadCities){Text("지역 다시 불러오기")} }
                     WebSectionLabel("여행 날짜")
                     OutlinedButton(onClick={datePicker="start"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()) { Text(f.date,color=Ink) }
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("여러 날 여행",modifier=Modifier.weight(1f));Switch(checked=f.endDate!=null,onCheckedChange={value->model.updateForm{it.copy(endDate=if(value)it.date else null)}},colors=SwitchDefaults.colors(checkedTrackColor=Ink),modifier=Modifier.testTag("multiple-days"))}
+                    if(f.endDate!=null){OutlinedButton({datePicker="end"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth().testTag("trip-end-date")){Text("마지막 여행 날짜 · ${f.endDate}",color=Ink)};Text("최대 7일 · 같은 지역에서 날짜마다 새 코스를 만들어요.",fontSize=12.sp,color=Muted)}
                     WebSectionLabel("시작 시각")
                     OutlinedButton(onClick={timePicker="start"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()) { Text("${formatKoreanClock(f.startTime)} 현지 여행 시작",color=Ink) }
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                        Text("종료 시간 제한",color=Ink,modifier=Modifier.weight(1f))
+                        Text("종료 시각 설정",color=Ink,modifier=Modifier.weight(1f))
                         Switch(checked=f.limitEndTime,onCheckedChange={value->model.updateForm{it.copy(limitEndTime=value)}},modifier=Modifier.testTag("end-time-limit"),colors=SwitchDefaults.colors(checkedTrackColor=Ink))
                     }
                     if(f.limitEndTime)OutlinedButton(onClick={timePicker="end"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth().testTag("travel-end-time")) { Text("${formatKoreanClock(f.endTime)}까지",color=Ink) }
@@ -137,6 +140,7 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
             else WebAction("이 조건으로 추천받기",{focus.clearFocus();model.recommend()},Modifier.testTag("recommend"),enabled=!state.loading)
         }
     }
+    state.mapChoice?.let{place->AppDialog(onDismissRequest=model::dismissMapChoice,title={Text("출발 장소")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(place.name,fontWeight=FontWeight.Bold);Text(place.address,fontSize=13.sp)}},confirmButton={TextButton({model.chooseDeparture(place)}){Text("여기서 출발")}},dismissButton={TextButton(model::dismissMapChoice){Text("취소")}})}
 }
 @Composable private fun SelectCard(emoji:String,label:String,desc:String,on:Boolean,action:()->Unit) {
     Surface(onClick=action,shape=RoundedCornerShape(18.dp),color=if(on)Ink else Color.White,border=BorderStroke(2.dp,if(on)Ink else WebBorder),

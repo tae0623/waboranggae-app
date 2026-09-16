@@ -6,16 +6,16 @@ import org.junit.Test
 
 class ClockAndMealTest {
     private val departure=PlaceSuggestion("test","공개 장소","전남 순천",34.95,127.49)
-    private fun form()=TravelForm(departure=departure,date="2026-10-01",limitEndTime=true)
+    private fun form()=TravelForm(city="순천",departure=departure,date="2026-10-01",limitEndTime=true)
     @Test fun courseFirstDefaultDoesNotSendAHiddenEndTime() {
-        val f=TravelForm(departure=departure,startTime="18:00",endTime="16:00")
+        val f=TravelForm(city="순천",departure=departure,startTime="18:00",endTime="16:00")
         assertFalse(f.limitEndTime);assertNull(f.validationError())
         assertEquals("course-first",f.preferences().scheduleMode);assertNull(f.preferences().endTime)
         assertEquals(setOf("dinner"),f.availableMeals())
         assertFalse(f.preferences().summary.contains("6시간"))
     }
     @Test fun deadlineIsOptionalAndCanBeRemovedAgain() {
-        val f=TravelForm(departure=departure,startTime="10:00",endTime="12:00",limitEndTime=true)
+        val f=TravelForm(city="순천",departure=departure,startTime="10:00",endTime="12:00",limitEndTime=true)
         assertEquals("12:00",f.preferences().endTime)
         assertNull(f.copy(limitEndTime=false).preferences().endTime)
         assertNotNull(f.copy(endTime="09:00").validationError())
@@ -54,9 +54,10 @@ class ClockAndMealTest {
         val f=form().toggleMeal("lunch").copy(startTime="15:00",endTime="17:00").normalizeMeals()
         assertEquals(emptySet<String>(),f.meals);assertEquals("none",f.meal)
     }
-    @Test fun onlySameDayWindowIsAccepted() {
+    @Test fun multipleDaysKeepADailyWindow() {
         val f=form().copy(endDate="2026-10-02",endTime="16:30")
-        assertNotNull(f.validationError())
+        assertNull(f.validationError())
+        assertEquals(listOf("2026-10-01","2026-10-02"),f.tripDates())
         val current=f.forCurrentApp()
         assertEquals(390L,current.tripMinutes());assertNull(current.validationError())
         assertEquals(form().date,current.preferences().travelEndDate)

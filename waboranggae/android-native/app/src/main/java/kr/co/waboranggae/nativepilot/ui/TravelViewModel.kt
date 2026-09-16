@@ -25,10 +25,13 @@ data class TravelUiState(
     val hotError:String?=null,val hotUpdated:String?=null,val hotId:String?=null,val wizardStep:Int=1,
     val preferences:Preferences?=null,val detailBusy:Boolean=false,val detailError:String?=null,
     val weather:JsonObject?=null,val weatherDate:String?=null,val weatherLoading:Boolean=false,
-    val routingBusyId:String?=null,val routingError:String?=null
+    val routingBusyId:String?=null,val routingError:String?=null,
+    val activeDay:String?=null,val confirmedId:String?=null,
+    val mapChoice:PlaceSuggestion?=null,val mapResolving:Boolean=false
 ) {
     val selectedCourse get() = courses.find { it.id == selectedId }
     val selectedHotPlace get() = hotPlaces.find { it.id==hotId }
+    val confirmedCourse get() = courses.find { it.id==confirmedId }
 }
 class TravelViewModel(val repository: TravelRepository) : ViewModel() {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
@@ -42,6 +45,11 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
     private var weatherJob:Job?=null
     private var routingJob:Job?=null
     private val routedIds=mutableSetOf<String>()
+    private var multiDayForm:TravelForm?=null
+    private var localDayOrigin:Origin?=null
+    private val dayCache=mutableMapOf<String,Pair<List<Course>,Preferences>>()
+    private var mapPointJob:Job?=null
+    private var mapPointVersion=0L
     init {
         loadCities()
         loadHotPlaces()
@@ -70,7 +78,8 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         val tags=place.tags.mapNotNull { when { it.contains("카페")->"cafe";it.contains("맛집")->"food";it.contains("역사")->"history";it.contains("시장")->"market";it.contains("자연")->"nature";else->null } }.toSet()
         mutable.update { it.copy(page=Page.CONDITIONS,wizardStep=1,form=it.form.copy(requiredPlace=place,city=place.city,departure=null,query="",startType="custom",interests=tags.ifEmpty{setOf("nature")}),suggestions=emptyList(),searching=false,searchError=null,error=null) }
     }
-    fun navigate(page: Page) { mutable.update { it.copy(page=page,wizardStep=if(page==Page.CONDITIONS) 1 else it.wizardStep) } }
+    fun navigate(page: Page) { if(page!=Page.CONDITIONS)dismissMapChoice();mutable.update { it.copy(page=page,selectedId=if(page==Page.MAP)it.confirmedId else it.selectedId,wizardStep=if(page==Page.CONDITIONS) 1 else it.wizardStep) };if(page==Page.MAP && mutable.value.confirmedId!=null)loadTravelWeather(mutable.value.preferences?.travelDate) }
+    fun confirmTravel(id:String){if(mutable.value.courses.none{it.id==id&&it.canPreviewRoute()})return;mutable.update{it.copy(confirmedId=id,selectedId=id,page=Page.MAP)};refreshRouting(id);loadTravelWeather(mutable.value.preferences?.travelDate)}
     fun changeTripConditions(){mutable.update{it.copy(page=Page.CONDITIONS,wizardStep=2,error=null)}}
     fun nextWizardStep() {
         val s=mutable.value
@@ -91,6 +100,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         mutable.update { it.copy(form=it.form.copy(city=city),error=null) }
     }
     fun back() {
+        dismissMapChoice()
         if (mutable.value.loading) cancelRecommendation()
         if(mutable.value.page==Page.CONDITIONS && mutable.value.wizardStep>1) { mutable.update{it.copy(wizardStep=it.wizardStep-1,error=null)};return }
         mutable.update { it.copy(page=when(it.page) { Page.MAP,Page.EDITOR->Page.DETAIL;Page.DETAIL->Page.RESULTS; Page.RESULTS->Page.CONDITIONS; else->Page.HOME },wizardStep=1) }
@@ -112,9 +122,21 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         scheduleSearch(450)
     }
     fun chooseDeparture(place: PlaceSuggestion) {
-        searchJob?.cancel();searchVersion++
+        dismissMapChoice();searchJob?.cancel();searchVersion++
         val type=if(place.name.contains("터미널"))"terminal" else if(place.name.endsWith("역"))"station" else "custom"
-        mutable.update { it.copy(form=it.form.copy(departure=place,query=place.name,startType=type),suggestions=emptyList(),searchError=null,searching=false) }
+        mutable.update { it.copy(form=it.form.copy(departure=place,query=place.name,startType=type),suggestions=emptyList(),searchError=null,searching=false,mapChoice=null) }
+    }
+    fun dismissMapChoice(){mapPointVersion++;mapPointJob?.cancel();mutable.update{it.copy(mapChoice=null,mapResolving=false)}}
+    fun resolveMapPoint(point:Coordinate,name:String?) {
+        if(!point.valid()||point.latitude !in 32.0..40.0||point.longitude !in 123.0..133.0)return
+        val version=++mapPointVersion
+        mapPointJob?.cancel();mutable.update{it.copy(mapResolving=true,mapChoice=null,searchError=null)}
+        mapPointJob=viewModelScope.launch{try{
+            val response=repository.api("/api/places/resolve","POST",buildJsonObject{put("selectionSource","map-tap");put("latitude",point.latitude);put("longitude",point.longitude);name?.takeIf{it.isNotBlank()}?.let{put("name",it.take(80))}}).jsonObject
+            val place=json.decodeFromJsonElement<PlaceSuggestion>(response["place"]!!)
+            if(version==mapPointVersion)mutable.update{it.copy(mapChoice=place)}
+        }catch(e:Exception){if(e is CancellationException)throw e;if(version==mapPointVersion)mutable.update{it.copy(searchError="선택한 장소를 확인하지 못했어요. 다시 선택해 주세요.")}}
+        finally{if(version==mapPointVersion)mutable.update{it.copy(mapResolving=false)}}}
     }
     fun search()=scheduleSearch(0)
     private fun scheduleSearch(debounceMs:Long) {
@@ -146,7 +168,8 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         val form=mutable.value.form
         val error=form.validationError()
         if(error!=null) { mutable.update { it.copy(error=error) }; return }
-        mutable.update { it.copy(loading=true,error=null) }
+        multiDayForm=form;localDayOrigin=null;dayCache.clear()
+        mutable.update { it.copy(loading=true,error=null,activeDay=form.date,confirmedId=null) }
         recommendationJob=viewModelScope.launch {
             val started=System.nanoTime()
             try {
@@ -155,6 +178,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                 val courses=acceptedCourses(payload).filter{course->preferences.requiredContentId==null || course.places.any{it.id.removePrefix("tour-")==preferences.requiredContentId}}
                 routedIds.clear();routingJob?.cancel();weatherJob?.cancel()
                 require(courses.isNotEmpty()) { payload.fallbackReason ?: "이 출발지에서 갈 수 있는 코스를 찾지 못했어요. 출발지나 시작 시각을 바꿔 주세요." }
+                localDayOrigin=courses.first().origin;dayCache[form.date]=courses to preferences
                 mutable.update { it.copy(loading=false,courses=courses,selectedId=courses.first().id,page=Page.RESULTS,
                     elapsedMs=(System.nanoTime()-started)/1_000_000,fetchedAt=payload.fetchedAt,preferences=preferences,detailError=null,weather=null,weatherLoading=false,routingBusyId=null,routingError=null) }
             } catch(e: Exception) {
@@ -164,17 +188,32 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         }
     }
     fun cancelRecommendation() { recommendationJob?.cancel(); mutable.update { it.copy(loading=false) } }
-    fun clearPersonalTravel() { recommendationJob?.cancel();searchJob?.cancel();routingJob?.cancel();weatherJob?.cancel();routedIds.clear();mutable.update{it.copy(form=TravelForm(),courses=emptyList(),selectedId=null,preferences=null,page=Page.HOME,loading=false,error=null,detailError=null,weather=null,suggestions=emptyList(),routingBusyId=null,routingError=null)} }
-    fun selectCourse(id: String, openMap: Boolean = false) {
-        if(mutable.value.courses.none { it.id==id }) return
-        mutable.update { it.copy(selectedId=id,page=if(openMap) Page.MAP else it.page) }
-        if(openMap||mutable.value.page==Page.MAP)refreshRouting(id)
+    fun selectDay(date:String,force:Boolean=false) {
+        val base=multiDayForm?:return
+        if(date !in base.tripDates() || mutable.value.loading || (!force && mutable.value.activeDay==date))return
+        val form=runCatching{base.forDay(date,localDayOrigin)}.getOrElse{error->mutable.update{it.copy(error=error.message)};return}
+        val preferences=form.preferences()
+        routingJob?.cancel();weatherJob?.cancel();routedIds.clear()
+        mutable.update{it.copy(activeDay=date,confirmedId=null,selectedId=null,courses=emptyList(),weather=null,weatherLoading=false,routingBusyId=null,routingError=null,error=null,preferences=preferences,page=Page.RESULTS)}
+        dayCache[date]?.takeIf{!force}?.let{(courses,p)->mutable.update{it.copy(courses=courses,selectedId=courses.firstOrNull()?.id,preferences=p)};return}
+        mutable.update{it.copy(loading=true)}
+        recommendationJob=viewModelScope.launch{try{
+            val response=repository.recommend(preferences);val courses=acceptedCourses(response)
+            require(courses.isNotEmpty()){response.fallbackReason?:"이 날짜의 코스를 찾지 못했어요."}
+            dayCache[date]=courses to preferences
+            if(date==base.date)localDayOrigin=courses.first().origin
+            mutable.update{it.copy(courses=courses,selectedId=courses.first().id,elapsedMs=0,fetchedAt=response.fetchedAt)}
+        }catch(e:Exception){if(e is CancellationException)throw e;mutable.update{it.copy(error=e.message?:"코스를 불러오지 못했어요.")}}
+        finally{mutable.update{it.copy(loading=false)}}}
     }
-    fun clearCourseSelection(){mutable.update{it.copy(selectedId=null,page=Page.RESULTS)}}
+    fun clearPersonalTravel() { dismissMapChoice();multiDayForm=null;localDayOrigin=null;dayCache.clear();suggestionCache.clear();searchVersion++;recommendationJob?.cancel();searchJob?.cancel();routingJob?.cancel();weatherJob?.cancel();routedIds.clear();mutable.update{it.copy(form=TravelForm(),courses=emptyList(),selectedId=null,confirmedId=null,activeDay=null,preferences=null,page=Page.HOME,loading=false,error=null,detailError=null,weather=null,suggestions=emptyList(),routingBusyId=null,routingError=null)} }
+    private fun selectCourse(id: String) {
+        if(mutable.value.courses.none { it.id==id }) return
+        mutable.update { it.copy(selectedId=id) }
+    }
     fun openDetails(id:String) {
         selectCourse(id);mutable.update{it.copy(page=Page.DETAIL,detailError=null,weather=null)}
         refreshRouting(id)
-        loadTravelWeather(mutable.value.preferences?.travelDate)
     }
     fun loadTravelWeather(date:String?) {
         weatherJob?.cancel()
@@ -205,7 +244,8 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                 if(mutable.value.preferences==p && mutable.value.courses.any{it.id==id}){
                     val updated=repository.rememberCourse(raw);routedIds.add(id)
                     mutable.update{it.copy(courses=it.courses.map{c->if(c.id==id)updated else c})}
-                    if(mutable.value.selectedId==id)loadTravelWeather(p.travelDate)
+                    dayCache[p.travelDate]=mutable.value.courses to p
+                    if(mutable.value.page==Page.MAP&&mutable.value.selectedId==id)loadTravelWeather(p.travelDate)
                 }
             }catch(e:Exception){if(e is CancellationException)throw e;if(mutable.value.selectedId==id)mutable.update{it.copy(routingError="길찾기 시간을 확인하지 못했습니다. 추정 시간으로 표시합니다.")}}
             finally{if(mutable.value.routingBusyId==id)mutable.update{it.copy(routingBusyId=null)}}
@@ -215,7 +255,8 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         runCatching{
             val course=repository.rememberCourse(snapshot)
             require(course.constraintPassed && course.mapStops().size>1){"저장된 코스의 위치·검증 정보가 부족합니다. 다시 추천받아 주세요."}
-            mutable.update{it.copy(courses=listOf(course),selectedId=course.id,preferences=null)}
+            recommendationJob?.cancel();routingJob?.cancel();weatherJob?.cancel();multiDayForm=null;localDayOrigin=null;dayCache.clear();routedIds.clear()
+            mutable.update{it.copy(courses=listOf(course),selectedId=course.id,preferences=null,activeDay=null,confirmedId=null,weather=null,routingBusyId=null,routingError=null)}
             openDetails(course.id)
         }.onFailure{e->mutable.update{it.copy(error=e.message)}}
     }
@@ -255,7 +296,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                 val course=repository.rememberCourse(raw)
                 require(course.constraintPassed && course.mapStops().size>1){"조건을 충족하지 못하는 코스입니다."}
                 mutable.update{it.copy(courses=it.courses.map{c->if(c.id==id)course else c},selectedId=course.id,page=Page.DETAIL)}
-                routedIds.add(id);loadTravelWeather(p.travelDate)
+                routedIds.add(id);dayCache[p.travelDate]=mutable.value.courses to p
             }catch(e:Exception){if(e is CancellationException)throw e;mutable.update{it.copy(detailError=if((e as? ApiFailure)?.status==400)"여행 시간·이동·식사/카페 순서 조건에 맞지 않거나 추천이 만료되었습니다. 원래 코스는 유지됩니다."else e.message)}}
             finally{mutable.update{it.copy(detailBusy=false)}}
         }

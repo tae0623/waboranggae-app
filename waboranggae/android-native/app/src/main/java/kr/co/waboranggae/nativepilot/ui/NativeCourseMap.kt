@@ -32,9 +32,10 @@ import com.kakao.vectormap.route.RouteLineSegment
 import com.kakao.vectormap.route.RouteLineStyle
 import kr.co.waboranggae.nativepilot.BuildConfig
 import kr.co.waboranggae.nativepilot.data.*
+import kr.co.waboranggae.nativepilot.data.Coordinate
 import kotlinx.coroutines.delay
 
-@Composable fun NativeCourseMap(course: Course, selected: MapStop, onSelect: (MapStop)->Unit, modifier: Modifier = Modifier) {
+@Composable fun NativeCourseMap(course: Course, selected: MapStop?, onSelect: (MapStop)->Unit, modifier: Modifier = Modifier,onMapPoint:((Coordinate,String?)->Unit)?=null) {
     if (BuildConfig.KAKAO_NATIVE_APP_KEY.isBlank()) {
         Box(modifier.background(Color(0xFFEDE9FE)).testTag("map-key-missing"),contentAlignment=Alignment.Center) {
             Column(Modifier.padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -51,12 +52,13 @@ import kotlinx.coroutines.delay
         val context=LocalContext.current
         val owner=LocalLifecycleOwner.current
         val mapView=remember { MapView(context).apply { setFinishManually(true) } }
-        val stops=remember(course.id) { course.mapStops() }
+        val stops=remember(course.id,course.accessTrip) { course.mapStops()+listOfNotNull(course.accessTrip?.origin?.let{MapStop("access-origin",it.name,it.coordinate(),null,-1)}) }
         var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
         val select by rememberUpdatedState(onSelect)
-        LaunchedEffect(selected.id) {
-            kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(selected.coordinate.latitude,selected.coordinate.longitude)))
+        val pointSelected by rememberUpdatedState(onMapPoint)
+        LaunchedEffect(selected?.id) {
+            selected?.let{kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(it.coordinate.latitude,it.coordinate.longitude)))}
         }
         LaunchedEffect(Unit) { delay(20000); if(kakaoMap==null && error==null) error="지도 연결이 지연됩니다. 네트워크와 카카오 설정을 확인해 주세요." }
         DisposableEffect(mapView,owner) {
@@ -96,15 +98,20 @@ import kotlinx.coroutines.delay
                             map.labelManager?.layer?.addLabel(LabelOptions.from(stop.id,LatLng.from(stop.coordinate.latitude,stop.coordinate.longitude))
                                 .setStyles(labelStyle).setTexts(LabelTextBuilder().setTexts(stop.name)).setClickable(true).setTag(stop.id))
                         }
-                        // Estimated geometry is often just two points; never present it as an actual route.
-                        course.routeSegments.filter { it.source!="estimated" && it.geometry.size>2 }.forEach { segment ->
-                            val points=segment.geometry.filter(Coordinate::valid).map{LatLng.from(it.latitude,it.longitude)}
-                            if(points.size>2) map.routeLineManager?.layer?.addRouteLine(RouteLineOptions.from(
-                                RouteLineSegment.from(points,RouteLineStyle.from(6f,android.graphics.Color.rgb(91,33,182)))))
+                        // Draw each provider step separately so missing pieces are not joined as verified roads.
+                        (course.routeSegments+listOfNotNull(course.accessTrip?.segment)).forEach { segment ->
+                            val parts=if(segment.source=="kakao"&&segment.steps.any{it.geometry.size>1})segment.steps.filter{it.geometry.size>1}.map{it.geometry to if(it.mode=="walk")android.graphics.Color.rgb(100,116,139)else android.graphics.Color.rgb(21,128,61)} else listOf(segment.geometry to if(segment.source=="kakao")android.graphics.Color.rgb(21,128,61)else android.graphics.Color.rgb(148,163,184))
+                            parts.forEach{(geometry,color)->val points=geometry.filter(Coordinate::valid).map{LatLng.from(it.latitude,it.longitude)}
+                                if(points.size>=2)map.routeLineManager?.layer?.addRouteLine(RouteLineOptions.from(RouteLineSegment.from(points,RouteLineStyle.from(if(segment.source=="kakao")6f else 2f,color))))
+                            }
                         }
                         map.setOnLabelClickListener { _,_,label -> stops.find{it.id==label.tag}?.let(select); true }
+                        if(pointSelected!=null)map.setOnMapClickListener { _,position,_,poi->pointSelected?.invoke(Coordinate(position.latitude,position.longitude),poi?.takeIf{it.isPoi}?.name) }
                         if(stops.size==1) map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(stops.first().coordinate.latitude,stops.first().coordinate.longitude)))
-                        else map.moveCamera(CameraUpdateFactory.fitMapPoints(stops.map{LatLng.from(it.coordinate.latitude,it.coordinate.longitude)}.toTypedArray(),80))
+                        else {
+                            val bounds=stops.map{it.coordinate}+(course.routeSegments+listOfNotNull(course.accessTrip?.segment)).flatMap{it.geometry}.filter(Coordinate::valid)
+                            map.moveCamera(CameraUpdateFactory.fitMapPoints(bounds.map{LatLng.from(it.latitude,it.longitude)}.toTypedArray(),160))
+                        }
                     }
                 }
             })
@@ -128,10 +135,10 @@ private fun markerBitmap(index:Int):Bitmap {
     val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     paint.color=android.graphics.Color.WHITE
     canvas.drawCircle(40f,38f,36f,paint)
-    paint.color=if(index==0) android.graphics.Color.rgb(21,128,61) else android.graphics.Color.rgb(91,33,182)
+    paint.color=if(index<0)android.graphics.Color.rgb(99,102,241)else if(index==0) android.graphics.Color.rgb(28,28,30) else android.graphics.Color.rgb(21,128,61)
     canvas.drawCircle(40f,38f,31f,paint)
     paint.color=android.graphics.Color.WHITE; paint.typeface=Typeface.DEFAULT_BOLD
-    paint.textSize=if(index==0) 22f else 30f; paint.textAlign=Paint.Align.CENTER
-    canvas.drawText(if(index==0) "출발" else index.toString(),40f,38f-(paint.ascent()+paint.descent())/2,paint)
+    paint.textSize=if(index<=0) 22f else 30f; paint.textAlign=Paint.Align.CENTER
+    canvas.drawText(if(index<0)"이동" else if(index==0) "출발" else index.toString(),40f,38f-(paint.ascent()+paint.descent())/2,paint)
     return bitmap
 }

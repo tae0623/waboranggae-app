@@ -5,7 +5,7 @@ import { isTeamWebRoute } from '../../../src/domain/teamWebRoutes';
 // release APK. Disable only after the release security/availability review.
 const deviceRoutes:Record<string,string[]>={
   GET:['/auth/social/providers','/api/regions/jeonnam-cities','/api/hot-places','/api/login-photo','/api/places/search','/api/media/tour-image','/api/weather/current','/api/weather/forecast'],
-  POST:['/api/recommend','/api/recommend/edit','/api/recommend/refresh-route','/api/analyze','/api/explain','/api/routes/segment'],
+  POST:['/api/recommend','/api/recommend/edit','/api/recommend/refresh-route','/api/analyze','/api/explain','/api/routes/segment','/api/places/resolve'],
 };
 const accountRoutes:Record<string,string[]>={
   GET:['/api/user/me','/api/user/bookmarks','/api/user/search-history','/api/user/search-history/frequent-cities'],

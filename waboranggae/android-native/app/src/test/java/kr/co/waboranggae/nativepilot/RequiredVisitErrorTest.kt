@@ -10,7 +10,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RequiredVisitErrorTest {
- private val preferences=TravelForm(departure=PlaceSuggestion("public","순천역","전남 순천시",34.95,127.5)).preferences()
+ private val preferences=TravelForm(city="순천",departure=PlaceSuggestion("public","순천역","전남 순천시",34.95,127.5)).preferences()
  private fun failure(body:String,status:Int=422):String?=runBlocking {
   val client=OkHttpClient.Builder().addInterceptor{chain->Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(status).message("Failure").body(body.toResponseBody()).build()}.build()
   try{HttpTravelRepository("https://example.org","",client).recommend(preferences);error("Expected failure")}

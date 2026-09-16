@@ -13,6 +13,7 @@ const routes: Record<string, readonly string[]> = {
   POST: [
     '/api/recommend', '/api/recommend/edit', '/api/recommend/refresh-route',
     '/api/analyze', '/api/explain', '/api/routes/segment',
+    '/api/places/resolve',
     '/auth/signup', '/auth/login', '/auth/refresh', '/auth/logout',
     '/auth/logout/current', '/auth/consent', '/auth/social/kakao/start',
     '/auth/social/google/start', '/auth/social/result', '/auth/social/consent',

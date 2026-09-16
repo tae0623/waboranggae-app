@@ -80,7 +80,7 @@ private val cardShape=RoundedCornerShape(24.dp)
         confirmButton={TextButton({showExit=false;activity?.finishAndRemoveTask()},modifier=Modifier.testTag("exit-confirm")){Text("앱 종료")}},
         dismissButton={TextButton({showExit=false},modifier=Modifier.testTag("exit-cancel")){Text("취소")}})
     Scaffold(containerColor=Soft, bottomBar={
-        if(state.page !in listOf(Page.CONDITIONS,Page.EDITOR)) WebBottomBar(state.page) { page ->
+        if(state.page !in listOf(Page.CONDITIONS,Page.EDITOR,Page.DETAIL)) WebBottomBar(state.page) { page ->
             if(page==Page.RESULTS && state.courses.isEmpty()) model.navigate(Page.CONDITIONS)
             else model.navigate(page)
         }
@@ -115,76 +115,38 @@ private val cardShape=RoundedCornerShape(24.dp)
     }
 }
 @Composable private fun MapPage(state:TravelUiState,model:TravelViewModel) {
-    val course=state.selectedCourse
+    val course=state.confirmedCourse
     Column(Modifier.fillMaxSize().testTag("map-page")) {
-        PageHeader("여행 동선","코스 선택",model::back)
-        if(course==null) { EmptyState("먼저 코스를 추천받아 주세요.","조건 선택하기"){model.navigate(Page.CONDITIONS)}; return }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=18.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            state.courses.forEachIndexed { index,c ->
-                Box(Modifier.testTag("map-course-${index+1}")) { WebChip("코스 ${index+1}",c.id==course.id){model.selectCourse(c.id)} }
-            }
-        }
-        Text(course.title,Modifier.padding(horizontal=20.dp,vertical=8.dp).testTag("map-course-title"),fontSize=16.sp,fontWeight=FontWeight.Bold)
-        course.accessTrip?.let{access->Text("현지 출발: ${access.arrival.name} · 도시 간 이동 별도",Modifier.padding(horizontal=20.dp),fontSize=12.sp,color=Muted)}
-        Text(course.movementSummary(),Modifier.padding(horizontal=20.dp),fontSize=12.sp,color=Muted)
-        if(state.routingBusyId==course.id)LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("routing-loading"))
-        if(!course.constraintPassed)Text(course.constraintViolations.firstOrNull()?:"조건 확인이 필요한 미리보기 코스",Modifier.padding(horizontal=20.dp),fontSize=12.sp,color=MaterialTheme.colorScheme.error)
-        Row(Modifier.padding(horizontal=12.dp)){TextButton({model.openDetails(course.id)}){Text("코스 상세")};TextButton(model::clearCourseSelection){Text("코스 선택 해제")}}
+        PageHeader("여행 동선",course?.title.orEmpty()){if(course==null)model.navigate(Page.RESULTS)else model.openDetails(course.id)}
+        if(course==null) { EmptyState("여행할 코스를 선택해 주세요.","추천 코스 보기"){model.navigate(Page.RESULTS)}; return }
         key(course.id) {
-            var selected by remember { mutableStateOf(course.mapStops().first()) }
-            LazyColumn {
-                item {
-                    NativeCourseMap(course,selected,{selected=it},Modifier.fillMaxWidth().height(325.dp))
-                    if(course.routeSource!="kakao")Text("일부 이동 시간 추정",Modifier.padding(horizontal=18.dp,vertical=8.dp),fontSize=12.sp,color=Muted)
-                }
-                item {
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=18.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        course.mapStops().forEach { stop ->
-                            Box(Modifier.testTag("map-stop-${stop.index}")) { WebChip(if(stop.index==0) "출발" else "${stop.index}. ${stop.name}",stop.id==selected.id){selected=stop} }
-                        }
-                    }
-                    PlaceInfo(selected,model.repository,course)
-                }
-                item {
-                    Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                        Text("방문 순서",fontSize=19.sp,fontWeight=FontWeight.Bold)
-                        course.mapStops().forEach { stop ->
-                            Row(Modifier.fillMaxWidth().clickable{selected=stop}.padding(vertical=5.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                Surface(color=if(stop.index==0) Color(0xFF15803D) else Purple,shape=RoundedCornerShape(12.dp)) {
-                                    Text(if(stop.index==0) "출발" else stop.index.toString(),Modifier.padding(9.dp),fontSize=12.sp,color=Color.White)
-                                }
-                                Column {
-                                    Text(stop.name,fontWeight=FontWeight.Bold)
-                                    Text(stop.place?.let{"${it.arrival} · 머무는 시간 ${it.stayMinutes}분"} ?: course.origin?.address.orEmpty(),fontSize=12.sp,color=Muted)
-                                    stop.place?.moveLabel?.takeIf{it.isNotBlank()}?.let{label->
-                                        val estimated=course.routeSegments.getOrNull(stop.index-1)?.source!="kakao"
-                                        Text("이전 장소에서: $label"+if(estimated)" · 추정" else "",fontSize=12.sp,color=Muted)
-                                    }
-                                }
-                            }
-                        }
-                        SourceFooter("출처: ⓒ한국관광공사(관광정보·사진) · 카카오(장소·지도·길찾기)")
-                    }
-                }
+            var selected by remember { mutableStateOf<MapStop?>(null) }
+            LazyColumn(contentPadding=PaddingValues(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                item { Column(Modifier.padding(horizontal=18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                    TravelWeatherCard(state)
+                    Text("현지 여행 ${formatMinutes(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt())}",fontSize=20.sp,fontWeight=FontWeight.ExtraBold)
+                    Text(course.movementSummary(),fontSize=12.sp,color=Muted)
+                    if(state.routingBusyId==course.id)LinearProgressIndicator(Modifier.fillMaxWidth().testTag("routing-loading"))
+                    state.routingError?.let{Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.error)}
+                    if(!course.constraintPassed)Text(course.constraintViolations.firstOrNull()?:"종료 시각을 확인해 주세요.",fontSize=12.sp,color=MaterialTheme.colorScheme.error)
+                } }
+                item { Column(Modifier.padding(horizontal=14.dp)) {
+                    NativeCourseMap(course,selected,{selected=it},Modifier.fillMaxWidth().height(360.dp).clip(RoundedCornerShape(24.dp)))
+                    Text("초록: 대중교통 · 회색: 도보 · 연한 선: 추정 구간",Modifier.padding(8.dp),fontSize=11.sp,color=Muted)
+                } }
+                item { Column(Modifier.padding(horizontal=18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Text("오늘의 동선",fontSize=20.sp,fontWeight=FontWeight.ExtraBold)
+                    JourneyTimeline(course,model.repository,images=true,onPlace={selected=it})
+                } }
             }
-        }
-    }
-}
-@Composable internal fun PlaceInfo(stop:MapStop,repository:TravelRepository,course:Course) {
-    val context=LocalContext.current
-    Surface(shape=cardShape,color=Color.White,modifier=Modifier.padding(horizontal=18.dp,vertical=8.dp).fillMaxWidth().testTag("map-place-info")) {
-        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            stop.place?.imageUrl?.let { Photo(repository.imageUrl(it),stop.name,Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(16.dp)).testTag("map-place-photo")) }
-            Text(stop.name,fontSize=18.sp,fontWeight=FontWeight.Bold)
-            Text(stop.place?.address ?: course.origin?.address.orEmpty(),fontSize=12.sp,color=Muted)
-            stop.place?.description?.takeIf{it.isNotBlank()}?.let { Text(it,fontSize=13.sp,color=Muted,maxLines=4,overflow=TextOverflow.Ellipsis) }
-            course.directionsTo(stop)?.let { directions->
-                TextButton(onClick={
-                    val app=Intent(Intent.ACTION_VIEW,Uri.parse(directions.appUrl())).setPackage("net.daum.android.map")
-                    runCatching{context.startActivity(app)}.recoverCatching{
-                        context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(directions.webUrl())))
-                    }.onFailure{android.widget.Toast.makeText(context,"카카오맵 또는 브라우저를 열 수 없어요.",android.widget.Toast.LENGTH_SHORT).show()}
-                },modifier=Modifier.testTag("kakao-directions")) { Text("카카오맵에서 길찾기");Icon(PilotIcons.Open,null,Modifier.padding(start=6.dp).size(16.dp)) }
+            selected?.let{stop->
+                AppDialog(onDismissRequest={selected=null},title={Text(stop.name)},text={
+                    Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                        stop.place?.imageUrl?.let{Photo(model.repository.imageUrl(it),stop.name,Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(16.dp)),contentScale=ContentScale.Crop)}
+                        Text(stop.place?.address ?: if(stop.index<0)course.accessTrip?.origin?.address.orEmpty() else course.origin?.address.orEmpty(),fontSize=13.sp,color=Muted)
+                        stop.place?.let{Text("${it.arrival} · 머무는 시간 ${it.stayMinutes}분",fontSize=13.sp);if(it.description.isNotBlank())Text(it.description,fontSize=13.sp)}
+                    }
+                },confirmButton={TextButton({selected=null}){Text("확인")}})
             }
         }
     }

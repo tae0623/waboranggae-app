@@ -73,7 +73,7 @@ import kr.co.waboranggae.nativepilot.data.*
             }
         }
         visiblePlaces.drop(3).forEach { place -> item { Box(Modifier.padding(start=20.dp,end=20.dp,top=10.dp)){HotCard(place,model,2)} } }
-        item { SourceFooter("출처: ⓒ한국관광공사(관광정보·사진)\n배경 사진: Unsplash",Modifier.padding(horizontal=20.dp)) }
+        item { Spacer(Modifier.height(24.dp)) }
     }
     if(notifications) AppDialog(onDismissRequest={notifications=false},confirmButton={TextButton({notifications=false}){Text("확인")}},
         title={Text("알림 안내")},text={Text("푸시 알림은 아직 제공하지 않습니다. 여행 정보는 앱에서 직접 확인해 주세요.")})
@@ -118,24 +118,52 @@ private fun hotMetric(p:HotPlace)=if(p.source=="festival" || p.category=="축제
 }
 @Composable fun WebHotDetail(state:TravelUiState,model:TravelViewModel) {
     val p=state.selectedHotPlace ?: return
-    LazyColumn(Modifier.fillMaxSize().testTag("hot-place-detail")) {
-        item {
-            Box(Modifier.fillMaxWidth().height(280.dp)) {
-                Photo(model.repository.imageUrl(p.img),p.name,Modifier.fillMaxSize())
-                Surface(onClick=model::back,color=Color.White.copy(alpha=.95f),shape=RoundedCornerShape(100.dp),modifier=Modifier.padding(20.dp)) { Box(Modifier.size(40.dp),contentAlignment=Alignment.Center){Text("‹",fontSize=30.sp)} }
+    val isEvent=p.source=="festival" || p.category=="축제·행사"
+    val related=state.hotPlaces.filter{it.id!=p.id && it.visibleOnHome(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")))}
+        .sortedByDescending{it.city==p.city || it.category==p.category}.take(2)
+    key(p.id) {
+        LazyColumn(Modifier.fillMaxSize().testTag("hot-place-detail"),contentPadding=PaddingValues(bottom=28.dp)) {
+            item {
+                Box(Modifier.fillMaxWidth().height(340.dp)) {
+                    Photo(model.repository.imageUrl(p.img),p.name,Modifier.fillMaxSize(),contentScale=androidx.compose.ui.layout.ContentScale.Crop)
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha=.06f),Color.Transparent,Color.Black.copy(alpha=.8f)))))
+                    Surface(onClick=model::back,color=Color.White.copy(alpha=.95f),shape=RoundedCornerShape(100.dp),modifier=Modifier.padding(20.dp)) {
+                        Box(Modifier.size(42.dp),contentAlignment=Alignment.Center){Icon(PilotIcons.Back,"뒤로",Modifier.size(22.dp))}
+                    }
+                    Column(Modifier.align(Alignment.BottomStart).padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                        HotBadge(p)
+                        Text("${p.city} · ${p.category}",fontSize=13.sp,color=Color.White.copy(alpha=.8f))
+                        Text(p.name,fontSize=28.sp,lineHeight=34.sp,fontWeight=FontWeight.Black,color=Color.White)
+                    }
+                }
             }
+            item { Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+                Surface(color=Color.White,shape=RoundedCornerShape(24.dp),shadowElevation=2.dp) {
+                    Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Text("여행 포인트",fontSize=18.sp,fontWeight=FontWeight.ExtraBold)
+                        Text(p.story ?: p.desc,fontSize=14.sp,lineHeight=24.sp,color=Muted)
+                        FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            p.tags.forEach{tag->Surface(color=Soft,shape=RoundedCornerShape(100.dp)){Text("# $tag",Modifier.padding(horizontal=10.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}}
+                        }
+                    }
+                }
+                listOf("기간" to (if(isEvent)p.periodLabel ?: p.periodShort else "상시개장"),
+                    "장소" to (p.eventPlace ?: p.address),"운영 시간" to p.hours,"입장료" to p.fee,"문의" to p.tel,"주최" to p.sponsor)
+                    .filter{!it.second.isNullOrBlank()}.forEach { (label,value)->
+                        Surface(color=Color.White,shape=RoundedCornerShape(18.dp),modifier=Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                                Text(label,Modifier.width(64.dp),fontSize=12.sp,color=WebMuted)
+                                Text(value.orEmpty(),Modifier.weight(1f),fontSize=14.sp,fontWeight=FontWeight.Medium)
+                            }
+                        }
+                    }
+                WebAction("이 장소 포함해 코스 만들기",{model.planFromHotPlace(p)},Modifier.testTag("hot-place-plan"),enabled=p.tourContentId()!=null)
+                if(p.tourContentId()==null)Text("장소 정보를 확인한 후 코스를 만들 수 있어요.",fontSize=12.sp,color=Muted)
+                if(related.isNotEmpty()) {
+                    Text("이런 곳도 있어요",fontSize=20.sp,fontWeight=FontWeight.ExtraBold)
+                    related.forEach{HotCard(it,model,2)}
+                }
+            } }
         }
-        item { Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-            HotBadge(p);Text(p.name,fontSize=26.sp,fontWeight=FontWeight.Black)
-            Text("${p.city} · ${p.category}",fontSize=13.sp,color=Muted)
-            Text(p.story ?: p.desc,fontSize=14.sp,lineHeight=24.sp)
-            listOf("기간" to p.periodLabel,"장소" to (p.eventPlace ?: p.address),"운영 시간" to p.hours,"입장료" to p.fee,"문의" to p.tel,"주최" to p.sponsor).filter{!it.second.isNullOrBlank()}.forEach { (label,value)->
-                Surface(color=Color.White,shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text(label,fontSize=11.sp,color=WebMuted);Text(value.orEmpty(),fontSize=14.sp) } }
-            }
-            WebAction("이 장소 포함해 코스 만들기",{model.planFromHotPlace(p)},Modifier.testTag("hot-place-plan"),enabled=p.tourContentId()!=null)
-            if(p.tourContentId()==null)Text("장소 정보를 확인한 후 코스를 만들 수 있어요.",fontSize=12.sp,color=Muted)
-            SourceFooter("출처: ⓒ한국관광공사(관광정보) · 사진: ${p.imageCredit ?: "ⓒ한국관광공사"}")
-            p.metricNote?.let{note->var expanded by remember{mutableStateOf(false)};TextButton({expanded=!expanded}){Text("지표 기준")};if(expanded)Text(note,fontSize=12.sp,color=Muted)}
-        } }
     }
 }

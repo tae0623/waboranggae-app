@@ -55,7 +55,8 @@ fun HotPlace.travelDateError(date:String):String? {
     val fromName: String, val toName: String, val source: String, val instruction: String = "",
     val totalMinutes: Int = 0, val transitMinutes:Int=0, val geometry: List<Coordinate> = emptyList(),val steps:List<TransitStep> = emptyList()
 )
-@Serializable data class TransitStep(val mode:String,val label:String,val minutes:Int,val route:String?=null,val fromStop:String?=null,val toStop:String?=null)
+@Serializable data class TransitStep(val mode:String,val label:String,val minutes:Int,val route:String?=null,val fromStop:String?=null,val toStop:String?=null,val geometry:List<Coordinate> = emptyList(),val stops:List<String> = emptyList(),val routes:List<String> = emptyList())
+@Serializable data class ScoreFacts(val transferCount:Int=0,val stayRatio:Double=0.0,val averageStopDistanceMeters:Double?=null)
 @Serializable data class Reason(val headline: String = "", val summary: String = "", val source: String = "rules", val evidence:List<String> = emptyList())
 @Serializable data class ScoreParts(val transitAccess:Double=0.0,val walkingEase:Double=0.0,val nearbyLinks:Double=0.0)
 @Serializable data class WalkingParts(val walk:Double,val transit:Double,val time:Double,val transfer:Double,val distance:Double,val efficiency:Double)
@@ -74,7 +75,7 @@ fun HotPlace.travelDateError(date:String):String? {
     val constraintPassed: Boolean = false, val validationNotes: List<String> = emptyList(),
     val constraintViolations:List<String> = emptyList(),val timeBreakdown:CourseTimeBreakdown?=null,
     val routingCheckedAt:String?=null,val timeBudgetMode:String?=null,val accessTrip:AccessTrip?=null,
-    val unclassifiedMinutes:Int=0
+    val unclassifiedMinutes:Int=0,val scoreFacts:ScoreFacts?=null
 ) {
     fun movementSummary() = "${if(unclassifiedMinutes>0)"확인된 " else ""}도보 ${walkMinutes}분 · 대중교통 ${(transitMinutes-unclassifiedMinutes).coerceAtLeast(0)}분" +
         if(unclassifiedMinutes>0)" · 이동·대기 ${unclassifiedMinutes}분 미분류" else ""
@@ -103,7 +104,7 @@ fun HotPlace.travelDateError(date:String):String? {
 data class TravelForm(
     val limitEndTime:Boolean=false,
     val requiredPlace:HotPlace?=null,
-    val city: String = "순천", val startType: String = "custom",
+    val city: String = "", val startType: String = "custom",
     val query: String = "", val departure: PlaceSuggestion? = null,
     val date: String = LocalDate.now().toString(), val startTime: String = "10:00",
     val hours: Int = 6, val meal: String = "auto", val pace: String = "balanced",
@@ -112,9 +113,16 @@ data class TravelForm(
     val transitModes:Set<String> = linkedSetOf("bus"),
     val endDate:String?=null,val endTime:String="16:00",val meals:Set<String>?=null,val lodging:PlaceSuggestion?=null
 ) {
-    fun forCurrentApp():TravelForm = copy(endDate=null,lodging=null,companion="혼자",
+    fun forCurrentApp():TravelForm = copy(lodging=null,companion="혼자",
         interests=(interests-"photo").ifEmpty{if("photo" in interests)setOf("nature")else emptySet()})
-    fun tripMinutes():Long = Duration.between(LocalDateTime.of(LocalDate.parse(date),LocalTime.parse(startTime)),LocalDateTime.of(LocalDate.parse(endDate?:date),LocalTime.parse(endTime))).toMinutes()
+    fun tripDates():List<String> = runCatching{val first=LocalDate.parse(date);val last=LocalDate.parse(endDate?:date);val count=java.time.temporal.ChronoUnit.DAYS.between(first,last)+1;require(count in 1..7);(0 until count).map{first.plusDays(it).toString()}}.getOrDefault(emptyList())
+    fun forDay(day:String,localOrigin:Origin?):TravelForm {
+        require(day in tripDates()){"여행 기간 밖의 날짜입니다."}
+        if(day==date)return copy(endDate=null)
+        val origin=requireNotNull(localOrigin){"첫날 코스를 먼저 추천받아 주세요."}
+        return copy(date=day,endDate=null,requiredPlace=null,query=origin.name,startType="custom",departure=PlaceSuggestion("day-origin",origin.name,origin.address,origin.latitude,origin.longitude))
+    }
+    fun tripMinutes():Long = Duration.between(LocalDateTime.of(LocalDate.parse(date),LocalTime.parse(startTime)),LocalDateTime.of(LocalDate.parse(date),LocalTime.parse(endTime))).toMinutes()
     fun totalHours()=tripMinutes()/60.0
     fun durationLabel():String { val minutes=tripMinutes();return listOfNotNull((minutes/60).takeIf{it>0}?.let{"${it}시간"},(minutes%60).takeIf{it>0}?.let{"${it}분"}).joinToString(" ") }
     fun availableMeals():Set<String> = runCatching {
@@ -135,7 +143,7 @@ data class TravelForm(
         return copy(meals=next,meal=if(next.isEmpty())"none" else "auto")
     }
     fun validationError(): String? = when {
-        endDate!=null && endDate!=date -> "당일 여행의 시작·종료 시간을 선택해 주세요."
+        tripDates().isEmpty() -> "여행 기간은 시작일부터 최대 7일로 선택해 주세요."
         city.isBlank() -> "여행 지역을 선택해 주세요."
         requiredPlace!=null && requiredPlace.tourContentId()==null -> "꼭 가볼 곳을 다시 선택해 주세요."
         requiredPlace!=null && requiredPlace.city!=city -> "꼭 가볼 곳과 여행 지역을 확인해 주세요."
@@ -144,6 +152,7 @@ data class TravelForm(
         forCurrentApp().interests.isEmpty() -> "하고 싶은 일을 하나 이상 선택해 주세요."
         transitModes.isEmpty() -> "이용할 교통수단을 하나 이상 선택해 주세요."
         runCatching { LocalDate.parse(date) }.isFailure -> "날짜를 다시 선택해 주세요."
+        LocalDate.parse(date).isBefore(LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))) -> "오늘 이후의 여행 날짜를 선택해 주세요."
         runCatching { LocalTime.parse(startTime) }.isFailure -> "출발 시간을 다시 선택해 주세요."
         limitEndTime && runCatching{tripMinutes()}.isFailure -> "종료 시간을 확인해 주세요."
         limitEndTime && tripMinutes() !in 60..1439 -> "같은 날에 시작보다 1시간 이상 늦게 끝나도록 선택해 주세요."

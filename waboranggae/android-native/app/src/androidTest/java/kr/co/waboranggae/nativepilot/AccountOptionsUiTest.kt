@@ -51,7 +51,7 @@ class AccountOptionsUiTest {
   ui.waitUntil(5000){repo.options.autoLogin}
   ui.onNodeWithText("사진 제공",substring=true).assertDoesNotExist()
   ui.waitUntil(25000){ui.onAllNodesWithTag("login-photo-loaded",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
-  ui.onNodeWithTag("login-photo-credit").performScrollTo().assertTextEquals("배경 사진: Unsplash")
+  ui.onNodeWithTag("login-photo-credit").assertDoesNotExist()
   ui.onNodeWithTag("official-kakao-logo",useUnmergedTree=true).performScrollTo().assertExists()
   ui.onNodeWithTag("official-google-logo",useUnmergedTree=true).performScrollTo().assertExists()
   Assert.assertTrue(ui.activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE !=0)
@@ -137,26 +137,14 @@ class AccountOptionsUiTest {
   ui.onNodeWithTag("logout-current").performScrollTo().assertTextContains("로그아웃",substring=true).performClick()
   ui.waitUntil(5000){repo.loggedOut}
  }
- @Test fun directionsButtonLaunchesExplicitCourseEndpoints(){
+ @Test fun embeddedJourneyShowsEndpointsWithoutLaunchingKakao(){
   val repo=Repo()
   val course=Course("c","순천","검증",durationHours=2.0,walkMinutes=15,transitMinutes=0,
    origin=Origin("공개 터미널","",34.95,127.49),
    places=listOf(Place("a","공개 관광지","nature",latitude=34.96,longitude=127.50)),
-   routeSegments=listOf(RouteSegment("공개 터미널","공개 관광지","kakao")))
-  ui.setContent{WaboranggaeTheme{PlaceInfo(course.mapStops()[1],repo,course)}}
-  var launched:Intent?=null
-  val monitor=object:Instrumentation.ActivityMonitor(){
-   override fun onStartActivity(intent:Intent):Instrumentation.ActivityResult?{
-    launched=intent;return Instrumentation.ActivityResult(0,null)
-   }
-  }
-  val instrumentation=InstrumentationRegistry.getInstrumentation();instrumentation.addMonitor(monitor)
-  try {
-   ui.onNodeWithText("카카오맵에서 장소 확인").assertDoesNotExist()
-   ui.onNodeWithTag("kakao-directions").performClick()
-   ui.waitUntil(5000){launched!=null}
-   Assert.assertEquals("net.daum.android.map",launched!!.getPackage())
-   Assert.assertEquals("kakaomap://route?sp=34.95,127.49&ep=34.96,127.5&by=foot",launched!!.data.toString())
-  }finally{instrumentation.removeMonitor(monitor)}
+   routeSegments=listOf(RouteSegment("공개 터미널","공개 관광지","kakao",steps=listOf(TransitStep("walk","관광지까지 도보",15)))))
+  ui.setContent{WaboranggaeTheme{JourneyTimeline(course,repo)}}
+  ui.onNodeWithText("공개 터미널").assertExists();ui.onNodeWithText("공개 관광지").assertExists()
+  ui.onNodeWithText("관광지까지 도보").assertExists();ui.onNodeWithTag("kakao-directions").assertDoesNotExist()
  }
 }

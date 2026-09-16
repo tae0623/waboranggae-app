@@ -66,12 +66,11 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
     val context=LocalContext.current
     // Authentication fields are not captured by screenshots/recents or state restoration.
     DisposableEffect(Unit){val window=(context as? Activity)?.window;window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE);onDispose{window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)}}
-    var photoReady by remember{mutableStateOf(false)}
     var signup by remember{mutableStateOf(false)}
     var email by remember{mutableStateOf(state.savedEmail)};var password by remember{mutableStateOf("")};var name by remember{mutableStateOf("")}
     var consent by remember{mutableStateOf(false)};var legal by remember{mutableStateOf(false)}
     Box(Modifier.fillMaxSize().background(Color(0xFF14532D)).testTag("login-page")) {
-        LoginScenery(Modifier.fillMaxSize()){photoReady=it}
+        LoginScenery(Modifier.fillMaxSize()){}
         Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             Spacer(Modifier.height(20.dp))
             Text("뚜버기",color=Color.White,fontSize=34.sp,fontWeight=FontWeight.Black)
@@ -115,12 +114,13 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
                         if(!enabled && !state.providersLoading && state.providersError==null)Text(provider?.text("reason")?.takeIf{it.isNotBlank()}?:"서버의 로그인 설정을 확인해 주세요.",fontSize=11.sp,color=Muted)
                     }
             }
-            if(photoReady)Text("배경 사진: Unsplash",fontSize=11.sp,color=Color.White.copy(alpha=.8f),modifier=Modifier.align(Alignment.CenterHorizontally).padding(top=4.dp,bottom=8.dp).testTag("login-photo-credit"))
         }
     }
     if(legal)PrivacyInfo{legal=false}
 }
 @Composable fun MyTravel(state:AccountState,account:AccountViewModel,model:TravelViewModel) {
+    var appInfo by remember{mutableStateOf(false)}
+    val travel by model.state.collectAsState()
     var legal by remember{mutableStateOf(false)};var delete by remember{mutableStateOf(false)}
     var clearHistory by remember{mutableStateOf(false)};var name by remember(state.user){mutableStateOf(state.user?.text("displayName").orEmpty())}
     LaunchedEffect(state.user?.text("id")){account.load()}
@@ -159,9 +159,24 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
             TextButton({delete=true},enabled=!state.busy){Text("계정 삭제",color=MaterialTheme.colorScheme.error)}
         }
         LocationPreferenceButton()
+        Surface(onClick={appInfo=true},color=Color.White,shape=RoundedCornerShape(18.dp),modifier=Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically) {
+                BrandMark(Modifier.size(32.dp));Text("앱 정보",Modifier.weight(1f).padding(start=12.dp),fontWeight=FontWeight.Bold);Text("›",fontSize=22.sp)
+            }
+        }
         TextButton({legal=true}){Text("개인정보·데이터·오픈소스 안내")}
     }
     if(legal)PrivacyInfo{legal=false}
     if(delete)AppDialog(onDismissRequest={delete=false},title={Text("계정을 영구 삭제할까요?")},text={Text("계정·북마크·여행 이력·앱 내 소셜 연결 정보를 삭제하며 복구할 수 없습니다. 카카오·구글 계정 자체는 삭제하지 않습니다.")},confirmButton={TextButton({delete=false;account.deleteAccount()}){Text("영구 삭제")}},dismissButton={TextButton({delete=false}){Text("취소")}})
     if(clearHistory)AppDialog(onDismissRequest={clearHistory=false},title={Text("저장한 여행 조건을 모두 삭제할까요?")},text={Text("이 계정의 여행 이력만 삭제합니다. 복구할 수 없습니다.")},confirmButton={TextButton({clearHistory=false;account.removeHistory(null)}){Text("삭제")}},dismissButton={TextButton({clearHistory=false}){Text("취소")}})
+    if(appInfo)AppDialog(onDismissRequest={appInfo=false},title={Text("뚜버기 · 앱 정보")},text={
+        Column(verticalArrangement=Arrangement.spacedBy(14.dp)) {
+            Text(OPERATOR_NAME,fontWeight=FontWeight.Bold);Text("waboranggae.help@gmail.com",fontSize=13.sp)
+            Text("관광정보·관광사진·지역 수요: 한국관광공사 TourAPI · 포토코리아 · 한국관광 데이터랩\n장소·지도·길찾기: 카카오\n날씨: 기상청\n버스 정보: 공공데이터포털",fontSize=13.sp,lineHeight=22.sp)
+            Text("홈·로그인 배경 사진: Unsplash\n글꼴: Pretendard (SIL OFL 1.1)\n아이콘: 앱 제작 자산 · 소셜 로그인 로고: 각 제공사",fontSize=13.sp,lineHeight=22.sp)
+            val credits=travel.hotPlaces.filter{!it.imageCredit.isNullOrBlank()}.distinctBy{it.name to it.imageCredit}
+            if(credits.isNotEmpty()){Text("여행 소식 사진",fontWeight=FontWeight.Bold);credits.forEach{Text("${it.name} · ${it.imageCredit}",fontSize=12.sp,color=Muted)}}
+            TextButton({appInfo=false;legal=true}){Text("전체 출처·이용 조건 및 개인정보 안내")}
+        }
+    },confirmButton={TextButton({appInfo=false}){Text("닫기")}})
 }

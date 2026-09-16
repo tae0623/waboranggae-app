@@ -54,7 +54,7 @@ async function reserveQuota() {
 }
 
 export async function kakaoRequest(endpoint: string, params: Record<string, string>): Promise<unknown | null> {
-  if (!['/v2/local/search/keyword.json', '/v2/local/search/address.json', '/v2/routing/walk', '/v2/routing/publictraffic'].includes(endpoint)) return null;
+  if (!['/v2/local/search/keyword.json', '/v2/local/search/address.json', '/v2/local/geo/coord2address.json', '/v2/routing/walk', '/v2/routing/publictraffic'].includes(endpoint)) return null;
   if (!apiKey() || !kakaoStatus().freeTierConfirmed) return null;
   const url = new URL(endpoint, 'https://dapi.kakao.com');
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
@@ -108,13 +108,16 @@ export function parseKakaoRoute(payload: unknown, from: RoutingPoint, to: Routin
     label: step.properties?.guidance || (mode === 'walk' ? '도보 이동' : '구간 이동'),
     route: step.properties?.vehicles?.[0]?.name,
     fromStop: step.properties?.stops?.[0]?.name, toStop: step.properties?.stops?.at(-1)?.name,
+    geometry: (step.path?.points || []).filter(p=>p.length>=2&&p.every(Number.isFinite)&&Math.abs(p[0]!)<=180&&Math.abs(p[1]!)<=90).map(p=>({longitude:p[0]!,latitude:p[1]!})),
+    stops: step.properties?.stops?.flatMap(s=>s.name?[s.name]:[]) || [],
+    routes: step.properties?.vehicles?.flatMap(v=>v.name?[v.name]:[]) || [],
   }));
   // Live responses can contain only BUS steps while totalTime includes extra time.
   // Keep the provider total, but do not claim the residual is all riding or walking.
   const unclassifiedMinutes = mode === 'transit'
     ? Math.max(0, totalMinutes - transitSteps.reduce((sum, step) => sum + step.minutes, 0)) : 0;
   if(unclassifiedMinutes)transitSteps.push({mode:'other',minutes:unclassifiedMinutes,
-    label:`추가 이동·대기 ${unclassifiedMinutes}분 (세부 구분 미제공)`,route:undefined,fromStop:undefined,toStop:undefined});
+    label:`추가 이동·대기 ${unclassifiedMinutes}분 (세부 구분 미제공)`,route:undefined,fromStop:undefined,toStop:undefined,geometry:[],stops:[],routes:[]});
   return {
     fromName: from.name, toName: to.name, source: 'kakao',
     distanceKm: Math.round(meters / 100) / 10, totalMinutes, walkMinutes,

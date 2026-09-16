@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.sp
 import kr.co.waboranggae.nativepilot.data.*
 
 /** Only explicit search/selection data enters Kakao. Never use device-sorted candidates here. */
-@Composable fun DepartureSearchMap(selected:PlaceSuggestion?, accuracyResults:List<PlaceSuggestion>) {
+@Composable fun DepartureSearchMap(selected:PlaceSuggestion?, accuracyResults:List<PlaceSuggestion>,onPoint:(Coordinate,String?)->Unit) {
     val place=selected?:accuracyResults.firstOrNull()
     val frame=Modifier.fillMaxWidth().padding(top=18.dp).height(220.dp).clip(RoundedCornerShape(20.dp))
     if(place==null) {
@@ -28,6 +28,6 @@ import kr.co.waboranggae.nativepilot.data.*
         origin=Origin(place.name,place.address,place.latitude,place.longitude)) }
     val stop=preview.mapStops().first()
     Box(frame.testTag("departure-search-map")) {
-        NativeCourseMap(preview,stop,{},Modifier.fillMaxSize())
+        NativeCourseMap(preview,stop,{onPoint(it.coordinate,it.name)},Modifier.fillMaxSize(),onMapPoint=onPoint)
     }
 }

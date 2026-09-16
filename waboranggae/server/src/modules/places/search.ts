@@ -55,6 +55,17 @@ type KakaoAddressDoc = {
 
 export class PlaceSearchUnavailable extends Error {}
 
+/** Explicitly tapped map points only; device/GPS coordinates never enter this flow. */
+export async function resolveMapPoint(latitude:number,longitude:number,name?:string):Promise<PlaceSuggestion|null> {
+  const payload=await kakaoGet('/v2/local/geo/coord2address.json',{x:String(longitude),y:String(latitude),input_coord:'WGS84'});
+  const docs=Array.isArray(payload.documents)?payload.documents:[];
+  const doc=docs[0] as {address?:{address_name?:string};road_address?:{address_name?:string;building_name?:string}}|undefined;
+  const address=doc?.road_address?.address_name || doc?.address?.address_name;
+  if(!address)return null;
+  return {id:`map:${latitude.toFixed(6)},${longitude.toFixed(6)}`,name:name?.trim()||doc?.road_address?.building_name||address,
+    address,latitude,longitude,source:'kakao-address',category:name?'장소':'지도에서 선택한 위치',city:cityFromAddress(address)};
+}
+
 async function kakaoGet(path: string, params: Record<string, string>) {
   const payload=await kakaoRequest(path, params);
   if(!payload)throw new PlaceSearchUnavailable('PLACE_SEARCH_UNAVAILABLE');

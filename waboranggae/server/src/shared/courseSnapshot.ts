@@ -6,7 +6,8 @@ const text = z.string().max(3000);
 const score = z.number().min(0).max(100);
 const metrics = z.object({ transitAccess: score, walkingEase: score, nearbyLinks: score });
 const point = z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) });
-const step = z.object({ mode: z.enum(['walk','bus','subway','train','expressbus','ferry','other']), label: text, minutes: z.number().nonnegative(), route: text.optional(), fromStop: text.optional(), toStop: text.optional() });
+const step = z.object({ mode: z.enum(['walk','bus','subway','train','expressbus','ferry','other']), label: text, minutes: z.number().nonnegative(), route: text.optional(), fromStop: text.optional(), toStop: text.optional(),
+  geometry: z.array(point).max(3000).optional(), stops: z.array(text).max(300).optional(), routes: z.array(text).max(30).optional() });
 
 // Saved snapshots are user data, not trusted proof that a route was validated.
 // Validate fields used by the UI; preserve additional recommendation metadata.

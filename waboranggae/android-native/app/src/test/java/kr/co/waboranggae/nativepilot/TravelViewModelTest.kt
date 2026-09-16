@@ -18,6 +18,7 @@ class TravelViewModelTest {
     private class FakeRepository:TravelRepository {
         val place=PlaceSuggestion("p","순천종합버스터미널","전남 순천",34.94,127.49)
         var requests=0
+        val requestedPreferences=mutableListOf<Preferences>()
         var failure=false
         val searches=mutableListOf<String>()
         val weatherPaths=mutableListOf<String>()
@@ -34,6 +35,7 @@ class TravelViewModelTest {
         override suspend fun search(query:String):List<PlaceSuggestion>{searches.add(query);return listOf(place)}
         override suspend fun recommend(preferences:Preferences):RecommendPayload {
             requests++
+            requestedPreferences.add(preferences)
             if(failure) throw ApiFailure("네트워크 오류")
             return Json{ignoreUnknownKeys=true}.decodeFromString(javaClass.getResourceAsStream("/recommend-response.json")!!.bufferedReader().use{it.readText()})
         }
@@ -66,7 +68,7 @@ class TravelViewModelTest {
         assertEquals("custom",vm.state.value.form.startType);assertEquals(address.name,vm.state.value.form.query)
     }
     @Test fun failingConstraintsStillAllowMapPreviewButNotClaimingCompliance()=runTest {
-        val repo=FakeRepository();val vm=TravelViewModel(repo);vm.chooseDeparture(repo.place);vm.recommend();advanceUntilIdle()
+        val repo=FakeRepository();val vm=TravelViewModel(repo);vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.recommend();advanceUntilIdle()
         val course=vm.state.value.courses.first().copy(constraintPassed=false,constraintViolations=listOf("식사 시간이 맞지 않습니다."))
         assertTrue(course.canPreviewRoute());assertFalse(course.constraintPassed)
         assertFalse(course.copy(origin=null).canPreviewRoute())
@@ -75,28 +77,28 @@ class TravelViewModelTest {
     }
     @Test fun cityChangeInvalidatesDeparture()=runTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.changeCity("담양")
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.changeCity("담양")
         assertNull(vm.state.value.form.departure)
         assertEquals("",vm.state.value.form.query)
         advanceUntilIdle()
     }
     @Test fun selectingCourseTwoUpdatesMapById()=runTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.recommend();advanceUntilIdle()
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.recommend();advanceUntilIdle()
         val second=vm.state.value.courses[1]
-        vm.selectCourse(second.id,true)
-        assertEquals(second,vm.state.value.selectedCourse)
+        vm.confirmTravel(second.id)
+        assertEquals(second,vm.state.value.confirmedCourse)
         assertEquals(Page.MAP,vm.state.value.page)
         vm.back();assertEquals(Page.DETAIL,vm.state.value.page)
     }
     @Test fun repeatedClicksDoNotDuplicateRequest()=runTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.recommend();vm.recommend();advanceUntilIdle()
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.recommend();vm.recommend();advanceUntilIdle()
         assertEquals(1,repo.requests)
     }
     @Test fun failedRequestKeepsFormAndAllowsRetry()=runTest {
         val repo=FakeRepository().apply{failure=true};val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.navigate(Page.CONDITIONS);vm.recommend();advanceUntilIdle()
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.navigate(Page.CONDITIONS);vm.recommend();advanceUntilIdle()
         assertFalse(vm.state.value.loading);assertNotNull(vm.state.value.error)
         assertEquals(repo.place,vm.state.value.form.departure)
         repo.failure=false;vm.recommend();advanceUntilIdle()
@@ -104,7 +106,7 @@ class TravelViewModelTest {
     }
     @Test fun cancelReleasesLoadingWithoutNavigation()=runTest {
         val vm=TravelViewModel(FakeRepository())
-        vm.chooseDeparture(PlaceSuggestion("p","터미널","전남",34.94,127.49))
+        vm.chooseDeparture(PlaceSuggestion("p","터미널","전남",34.94,127.49));vm.chooseDestination("순천")
         vm.navigate(Page.CONDITIONS);vm.recommend();vm.cancelRecommendation();advanceUntilIdle()
         assertFalse(vm.state.value.loading);assertEquals(Page.CONDITIONS,vm.state.value.page)
     }
@@ -112,7 +114,7 @@ class TravelViewModelTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
         vm.navigate(Page.CONDITIONS);vm.nextWizardStep()
         assertEquals(1,vm.state.value.wizardStep);assertNotNull(vm.state.value.error)
-        vm.chooseDeparture(repo.place);vm.nextWizardStep();vm.chooseDestination("담양")
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.nextWizardStep();vm.chooseDestination("담양")
         assertEquals(repo.place,vm.state.value.form.departure)
         repeat(2){vm.nextWizardStep()};assertEquals(4,vm.state.value.wizardStep)
         vm.back();assertEquals(3,vm.state.value.wizardStep)
@@ -121,7 +123,7 @@ class TravelViewModelTest {
     }
     @Test fun emptyFutureChoicesDoNotHideInvalidTimeAtStepTwo()=runTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.nextWizardStep()
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.nextWizardStep()
         vm.updateForm{it.copy(startTime="22:00",limitEndTime=true,interests=emptySet(),transitModes=emptySet())}
         vm.nextWizardStep()
         assertEquals(2,vm.state.value.wizardStep);assertNotNull(vm.state.value.error)
@@ -141,29 +143,43 @@ class TravelViewModelTest {
     }
     @Test fun forecastUsesTripDateAndDestinationInsteadOfTodayOrOrigin()=runTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.updateForm{it.copy(date="2026-09-18",startTime="10:00",hours=6)}
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2026-09-18",startTime="10:00",hours=6)}
         vm.recommend();advanceUntilIdle()
         val course=vm.state.value.courses.first();val point=course.places.firstNotNullOf{it.coordinate()}
-        vm.openDetails(course.id);advanceUntilIdle()
+        vm.openDetails(course.id);advanceUntilIdle();assertTrue(repo.weatherPaths.isEmpty())
+        vm.confirmTravel(course.id);advanceUntilIdle()
         assertEquals("/api/weather/forecast?lat=${point.latitude}&lng=${point.longitude}&date=2026-09-18&startTime=10:00&endTime=16:00",repo.weatherPaths.single())
         assertEquals("2026-09-18",vm.state.value.weather?.get("requestedDate")?.jsonPrimitive?.content)
         assertFalse(vm.state.value.weatherLoading)
     }
-    @Test fun removedMultiDayOptionUsesOnlySelectedDaysClockWindow()=runTest {
+    @Test fun multipleDaysKeepRangeButApiRequestsOneDay()=runTest {
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.updateForm{it.copy(date="2026-09-18",endDate="2026-09-20",startTime="10:00",endTime="15:00")}
-        assertNull(vm.state.value.form.endDate)
-        vm.recommend();advanceUntilIdle();vm.openDetails(vm.state.value.courses.first().id);advanceUntilIdle()
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2026-09-18",endDate="2026-09-20",startTime="10:00",endTime="15:00")}
+        assertEquals("2026-09-20",vm.state.value.form.endDate)
+        vm.recommend();advanceUntilIdle();vm.confirmTravel(vm.state.value.courses.first().id);advanceUntilIdle()
         assertTrue(repo.weatherPaths.single().endsWith("date=2026-09-18&startTime=10:00&endTime=16:00"))
         assertEquals("2026-09-18",vm.state.value.preferences?.travelEndDate)
     }
     @Test fun unpublishedForecastDoesNotSubstituteTodaysWeather()=runTest {
         val repo=FakeRepository().apply{forecastAvailable=false};val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.updateForm{it.copy(date="2099-01-01")};vm.recommend();advanceUntilIdle()
-        vm.openDetails(vm.state.value.courses.first().id);advanceUntilIdle()
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2099-01-01")};vm.recommend();advanceUntilIdle()
+        vm.confirmTravel(vm.state.value.courses.first().id);advanceUntilIdle()
         assertEquals(1,repo.weatherPaths.size)
         assertEquals("2099-01-01",vm.state.value.weatherDate)
         assertFalse(vm.state.value.weather!!["available"]!!.jsonPrimitive.boolean)
         assertFalse(vm.state.value.weatherLoading)
+    }
+    @Test fun nextDayIsLazyIndependentAndCachedAndLogoutClearsIt()=runTest {
+        val repo=FakeRepository();val vm=TravelViewModel(repo)
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2026-10-01",endDate="2026-10-03")}
+        vm.recommend();advanceUntilIdle();assertEquals(1,repo.requests)
+        val local=requireNotNull(vm.state.value.courses.first().origin)
+        vm.confirmTravel(vm.state.value.courses.first().id);advanceUntilIdle();assertNotNull(vm.state.value.confirmedId)
+        vm.selectDay("2026-10-02");advanceUntilIdle()
+        val second=repo.requestedPreferences.last();assertEquals(2,repo.requests)
+        assertEquals("2026-10-02",second.travelDate);assertEquals(second.travelDate,second.travelEndDate)
+        assertEquals(local.name,second.startLocation);assertEquals(local.latitude,second.startLatitude,0.0);assertNull(vm.state.value.confirmedId)
+        vm.selectDay("2026-10-01");advanceUntilIdle();assertEquals(2,repo.requests);assertEquals("2026-10-01",vm.state.value.preferences?.travelDate)
+        vm.clearPersonalTravel();vm.selectDay("2026-10-02");advanceUntilIdle();assertEquals(2,repo.requests);assertTrue(vm.state.value.courses.isEmpty());assertNull(vm.state.value.activeDay)
     }
 }

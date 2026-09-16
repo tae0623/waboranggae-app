@@ -148,7 +148,7 @@ app.use('/auth/social', socialRouter);
 // 공개 API (비로그인 검색/추천 허용)
 app.use('/api', apiLimiter);
 app.use(['/api/analyze', '/api/recommend', '/api/explain', '/api/routes/segment'], generationLimiter);
-app.use('/api/places/search', placeSearchLimiter);
+app.use(['/api/places/search','/api/places/resolve'], placeSearchLimiter);
 app.use('/api', analysisRouter);
 app.use('/api', recommendationRouter);
 app.use('/api', explanationRouter);

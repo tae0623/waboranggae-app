@@ -19,8 +19,8 @@ export function useWeather(course?:RankedCourse, preferences?:TravelPreferences|
     setTip({icon:'🌦️',condition:window.date+' 예보',msg:'예보 확인 중…'});
     api.forecast(window.lat,window.lng,window.date,window.start,window.end).then(result=>{
       if(!active)return;
-      setTip(result.available?{icon:/비|눈|소나기/.test(result.condition)?'🌧️':'🌤️',condition:result.requestedDate+' · '+result.condition,
-        msg:result.minTemperature+'~'+result.maxTemperature+'°C'+(result.maxRainProbability==null?'':' · 강수확률 '+result.maxRainProbability+'%')+' · 기상청 '+result.issuedAt+' 발표',
+      setTip(result.available?{icon:/비|눈|소나기/.test(result.condition)?'🌧️':result.condition.includes('흐림')?'☁️':result.condition==='맑음'?'☀️':'🌤️',condition:result.requestedDate+' · '+result.condition,
+        msg:result.minTemperature+'~'+result.maxTemperature+'°C'+(result.maxRainProbability==null?'':' · 강수확률 '+result.maxRainProbability+'%'),
       }:{icon:'🌦️',condition:result.requestedDate+' 예보',msg:result.reason});
     }).catch(()=>{if(active)setTip({icon:'🌦️',condition:window.date+' 예보',msg:'예보를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.'});});
     return()=>{active=false;};

@@ -356,7 +356,7 @@ function buildCourse(
   const title = suppliedTitle?.trim() || `${preferences.city} ${themeFor(preferences, scheduled.places)} 뚜벅이 코스 ${index + 1}`;
 
   return {
-    id: `planned-${preferences.city}-${index + 1}-${scheduled.places.map((place) => place.id).join('-')}`,
+    id: `planned-${preferences.city}-${preferences.travelDate || 'undated'}-${index + 1}-${scheduled.places.map((place) => place.id).join('-')}`,
     city: preferences.city,
     title,
     subtitle: `${plannerLabel} · 시간표 검증 완료`,

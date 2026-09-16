@@ -300,6 +300,7 @@ export const api = {
     const params = new URLSearchParams({ q });
     return request<{ places: PlaceSuggestion[] }>(`/api/places/search?${params}`, { auth: false, timeoutMs: 12_000 });
   },
+  resolveMapPoint: (latitude:number,longitude:number,name?:string) => request<{place:PlaceSuggestion}>('/api/places/resolve', {method:'POST',body:{selectionSource:'map-tap',latitude,longitude,name},auth:false,timeoutMs:12_000}),
   bookmarks: {
     list: () => request<BookmarkItem[] | { bookmarks: BookmarkItem[] }>('/api/user/bookmarks'),
     add: (data: { courseId: string; courseName: string; city: string; snapshot?: RankedCourse }) =>
