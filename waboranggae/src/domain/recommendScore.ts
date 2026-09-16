@@ -82,7 +82,7 @@ function maxDistanceKm(preferences: TravelPreferences) {
 export function countTransfers(course: Course) {
   if (course.routeSegments?.length) {
     const innerTransfers = course.routeSegments.reduce((sum, segment) => {
-      const rides = (segment.steps || []).filter((step) => step.mode !== 'walk').length;
+      const rides = (segment.steps || []).filter((step) => ['bus','subway','train','expressbus','ferry'].includes(step.mode)).length;
       return sum + Math.max(0, rides - 1);
     }, 0);
     const transitHops = course.routeSegments.filter((segment) => segment.transitMinutes > 0).length;
@@ -124,6 +124,7 @@ export function collectCourseFacts(course: Course): CourseScoreFacts {
   return {
     walkMinutes,
     transitMinutes,
+    unclassifiedMinutes: course.unclassifiedMinutes ?? 0,
     moveMinutes,
     stayMinutes,
     tripMinutes,
@@ -316,7 +317,8 @@ export function walkingScoreBreakdown(
   facts: CourseScoreFacts,
 ): WalkingScoreBreakdown {
   return {
-    walk: walkComponent(facts.walkMinutes, walkingLimit(preferences)),
+    // Missing step detail is not proof of zero walking; score the conservative bound.
+    walk: walkComponent(facts.walkMinutes + (facts.unclassifiedMinutes || 0), walkingLimit(preferences)),
     transit: transitComponent(course, facts, preferences),
     time: moveTimeComponent(facts),
     transfer: transferComponent(facts.transferCount),
@@ -441,10 +443,10 @@ function scoreReason(
 
   return {
     headline: `${preferences.city === course.city ? '취향과 뚜벅이 동선이 맞는' : '조건과 잘 맞는'} ${finalScore}점 코스`,
-    summary: `${interestText} 취향을 반영했고, 총 도보 ${facts.walkMinutes}분 · 환승 ${facts.transferCount}회 · 평균 이동 ${facts.averageMoveMinutes}분으로 구성했어요. ${routeText}`,
+    summary: `${interestText} 취향을 반영했고, ${facts.unclassifiedMinutes?'확인된':'총'} 도보 ${facts.walkMinutes}분${facts.unclassifiedMinutes?` · 이동·대기 세부 미제공 ${facts.unclassifiedMinutes}분`:''} · 환승 ${facts.transferCount}회 · 평균 이동 ${facts.averageMoveMinutes}분으로 구성했어요. ${routeText}`,
     evidence: [
       `취향 적합도 ${scores.preference}점 · 뚜벅이 적합도 ${scores.walking}점`,
-      `총 도보 ${facts.walkMinutes}분 · 환승 ${facts.transferCount}회 · 평균 이동 ${facts.averageMoveMinutes}분`,
+      `${facts.unclassifiedMinutes?'확인된':'총'} 도보 ${facts.walkMinutes}분${facts.unclassifiedMinutes?` · 이동·대기 세부 미제공 ${facts.unclassifiedMinutes}분`:''} · 환승 ${facts.transferCount}회 · 평균 이동 ${facts.averageMoveMinutes}분`,
       facts.averageStopDistanceMeters == null
         ? `이동 효율 ${Math.round(facts.stayRatio * 100)}% · 거리 ${facts.distanceKm}km`
         : `최근접 정류장 평균 ${facts.averageStopDistanceMeters}m · 이동 효율 ${Math.round(facts.stayRatio * 100)}%`,

@@ -10,6 +10,7 @@ import {
 import { distanceKm, projectMapPoints } from '../../utils/geo';
 import { nearbyLinksScore, walkingEaseScore } from '../../../../src/domain/walkability';
 import { placePreferenceScore } from '../../../../src/domain/recommendScore';
+import { placeNameWithoutCity } from '../../utils/placeName';
 import {
   mealWindowsFor,
   tripEndClock,
@@ -295,8 +296,7 @@ function themeFor(preferences: TravelPreferences, places: Place[]) {
 }
 
 function shortPlaceName(name: string, city: string) {
-  const withoutCity = name.replace(new RegExp(`^${city}(?:시)?\\s*`), '').trim() || name.trim();
-  return withoutCity;
+  return placeNameWithoutCity(name, city);
 }
 
 /** 실제 방문 장소와 검증된 테마로 최종 목록에서 서로 구분되는 제목을 만듭니다. */

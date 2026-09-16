@@ -1,4 +1,5 @@
 import { kakaoRequest, kakaoStatus } from '../recommendation/data/kakao';
+import { JEONNAM_CITIES } from '../../../../src/domain/jeonnamCities';
 
 const ADDRESS_HINT = /(?:특별시|광역시|특별자치시|특별자치도|전라남도|전남|경기도|충청|경상|강원|제주|[가-힣]{1,6}(?:시|군|구|읍|면|동|리|로|길))\s*\d/;
 const CACHE_TTL_MS = 10 * 60 * 1_000;
@@ -21,8 +22,11 @@ export function isAddressQuery(query: string) {
   return ADDRESS_HINT.test(trimmed) || /\d{1,4}(?:번지|호)?$/.test(trimmed);
 }
 
-function cityFromAddress(address: string, fallback?: string) {
+export function cityFromAddress(address: string, fallback?: string) {
   const haystack = `${fallback ?? ''} ${address}`;
+  // A province/metro prefix must not hide the actual destination city.
+  const local=JEONNAM_CITIES.find(city=>new RegExp(`(?:^|\\s)${city}(?:시|군)?(?=\\s|$)`).test(haystack));
+  if(local)return local;
   const match = haystack.match(/([가-힣]{1,6}(?:특별시|광역시|특별자치시|시|군))/);
   return match?.[1]?.replace(/특별시$|광역시$|특별자치시$|시$|군$/, '') || fallback?.replace(/시$|군$/, '');
 }

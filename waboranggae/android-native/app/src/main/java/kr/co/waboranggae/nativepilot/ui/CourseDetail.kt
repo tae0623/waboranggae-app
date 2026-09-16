@@ -27,7 +27,7 @@ import kr.co.waboranggae.nativepilot.data.*
         Text("${course.city} · ${course.places.size}곳",color=Muted)
         val photo=course.places.firstOrNull{!it.imageUrl.isNullOrBlank()}
         Photo(model.repository.imageUrl(photo?.imageUrl),course.title,Modifier.fillMaxWidth().height(210.dp),overlayCredit=false)
-        Text("${if(course.timeBudgetMode=="local")"현지 " else ""}${formatHours(course.durationHours)}시간 · 도보 ${course.walkMinutes}분 · 대중교통 ${course.transitMinutes}분",fontWeight=FontWeight.Bold)
+        Text("${if(course.timeBudgetMode=="local")"현지 " else ""}${formatHours(course.durationHours)}시간 · ${course.movementSummary()}",fontWeight=FontWeight.Bold)
         course.accessTrip?.let{access->
             Text("도시 간 이동 · 코스 시간에서 제외",fontWeight=FontWeight.SemiBold,modifier=Modifier.testTag("access-trip"))
             Text("${access.origin.name} → ${access.arrival.name}\n"+(access.segment?.let{"약 ${formatMinutes(it.totalMinutes)} · 대중교통"}?:"소요 시간 확인 필요"),fontSize=13.sp,color=Muted)

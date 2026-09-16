@@ -65,7 +65,7 @@ import java.util.Locale
                             Text(course.title,fontSize=15.sp,fontWeight=FontWeight.ExtraBold,lineHeight=22.sp,modifier=Modifier.testTag("course-title"))
                             Text(course.places.joinToString(" → "){it.name},fontSize=12.sp,color=Muted)
                             FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                                listOf("${if(course.timeBudgetMode=="local")"현지 " else ""}약 ${formatMinutes(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt())}","도보 ${course.walkMinutes}분","대중교통 ${course.transitMinutes}분").forEach { metric->
+                                listOf("${if(course.timeBudgetMode=="local")"현지 " else ""}약 ${formatMinutes(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt())}",course.movementSummary()).forEach { metric->
                                     Surface(color=Soft,shape=RoundedCornerShape(100.dp)){Text(metric,Modifier.padding(horizontal=10.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
                                 }
                             }

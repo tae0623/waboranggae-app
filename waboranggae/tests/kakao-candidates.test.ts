@@ -47,6 +47,9 @@ describe('Kakao supplemental place normalization', () => {
     const original={id:'tour-1',name:'금성관',latitude:35.033,longitude:126.718,category:'history' as const,imageUrl:'https://tong.visitkorea.or.kr/photo.jpg' as string | undefined};
     const addition={...original,id:'kakao-100',name:'금성 관',latitude:35.0331,imageUrl:undefined};
     expect(mergePlaceCandidates([original],[addition])).toEqual([original]);
+    expect(mergePlaceCandidates([{...original,name:'나주 금성관'}],[addition],'나주')).toEqual([{...original,name:'나주 금성관'}]);
+    expect(mergePlaceCandidates([{...original,name:'나주 금성관'}],[{...addition,name:'금성관 별관'}],'나주')).toHaveLength(2);
+    expect(mergePlaceCandidates([{...original,name:'나주 금성관'}],[{...addition,latitude:35.05}],'나주')).toHaveLength(2);
     expect(mergePlaceCandidates([original],[{...addition,latitude:35.05}])).toHaveLength(2);
     expect(mergePlaceCandidates([original],[{...addition,name:'금성관 별관'}])).toHaveLength(2);
     expect(mergePlaceCandidates([{...original,name:'[백년가게]식당',category:'food'}],[{...addition,name:'식당',category:'food'}])).toHaveLength(1);

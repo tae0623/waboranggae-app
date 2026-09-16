@@ -1,5 +1,7 @@
 # Android → 웹 동기화 (2026-09-16)
 
+2026-09-17 후속: 자정 이후 실제 카카오 추천·경로·사진을 검증하고 중복 관광지·제목·시간 분류·지도 사진 프록시를 보완했습니다. [후속 검증 내역](KAKAO_LIVE_VALIDATION_2026-09-17.md)을 참고하세요. 아래의 9월 16일 한도 소진 기록은 당시 상태입니다.
+
 대상: `ver5`의 `waboranggae/web`, 고정 팀 웹 `https://waboranggae-app.pages.dev/`.
 Android의 현재 Kotlin 화면·요청 변환·API 호출을 기준으로 웹의 오래된 동작을 맞췄습니다. Android APK와 Supabase 서버·DB 설정은 이번 변경에서 수정하지 않습니다.
 

@@ -109,10 +109,16 @@ export function parseKakaoRoute(payload: unknown, from: RoutingPoint, to: Routin
     route: step.properties?.vehicles?.[0]?.name,
     fromStop: step.properties?.stops?.[0]?.name, toStop: step.properties?.stops?.at(-1)?.name,
   }));
+  // Live responses can contain only BUS steps while totalTime includes extra time.
+  // Keep the provider total, but do not claim the residual is all riding or walking.
+  const unclassifiedMinutes = mode === 'transit'
+    ? Math.max(0, totalMinutes - transitSteps.reduce((sum, step) => sum + step.minutes, 0)) : 0;
+  if(unclassifiedMinutes)transitSteps.push({mode:'other',minutes:unclassifiedMinutes,
+    label:`추가 이동·대기 ${unclassifiedMinutes}분 (세부 구분 미제공)`,route:undefined,fromStop:undefined,toStop:undefined});
   return {
     fromName: from.name, toName: to.name, source: 'kakao',
     distanceKm: Math.round(meters / 100) / 10, totalMinutes, walkMinutes,
-    transitMinutes: totalMinutes - walkMinutes,
+    transitMinutes: totalMinutes - walkMinutes, unclassifiedMinutes,
     modeLabel: mode === 'walk' ? '도보' : '대중교통·도보',
     instruction: transitSteps.map(step => step.label).join(' → '), steps: transitSteps,
     geometry,

@@ -45,7 +45,9 @@ const origin=valid(data.origin)?data.origin:null;
 const safeUrl=v=>{if(typeof v!=='string'||!v)return null;try{const u=new URL(v,location.origin);return ['https:','http:'].includes(u.protocol)?u.href:null}catch{return null}};
 function card(p,label){
   const box=document.createElement('div');box.className='popup';
-  const url=safeUrl(p.imageUrl);
+  let url=safeUrl(p.imageUrl);
+  // TourAPI returns HTTP images too. Use the same authenticated HTTPS proxy as cards.
+  if(url&&new URL(url).hostname==='tong.visitkorea.or.kr')url=location.pathname.replace(/\\/maps\\/embed$/,'')+'/api/media/tour-image?url='+encodeURIComponent(url);
   if(url){const img=document.createElement('img');img.src=url;img.alt=p.name+' 관광 이미지';img.loading='eager';
     img.onerror=()=>{img.style.display='none'};box.appendChild(img);}
   const title=document.createElement('strong');title.textContent=label;box.appendChild(title);

@@ -5,6 +5,7 @@ import {
   FINAL_SCORE_WEIGHTS,
   WALKING_SCORE_WEIGHTS,
   evaluateCourse,
+  countTransfers,
   finalRecommendationScore,
   hardConstraintViolations,
   placePreferenceScore,
@@ -34,6 +35,21 @@ function preferences(overrides: Partial<TravelPreferences> = {}): TravelPreferen
     ...overrides,
   };
 }
+
+it('does not reward missing walking detail as zero walking',()=>{
+  const prefs=preferences();const course=COURSES[0]!;
+  const known=evaluateCourse(prefs,{...course,unclassifiedMinutes:0});
+  const incomplete=evaluateCourse(prefs,{...course,unclassifiedMinutes:12});
+  expect(incomplete.walkingBreakdown.walk).toBeLessThanOrEqual(known.walkingBreakdown.walk);
+  expect(incomplete.scoreFacts.moveMinutes).toBe(known.scoreFacts.moveMinutes);
+  expect(incomplete.reason.summary).toContain('세부 미제공 12분');
+});
+it('does not count unclassified time as another boarding or transfer',()=>{
+  const course=COURSES[0]!;
+  expect(countTransfers({...course,routeSegments:[{fromName:'터미널',toName:'시장',source:'kakao',distanceKm:2,
+    totalMinutes:16,walkMinutes:0,transitMinutes:16,unclassifiedMinutes:6,modeLabel:'대중교통',instruction:'버스',geometry:[],
+    steps:[{mode:'bus',minutes:10,label:'버스'},{mode:'other',minutes:6,label:'미분류'}]}]})).toBe(0);
+});
 
 function course(overrides: Partial<Course> = {}): Course {
   return {

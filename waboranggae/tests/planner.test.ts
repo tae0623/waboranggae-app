@@ -211,6 +211,13 @@ describe('hybrid itinerary planner', () => {
       expect(fullNames.some(name => course.title.includes(name))).toBe(true);
     }
   });
+  it('does not cut 시립 from the actual place name',()=>{
+    const preferences=parseTravelText('순천에서 자연과 점심을 6시간 보고 싶어');
+    const course=buildRulePlannedCourses(preferences,candidates)[0]!;
+    const titled=assignGroundedCourseTitles(preferences,[{...course,places:[{...candidates[1]!,name:'순천시립 그림책 도서관'}]}])[0]!;
+    expect(titled.title).toContain('시립 그림책 도서관');
+    expect(titled.title).not.toContain('·립 ');
+  });
 
   it('opens lunch on both days for an overnight window', () => {
     const preferences = {

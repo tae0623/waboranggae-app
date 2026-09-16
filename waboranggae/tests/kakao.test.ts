@@ -38,6 +38,14 @@ describe('Kakao routing', () => {
     expect(parseKakaoRoute({ status: 'NO_RESULTS' }, from, to, 'transit')).toBeNull();
     expect(parseKakaoRoute({ status: 'OK', route: { properties: { totalTime: 600, totalDistance: 700 } } }, from, to, 'walk')).toBeNull();
   });
+  it('preserves unclassified access/wait time when the live provider returns BUS steps only', () => {
+    const result=parseKakaoRoute({status:'OK',routes:[{properties:{totalTime:930,totalDistance:2197},
+      steps:[{properties:{type:'BUS',time:543,guidance:'버스 이동'},path:{points:geometry}}]}]},from,to,'transit');
+    expect(result).toMatchObject({totalMinutes:16,walkMinutes:0,transitMinutes:16,unclassifiedMinutes:6});
+    expect(result?.steps.at(-1)).toMatchObject({mode:'other',minutes:6});
+    expect(result?.steps.reduce((sum,s)=>sum+s.minutes,0)).toBe(16);
+    expect(result?.instruction).toContain('세부 구분 미제공');
+  });
   it('makes zero external calls until the free tier has been confirmed', async () => {
     vi.stubEnv('KAKAO_REST_API_KEY', 'test-key'); vi.stubEnv('KAKAO_FREE_TIER_CONFIRMED', 'false');
     const fetch = vi.spyOn(globalThis, 'fetch');
@@ -70,6 +78,7 @@ describe('Kakao routing', () => {
     expect(() => new Function(script!)).not.toThrow();
     expect(html).toContain('mouseenter');
     expect(html).toContain('관광 이미지');
+    expect(html).toContain('/api/media/tour-image?url=');
     expect(buildKakaoMapHtml('</script><img onerror=alert(1)>')).not.toContain('</script><img');
   });
   it('keeps verified segments separate by course and handles a missing first origin', () => {

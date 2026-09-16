@@ -55,6 +55,8 @@ export interface RouteSegment {
   totalMinutes: number;
   walkMinutes: number;
   transitMinutes: number;
+  /** Included in transitMinutes for old clients; not confirmed onboard or walking time. */
+  unclassifiedMinutes?: number;
   modeLabel: string;
   /** 이용자에게 보여줄 구체 안내. 예: 도보 5분 → 67번 버스 16분 */
   instruction: string;
@@ -130,6 +132,7 @@ export interface RecommendationScoreBreakdown {
 export interface CourseScoreFacts {
   walkMinutes: number;
   transitMinutes: number;
+  unclassifiedMinutes?: number;
   moveMinutes: number;
   stayMinutes: number;
   tripMinutes: number;
@@ -209,6 +212,8 @@ export interface Course {
   distanceKm: number;
   walkMinutes: number;
   transitMinutes: number;
+  /** Portion of transitMinutes whose walking/waiting breakdown the provider omitted. */
+  unclassifiedMinutes?: number;
   metrics: WalkabilityMetrics;
   places: Place[];
   conveniences?: ConvenienceSpot[];

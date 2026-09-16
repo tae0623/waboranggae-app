@@ -80,7 +80,7 @@ export interface Course {
   score: number; walkFitScore: number
   prefScore: number; timeScore: number; completionScore: number
   hours: number; distanceKm: number; placeCount: number
-  walkMin: number; transitMin: number; transferCount: number
+  walkMin: number; transitMin: number; unclassifiedMin?:number; transferCount: number
   imageUrl: string; tags: string[]; reason: string
   dataSource: 'real' | 'demo' | 'ai'; routeSource: 'kakao' | 'estimated' | 'mixed'
   places: Place[]; locker: Locker[]
@@ -321,7 +321,7 @@ function CourseCard({ course: c, onPress, wide }: { course: Course; onPress: () 
         <div style={{ display: 'flex', gap: 6 }}>
           {[
             { label: `⏱ ${formatMinutes(c.hours*60)}`, col: L.dark },
-            { label: `🚶 ${c.walkMin}분`, col: L.teal },
+            { label: `🚶 ${c.unclassifiedMin?'확인된 ':''}${c.walkMin}분`, col: L.teal },
             { label: `🔄 ${c.transferCount}회`, col: L.textSec },
           ].map(t => (
             <span key={t.label} style={{ fontSize: 11, fontWeight: 700, color: t.col, background: L.bg, borderRadius: 8, padding: '4px 9px' }}>{t.label}</span>
@@ -848,9 +848,10 @@ function CourseDetailScreen({ course: c, onBack, onBookmark, bookmarked, onEdit,
         <div style={{ ...S.text(12, 700, L.textMuted), marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>이 코스를 추천한 이유</div>
         <div style={{ ...S.text(14, 400, L.textSec), lineHeight: 1.7 }}>{c.reason}</div>
         {/* Move metrics */}
-        <div style={{ display: 'flex', gap: 14, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${L.borderLight}` }}>
-          <span style={S.text(12, 600, L.dark)}>🚶 도보 {c.walkMin}분</span>
+        <div style={{ display: 'flex', flexWrap:'wrap', gap: 14, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${L.borderLight}` }}>
+          <span style={S.text(12, 600, L.dark)}>🚶 {c.unclassifiedMin?'확인된 ':''}도보 {c.walkMin}분</span>
           <span style={S.text(12, 600, L.textSec)}>🚌 대중교통 {c.transitMin}분</span>
+          {!!c.unclassifiedMin&&<span style={S.text(12,600,L.textSec)}>이동·대기 {c.unclassifiedMin}분 미분류</span>}
           <span style={S.text(12, 600, L.textSec)}>🔄 환승 {c.transferCount}회</span>
         </div>
       </div>
@@ -1038,7 +1039,7 @@ function MapScreen({ confirmedCourse, onDetail, onCancelConfirm, courses, onSele
               </div>
               <div style={{ fontSize: 20, fontWeight: 900, color: L.text, fontFamily: "'Pretendard Variable', Pretendard, sans-serif", letterSpacing: '-0.025em', lineHeight: 1.25 }}>{c.title}</div>
               <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                <span style={{ fontSize: 12, color: L.textMuted, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>🚶 도보 {c.walkMin}분</span>
+                <span style={{ fontSize: 12, color: L.textMuted, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>🚶 {c.unclassifiedMin?'확인된 ':''}도보 {c.walkMin}분</span>
                 <span style={{ fontSize: 12, color: L.textMuted, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>🔄 환승 {c.transferCount}회</span>
                 <span style={{ fontSize: 12, color: L.textMuted, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>📍 {c.placeCount}곳</span>
               </div>

@@ -237,14 +237,15 @@ export function rankedToUiCourse(course: RankedCourse): Course {
     distanceKm: course.distanceKm,
     placeCount: course.places.length,
     walkMin: course.walkMinutes,
-    transitMin: course.transitMinutes,
+    transitMin: Math.max(0,course.transitMinutes-(course.unclassifiedMinutes||0)),
+    unclassifiedMin: course.unclassifiedMinutes || 0,
     transferCount,
     imageUrl: cover,
     tags: [
       ...course.matchedInterests.map((item) => ({
         nature: '자연', food: '맛집', cafe: '카페', photo: '사진', market: '시장', history: '역사',
       }[item] ?? item)),
-      walking >= 80 || walkMinutes <= 60 ? '적게 걷기' : '',
+      (walking >= 80 || walkMinutes <= 60) && !course.unclassifiedMinutes ? '적게 걷기' : '',
     ].filter(Boolean),
     reason: course.reason.summary,
     dataSource: 'real',
@@ -289,7 +290,7 @@ export function rankedToUiCourse(course: RankedCourse): Course {
       { label: '코스 완성도', value: quality, weight: 10 },
     ],
     walkBreakdown: ([
-      ['walk','도보 부담',`총 도보 ${walkMinutes}분`],
+      ['walk','도보 부담',`${course.unclassifiedMinutes?'확인된':'총'} 도보 ${walkMinutes}분${course.unclassifiedMinutes?` · 미분류 ${course.unclassifiedMinutes}분 포함해 보수적으로 평가`:''}`],
       ['transit','대중교통 접근성',stopDistance==null?'정류장 거리 미확인':`정류장 평균 ${stopDistance}m`],
       ['time','시간 적합도','현지 일정 기준'],
       ['transfer','환승 편의성',`환승 ${transferCount}회`],

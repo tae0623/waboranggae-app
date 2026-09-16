@@ -14,6 +14,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TravelContractTest {
+    @Test fun missingTimeBreakdownIsNotLabeledAsConfirmedTransit() {
+        val raw="""{"id":"timing","city":"순천","title":"검증","durationHours":3,"walkMinutes":16,"transitMinutes":16,"unclassifiedMinutes":6,"places":[]}"""
+        val course=Json.decodeFromString<kr.co.waboranggae.nativepilot.data.Course>(raw)
+        assertEquals("확인된 도보 16분 · 대중교통 10분 · 이동·대기 6분 미분류",course.movementSummary())
+    }
     @Test fun sixComponentWalkingScoreIsPreservedFromServer() {
         val raw="""{"id":"score-check","city":"순천","title":"실제 서버 점수 계약","durationHours":6,"distanceKm":3.5,"walkMinutes":37,"transitMinutes":10,"places":[],"walkingScore":81,"fitScore":73,"walkingBreakdown":{"walk":63,"transit":87,"time":87,"transfer":100,"distance":81,"efficiency":100}}"""
         val course=Json { ignoreUnknownKeys=true }.decodeFromString<kr.co.waboranggae.nativepilot.data.Course>(raw)

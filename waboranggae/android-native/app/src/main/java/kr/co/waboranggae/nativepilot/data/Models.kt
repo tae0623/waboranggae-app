@@ -73,8 +73,12 @@ fun HotPlace.travelDateError(date:String):String? {
     val routeSegments: List<RouteSegment> = emptyList(), val reason: Reason = Reason(),
     val constraintPassed: Boolean = false, val validationNotes: List<String> = emptyList(),
     val constraintViolations:List<String> = emptyList(),val timeBreakdown:CourseTimeBreakdown?=null,
-    val routingCheckedAt:String?=null,val timeBudgetMode:String?=null,val accessTrip:AccessTrip?=null
-)
+    val routingCheckedAt:String?=null,val timeBudgetMode:String?=null,val accessTrip:AccessTrip?=null,
+    val unclassifiedMinutes:Int=0
+) {
+    fun movementSummary() = "${if(unclassifiedMinutes>0)"확인된 " else ""}도보 ${walkMinutes}분 · 대중교통 ${(transitMinutes-unclassifiedMinutes).coerceAtLeast(0)}분" +
+        if(unclassifiedMinutes>0)" · 이동·대기 ${unclassifiedMinutes}분 미분류" else ""
+}
 @Serializable data class RecommendPayload(
     val courses: List<Course>, val source: String, val planningSource: String = "rules",
     val fetchedAt: String? = null, val fallbackReason: String? = null

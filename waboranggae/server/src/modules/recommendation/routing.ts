@@ -265,6 +265,7 @@ async function routeCourse(
   const source = routingSource(segments);
   const walkMinutes = segments.reduce((sum, segment) => sum + segment.walkMinutes, 0);
   const transitMinutes = segments.reduce((sum, segment) => sum + segment.transitMinutes, 0);
+  const unclassifiedMinutes = segments.reduce((sum, segment) => sum + (segment.unclassifiedMinutes || 0), 0);
   const distance = segments.reduce((sum, segment) => sum + segment.distanceKm, 0);
   const start = parseClock(preferences.startTime);
   const durationHours = Math.round((scheduled.endClock - start) / 6) / 10;
@@ -280,6 +281,7 @@ async function routeCourse(
     distanceKm: Math.round(distance * 10) / 10,
     walkMinutes,
     transitMinutes,
+    unclassifiedMinutes,
     metrics: {
       ...course.metrics,
       walkingEase: walkingEaseScore(walkMinutes, planningHours(preferences), preferences.pace),
@@ -293,7 +295,9 @@ async function routeCourse(
     timeBreakdown:{originToFirstMinutes,betweenPlacesMinutes,stayMinutes,waitAndRestMinutes:Math.max(0,totalMinutes-originToFirstMinutes-betweenPlacesMinutes-stayMinutes),totalMinutes,
       requestedMinutes:preferences.scheduleMode==='course-first'&&!preferences.endTime?undefined:tripEndClock(preferences)-start,
       overBudgetMinutes:Math.max(0,totalMinutes-(tripEndClock(preferences)-start))},
-    validationNotes: [...new Set([...(course.validationNotes || []).filter(n=>!n.startsWith('출발 거점 실좌표')&&!n.startsWith('카카오 ')&&n!=='이동 시간 추정'), routingNote,...(ordered!==course.places?['식사 시간에 맞춰 방문 순서 조정']:[])])],
+    validationNotes: [...new Set([...(course.validationNotes || []).filter(n=>!n.startsWith('출발 거점 실좌표')&&!n.startsWith('카카오 ')&&!n.startsWith('도보·대기 세부 시간')&&n!=='이동 시간 추정'), routingNote,
+      ...(unclassifiedMinutes?[`도보·대기 세부 시간 ${unclassifiedMinutes}분 미제공 · 총 이동 시간에는 포함`]:[]),
+      ...(ordered!==course.places?['식사 시간에 맞춰 방문 순서 조정']:[])])],
   };
 }
 

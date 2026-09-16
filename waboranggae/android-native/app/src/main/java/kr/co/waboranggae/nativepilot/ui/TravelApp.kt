@@ -126,7 +126,7 @@ private val cardShape=RoundedCornerShape(24.dp)
         }
         Text(course.title,Modifier.padding(horizontal=20.dp,vertical=8.dp).testTag("map-course-title"),fontSize=16.sp,fontWeight=FontWeight.Bold)
         course.accessTrip?.let{access->Text("현지 출발: ${access.arrival.name} · 도시 간 이동 별도",Modifier.padding(horizontal=20.dp),fontSize=12.sp,color=Muted)}
-        Text("도보 ${course.walkMinutes}분 · 대중교통 ${course.transitMinutes}분",Modifier.padding(horizontal=20.dp),fontSize=12.sp,color=Muted)
+        Text(course.movementSummary(),Modifier.padding(horizontal=20.dp),fontSize=12.sp,color=Muted)
         if(state.routingBusyId==course.id)LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal=20.dp).testTag("routing-loading"))
         if(!course.constraintPassed)Text(course.constraintViolations.firstOrNull()?:"조건 확인이 필요한 미리보기 코스",Modifier.padding(horizontal=20.dp),fontSize=12.sp,color=MaterialTheme.colorScheme.error)
         Row(Modifier.padding(horizontal=12.dp)){TextButton({model.openDetails(course.id)}){Text("코스 상세")};TextButton(model::clearCourseSelection){Text("코스 선택 해제")}}

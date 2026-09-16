@@ -4,6 +4,7 @@ import { distanceKm } from '../../../utils/geo';
 import { belongsToCity } from '../local-trip';
 import { mealWindowsFor } from '../planner';
 import { kakaoRequest } from './kakao';
+import { placeNameWithoutCity } from '../../../utils/placeName';
 
 export interface KakaoPlaceDocument {
   id?: string;
@@ -96,11 +97,12 @@ const normalizedName = (name: string) => name.normalize('NFKC').replace(/\[(?:ë°
   .replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
 
 /** Keep the primary record (and its licensed photo/required-visit ID). Never merge by name alone. */
-export function mergePlaceCandidates<T extends LocatedCandidate>(primary: T[], additions: T[]): T[] {
+export function mergePlaceCandidates<T extends LocatedCandidate>(primary: T[], additions: T[], city?: string): T[] {
   const merged: T[] = [];
   for (const candidate of [...primary, ...additions]) {
     const same = merged.some(existing => existing.id === candidate.id || (
-      normalizedName(existing.name) === normalizedName(candidate.name)
+      normalizedName(city ? placeNameWithoutCity(existing.name, city) : existing.name)
+        === normalizedName(city ? placeNameWithoutCity(candidate.name, city) : candidate.name)
       && (existing.category === candidate.category || !['food', 'cafe', 'station'].includes(existing.category)
         && !['food', 'cafe', 'station'].includes(candidate.category))
       && distanceKm(existing, candidate) <= 0.15
