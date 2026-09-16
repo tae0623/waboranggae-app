@@ -77,7 +77,7 @@ function mealPreferenceFromMeals(meals: Array<'breakfast' | 'lunch' | 'dinner'>)
   if (hasLunch && hasDinner) return 'both';
   if (hasLunch) return 'lunch';
   if (hasDinner) return 'dinner';
-  return 'none';
+  return 'auto';
 }
 
 function interestsFromCondition(cond: Condition): TravelPreferences['interests'] {

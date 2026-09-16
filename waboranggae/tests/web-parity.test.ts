@@ -44,6 +44,11 @@ describe('Android / web parity',()=>{
     expect(conditionToPreferences({...form(),meals:['자동']}).meals).toBeUndefined();
     expect(availableMeals({...form(),endTimeLimited:false})).toEqual(['점심','저녁']);
   });
+  it('retains explicit breakfast with the same legacy preference flag as Android',()=>{
+    vi.useFakeTimers();vi.setSystemTime(new Date('2026-09-16'));
+    const p=conditionToPreferences({...form(),startTime:'08:00',meals:['아침']});
+    expect(p.meals).toEqual(['breakfast']);expect(p.mealPreference).toBe('auto');
+  });
   it('maps all five purpose buttons, without a duplicate photo/rest option',()=>{
     vi.useFakeTimers();vi.setSystemTime(new Date('2026-09-16'));
     const p=conditionToPreferences({...form(),purpose:['자연 명소','맛집 탐방','카페','역사·문화','시장·골목']});
