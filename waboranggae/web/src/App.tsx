@@ -1372,6 +1372,7 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
   const [bookmarkItems, setBookmarkItems] = useState<BookmarkItem[]>([])
   const [history, setHistory] = useState<HistoryItem[]>([])
   const loggedIn = Boolean(user && tokenStore.getAccess())
+  useEffect(()=>{const cleared=()=>{++recommendationVersion.current;setUser(null);setBookmarkItems([]);setHistory([]);setCondition(undefined);setActivePrefs(null);setCourses([]);setCoursePrefs({});setSelectedCourse(null);setConfirmedCourse(null);setWizardOpen(false);setWizardSeed(undefined);setEditorOpen(false);setRoutingStatus({});setCourseState('idle');setTab('home');};window.addEventListener('ddubugi:session-cleared',cleared);return()=>window.removeEventListener('ddubugi:session-cleared',cleared);},[])
 
   useEffect(() => {
     void onBackState?.(editorOpen || Boolean(selectedCourse) || wizardOpen || tab !== 'home' || screen === 'login');

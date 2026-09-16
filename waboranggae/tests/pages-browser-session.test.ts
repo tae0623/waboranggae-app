@@ -61,6 +61,23 @@ describe('secure browser auto login',()=>{
    const {env,req,upstream}=setup();const res=await handlePagesRequest(req('/auth/login',{method:'POST',headers:{'X-Web-Session':''},body:'{}'}),env,upstream);
    expect((await res.json()).refreshToken).toBe('private-refresh-token-123456789');expect(cookie(res)).toBeUndefined();
  });
+
+ it('prevents another tab session from replacing or deleting the current cookie',async()=>{
+   const {env,req}=setup(),a='1'.repeat(64),b='2'.repeat(64);
+   const jwt=(id:string)=>'header.'+Buffer.from(JSON.stringify({sessionId:id})).toString('base64url')+'.signature';
+   const upstream=vi.fn(async()=>Response.json({accessToken:jwt(b),refreshToken:jwt(b)}));
+   const login=await handlePagesRequest(req('/auth/login',{method:'POST',headers:{'X-Web-Auto-Login':'1'},body:'{}'}),env,upstream);
+   const c=cookie(login).split(';')[0]!;
+   const mismatch=await handlePagesRequest(req('/auth/refresh',{method:'POST',headers:{Cookie:c,'X-Web-Session-ID':a},body:JSON.stringify({refreshToken:'__httpOnly'})}),env,upstream);
+   expect(mismatch.status).toBe(401);expect(cookie(mismatch)).toBeUndefined();expect(upstream).toHaveBeenCalledTimes(1);
+   const clear=await handlePagesRequest(req('/auth/web-session',{method:'DELETE',headers:{Cookie:c,'X-Web-Session-ID':a}}),env,upstream);
+   expect(clear.status).toBe(200);expect(cookie(clear)).toBeUndefined();
+   const logout=await handlePagesRequest(req('/auth/logout/current',{method:'POST',headers:{Cookie:c,'X-Web-Session-ID':a},body:'{}'}),env,upstream);
+   expect(logout.status).toBe(200);expect(cookie(logout)).toBeUndefined();
+   const ownClear=await handlePagesRequest(req('/auth/web-session',{method:'DELETE',headers:{Cookie:c,'X-Web-Session-ID':b}}),env,upstream);
+   expect(cookie(ownClear)).toContain('Max-Age=0');
+ });
+
  it('never copies upstream cookies onto unrelated gateway responses',async()=>{
    const {env,req}=setup();const upstream=async()=>new Response('{}',{headers:{'set-cookie':'malicious=1'}});
    const res=await handlePagesRequest(req('/api/hot-places'),env,upstream);expect(res.headers.get('set-cookie')).not.toContain('malicious');

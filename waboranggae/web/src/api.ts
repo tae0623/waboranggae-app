@@ -9,10 +9,11 @@ let refreshInFlight: Promise<string | null> | null = null;
 let browserSessionSupported=false;
 let autoLogin=false;
 let browserRestoreInFlight:Promise<boolean>|null=null;
+function currentSessionId(){try{const raw=tokenStore.getAccess()?.split('.')[1];if(!raw)return '';const id=JSON.parse(atob(raw.replace(/-/g,'+').replace(/_/g,'/'))).sessionId;return typeof id==='string'&&/^[a-f0-9]{64}$/.test(id)?id:'';}catch{return '';}}
 export function setAutoLogin(value:boolean){autoLogin=value;}
 export async function browserSessionStatus(){
   if(getWebRuntime().nativeRequest || getWebRuntime().apiBaseUrl)return {supported:false,persistent:false};
-  try{const response=await apiFetch('/auth/web-session',{method:'GET'},10000);const result=await response.json();browserSessionSupported=response.ok&&result.supported===true;return {supported:browserSessionSupported,persistent:result.persistent===true};}catch{return {supported:false,persistent:false};}
+  try{const response=await apiFetch('/auth/web-session',{method:'GET',signal:AbortSignal.timeout(10000)},10000);const result=await response.json();browserSessionSupported=response.ok&&result.supported===true;return {supported:browserSessionSupported,persistent:result.persistent===true};}catch{return {supported:false,persistent:false};}
 }
 export function restoreBrowserLogin(){
   if(browserRestoreInFlight)return browserRestoreInFlight;
@@ -66,6 +67,7 @@ export const tokenStore = {
     if (!refreshOnly) sessionVersion++;
   },
   async clear() {
+    const previousSessionId=currentSessionId();
     const clearCookie=browserSessionSupported||tokenStore.getRefresh()==='__httpOnly';
     sessionVersion++;
     nativeTokens = null;
@@ -73,8 +75,9 @@ export const tokenStore = {
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(REFRESH_KEY);
     }
+    if(typeof window!=='undefined')window.dispatchEvent(new Event('ddubugi:session-cleared'));
     await getWebRuntime().persistSession?.(null);
-    if(clearCookie)await apiFetch('/auth/web-session',{method:'DELETE',headers:{'X-Web-Session':'cookie'}},10000).catch(()=>undefined);
+    if(clearCookie)await apiFetch('/auth/web-session',{method:'DELETE',headers:{'X-Web-Session':'cookie','X-Web-Session-ID':previousSessionId},signal:AbortSignal.timeout(5000)},5000).catch(()=>undefined);
   },
 };
 
@@ -85,7 +88,7 @@ async function request<T>(path: string, options: {
   timeoutMs?: number;
 } = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if(browserSessionSupported||tokenStore.getRefresh()==='__httpOnly'){headers['X-Web-Session']='cookie';headers['X-Web-Auto-Login']=autoLogin?'1':'0';}
+  if(browserSessionSupported||tokenStore.getRefresh()==='__httpOnly'){headers['X-Web-Session']='cookie';headers['X-Web-Auto-Login']=autoLogin?'1':'0';headers['X-Web-Session-ID']=currentSessionId();}
   if (getWebRuntime().devAccessKey) headers['X-Dev-Access-Key'] = getWebRuntime().devAccessKey!;
   const access = tokenStore.getAccess();
   if (options.auth !== false && access) headers.Authorization = `Bearer ${access}`;
@@ -279,7 +282,7 @@ export const api = {
     request<AuthResponse>('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
   signup: (email: string, displayName: string, password: string) =>
     request<AuthResponse>('/auth/signup', { method: 'POST', body: { email, displayName, password, privacyConsent: true, consentVersion: PRIVACY_NOTICE_VERSION }, auth: false }),
-  logout: () => request('/auth/logout/current', { method: 'POST', body: {refreshToken:tokenStore.getRefresh()} }),
+  logout: () => request('/auth/logout/current', { method: 'POST', body: {} }),
   me: () => request<AuthUser>('/api/user/me'),
   updateProfile: (displayName: string) =>
     request<AuthUser>('/api/user/profile', { method: 'PATCH', body: { displayName } }),

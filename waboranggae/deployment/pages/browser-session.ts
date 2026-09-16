@@ -28,6 +28,9 @@ async function browserCookie(token:string,persistent:boolean,env:PagesEnv){
   const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:aad(env)},await key(env),encoder.encode(JSON.stringify({token,exp,persistent})));
   return BROWSER_COOKIE+'='+encode(iv)+'.'+encode(new Uint8Array(cipher))+'; Path=/; HttpOnly; Secure; SameSite=Strict'+(persistent?'; Max-Age='+Math.max(0,exp-Math.floor(Date.now()/1000)):'');
 }
+function sessionId(token:string|null|undefined){try{const value=JSON.parse(decoder.decode(decode(token!.split('.')[1]!))).sessionId;return typeof value==='string'&&/^[a-f0-9]{64}$/.test(value)?value:null;}catch{return null;}}
+function requestSessionId(request:Request){const value=request.headers.get('x-web-session-id');return value&&/^[a-f0-9]{64}$/.test(value)?value:null;}
+function ownsCookie(request:Request,session:Session|null){const expected=requestSessionId(request);return !expected||!session||sessionId(session.token)===expected;}
 function json(value:unknown,status=200,cookie?:string){const response=new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}});if(cookie)response.headers.append('Set-Cookie',cookie);return response;}
 export async function browserSessionCapability(request:Request,env:PagesEnv){
   const session=await readBrowserSession(request,env);
@@ -36,11 +39,12 @@ export async function browserSessionCapability(request:Request,env:PagesEnv){
 export async function browserSessionProxy(request:Request,env:PagesEnv,path:string,body:ArrayBuffer|undefined,headers:Headers,upstream:Fetcher,apiBase:string):Promise<Response>{
   const restore=path==='/auth/web-session'&&request.method==='POST';
   const session=await readBrowserSession(request,env);
-  if(path==='/auth/web-session'&&request.method==='DELETE')return json({ok:true},200,clearBrowserCookie());
+  if(path==='/auth/web-session'&&request.method==='DELETE')return json({ok:true},200,ownsCookie(request,session)?clearBrowserCookie():undefined);
   if(restore && !session?.persistent)return json({error:'자동 로그인 정보가 없습니다.'},401,clearBrowserCookie());
   const actualPath=restore?'/auth/refresh':path;
   const enabled=restore || request.headers.get('x-web-session')==='cookie';
-  if(enabled && (actualPath==='/auth/refresh' || actualPath==='/auth/logout/current')){
+  if(enabled && actualPath==='/auth/refresh'){
+    if(!restore&&!ownsCookie(request,session))return json({error:'다른 탭에서 로그인 정보가 변경되었습니다. 다시 로그인해 주세요.'},401);
     let data:Record<string,unknown>;try{data=body?JSON.parse(decoder.decode(body)):{};}catch{return json({error:'요청 형식이 올바르지 않습니다.'},400);}
     if(restore || data.refreshToken===COOKIE_TOKEN || !data.refreshToken){
       if(!session)return json({error:'다시 로그인해 주세요.'},401,clearBrowserCookie());
@@ -53,7 +57,7 @@ export async function browserSessionProxy(request:Request,env:PagesEnv,path:stri
   response.headers.delete('set-cookie');
   if(!enabled)return response;
   if((actualPath==='/auth/logout/current'||(actualPath==='/api/user/me'&&request.method==='DELETE'))&&response.ok){
-    const result=new Response(response.body,response);result.headers.set('Set-Cookie',clearBrowserCookie());return result;
+    const result=new Response(response.body,response);if(ownsCookie(request,session))result.headers.set('Set-Cookie',clearBrowserCookie());return result;
   }
   if(actualPath==='/auth/refresh' && response.status===401)return json({error:'로그인이 만료되었습니다. 다시 로그인해 주세요.'},401,clearBrowserCookie());
   if(!response.ok || !['/auth/login','/auth/signup','/auth/social/result','/auth/refresh'].includes(actualPath))return response;
