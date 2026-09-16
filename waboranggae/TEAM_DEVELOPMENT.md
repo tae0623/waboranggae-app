@@ -1,5 +1,7 @@
 # 무료 공동 개발 서버
 
+> 2026-09-16: 이 PC의 API·Quick Tunnel·팀 DB 운영을 종료했습니다. 아래 내용은 이전 구성 기록입니다. 새 전환 절차는 [무료 고정 웹 주소 안내](FREE_FIXED_WEB_SETUP.md)를 참고하세요. 이 PC의 `.runtime/team-retired.json`은 `team:setup/start/restart` 재실행을 차단합니다. 소스·DB 데이터는 보존했습니다.
+
 이 PC의 Node.js API, 별도 Docker PostgreSQL, 무료 Cloudflare Quick Tunnel을 사용합니다.
 클라우드 서버/GPU 유료 상품을 만들지 않습니다. PC 전기료·인터넷 비용은 별도이며,
 PC 종료/절전/인터넷 끊김 시 공유 서버도 중단됩니다.

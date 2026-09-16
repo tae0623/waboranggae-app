@@ -15,6 +15,13 @@ const stateFile = path.join(runtime, 'team-processes.json');
 const secretsFile = path.join(root, '.env.team.local');
 const command = process.argv[2] || 'status';
 const exists = async file => access(file).then(() => true, () => false);
+// Retiring a PC development server must not delete its DB or historical source.
+// The local-only marker prevents an old setup/start command from republishing it.
+const retired = await exists(path.join(runtime, 'team-retired.json'));
+if (retired && ['setup', 'start', 'restart'].includes(command)) {
+  console.error('This PC team server is retired. See FREE_FIXED_WEB_SETUP.md. No server was started.');
+  process.exit(1);
+}
 async function loadSettings() {
   if (!await exists(secretsFile)) {
     const dbPassword = randomBytes(24).toString('hex');
@@ -112,6 +119,7 @@ async function status() {
     '이 파일과 .env.team.local은 GitHub에 올리지 마세요.', '',
   ].join('\n'), { mode: 0o600 });
   console.log(JSON.stringify({ apiRunning: s.apiPid ? live(s.apiPid) && await health() : false,
+    retired,
     tunnelRunning: s.tunnelPid ? live(s.tunnelPid) : false, localUrl: 'http://127.0.0.1:8788',
     sharedUrl: s.url || null, accessFile: path.join(runtime, 'TEAM_ACCESS.md') }, null, 2));
 }

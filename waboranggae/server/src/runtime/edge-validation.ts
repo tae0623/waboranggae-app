@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { RequestHandler } from 'express';
+import { isTeamWebRoute } from '../../../src/domain/teamWebRoutes';
 // Temporary server-only gate for deployment validation. Never embed this key in a
 // release APK. Disable only after the release security/availability review.
 const deviceRoutes:Record<string,string[]>={
@@ -32,6 +33,9 @@ export function validDeviceValidation(method:string,path:string,token:string,now
 export function isSocialCallback(method:string,path:string) {
   return method==='GET' && /^\/auth\/social\/(?:kakao|google)\/callback$/.test(path);
 }
+export function validTeamWebValidation(method: string, path: string, token: string, now = Date.now()) {
+  return isTeamWebRoute(method, path) && validCredential('EDGE_TEAM_WEB_VALIDATION', token, now);
+}
 export const edgeValidation: RequestHandler = (req, res, next) => {
   if (process.env.API_RUNTIME !== 'supabase-edge' || process.env.EDGE_VALIDATION_MODE !== 'true') { next(); return; }
   if (['/livez','/readyz'].includes(req.path) || req.path.startsWith('/legal/')) { next(); return; }
@@ -39,6 +43,7 @@ export const edgeValidation: RequestHandler = (req, res, next) => {
   // a random, stored, unexpired, one-use state created by an admitted /start request.
   // It never returns an app token; /result still requires the device key + poll secret.
   if(isSocialCallback(req.method,req.path)){next();return;}
+  if(validTeamWebValidation(req.method,req.path,req.get('X-Team-Web-Key')||'')){next();return;}
   if(validDeviceValidation(req.method,req.path,req.get('X-Dev-Access-Key')||'')){next();return;}
   const expected=Buffer.from(process.env.EDGE_VALIDATION_KEY || '');
   const supplied=Buffer.from(req.get('X-Waboranggae-Validation') || '');

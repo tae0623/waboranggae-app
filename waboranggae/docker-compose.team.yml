@@ -2,7 +2,8 @@ name: waboranggae-team
 services:
   db:
     image: postgres:15
-    restart: unless-stopped
+    # Retired PC team server: preserve data, but do not restart it with Docker.
+    restart: "no"
     ports:
       - "127.0.0.1:55432:5432"
     environment:
@@ -18,4 +19,3 @@ services:
       retries: 20
 volumes:
   team_pgdata:
-

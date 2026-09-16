@@ -21,6 +21,8 @@
     "team:build": "node scripts/team-dev.mjs build",
     "team:test": "node scripts/verify-team-dev.mjs",
     "web:build": "pnpm --dir web build",
+    "pages:build": "node scripts/build-pages.mjs",
+    "pages:verify": "node scripts/verify-pages-build.mjs",
     "web:typecheck": "pnpm --dir web exec tsc --noEmit",
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",

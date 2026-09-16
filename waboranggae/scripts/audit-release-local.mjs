@@ -10,7 +10,7 @@ const files = [...new Set(git('ls-files', '--cached', '--others', '--exclude-sta
 const secrets = new Set();
 const exampleValues = parse(await readFile(path.join(root, '.env.example')));
 const sharedExampleConfigKeys = [];
-const envFiles = ['.env', '.env.edge.local', '.env.supabase.local', '.env.device-validation.local'];
+const envFiles = ['.env', '.env.edge.local', '.env.supabase.local', '.env.device-validation.local', '.env.team.local', '.env.pages.local', '.dev.vars'];
 const settings = {};
 for (const file of envFiles) {
   try {
@@ -47,7 +47,7 @@ let bundle;
 try { bundle = JSON.parse(await readFile(path.join(root, '.runtime/edge-bundle-report.json'), 'utf8')); } catch {}
 const suspectPackages = ['uuid', 'xcode', 'deepmerge-ts', 'effect', '@prisma/config'];
 const packagesInBundle = suspectPackages.filter(pkg => bundle?.inputs?.some(file => file.replaceAll('\\', '/').includes('/node_modules/' + pkg + '/')));
-const privateFilesInGit = files.filter(file => /(?:^|\/)(?:\.env(?:\.(?!example$|production\.example$|.*\.example$).+)?)$|(?:^|\/)local\.properties$|\.(?:jks|keystore)$/.test(file));
+const privateFilesInGit = files.filter(file => /(?:^|\/)(?:\.env(?:\.(?!example$|production\.example$|.*\.example$).+)?)$|(?:^|\/)\.dev\.vars(?:\..*)?$|(?:^|\/)local\.properties$|\.(?:jks|keystore)$/.test(file));
 const result = {
   checkedAt: new Date().toISOString(), readOnly: true, sourceFilesScanned: scanned,
   knownServerSecretMatches: matches, privateConfigFilesEligibleForCommit: privateFilesInGit, sharedExampleConfigKeys,
