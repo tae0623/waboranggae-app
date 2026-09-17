@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { api, ApiError, tokenStore, unwrapList, browserSessionStatus, restoreBrowserLogin, setAutoLogin, type AuthUser, type BookmarkItem, type HistoryItem, type HotPlace, type RankedCourse, type TravelPreferences } from './api'
-import { conditionToPreferences, preferencesToCondition, rankedToUiCourse } from './mappers'
+import { api, ApiError, tokenStore, unwrapList, browserSessionStatus, restoreBrowserLogin, setAutoLogin, type AuthUser, type BookmarkItem, type HotPlace, type RankedCourse, type TravelPreferences } from './api'
+import { conditionToPreferences, rankedToUiCourse } from './mappers'
 import { CourseRouteMap } from './CourseRouteMap'
 import { useWeather } from './useWeather'
 import { SocialLoginButtons } from './SocialLoginButtons'
@@ -51,6 +51,7 @@ type CourseState = 'idle' | 'loading' | 'success' | 'error' | 'demo'
 export interface Condition {
   departure: string; region: string; date: string; endDate: string
   startTime: string; endTime: string; endTimeLimited?: boolean
+  daySchedules?: Record<string,{startTime:string;endTime?:string}>
   duration: number; meal: string; meals: string[]; walkLevel: string; companion: string
   interests: string[]; purpose: string[]; atmosphere: string[]
   pace: string; isLocal: boolean; transitOnly: boolean
@@ -712,9 +713,10 @@ function CourseListScreen({ state, condition, courses, onSelect, onRetry, onPlan
 }
 
 // ── Course Detail — hero + right thumbnail strip (reference) ─────────────────
-function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy, routingError }: {
+function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy, routingError, tripDays=[] }: {
   course: Course; onBack: () => void; onEdit: () => void; onConfirm: () => void
   routingBusy:boolean; routingError:string
+  tripDays?:Array<{date:string;course?:Course;preferences:TravelPreferences;error?:string}>
 }) {
   const [tab, setTab] = useState<'timeline' | 'score'>('timeline')
   const efficiency = Math.round((c.apiCourse?.scoreFacts?.stayRatio??0)*100)
@@ -796,8 +798,12 @@ function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy,
           ))}
         </div>
 
-        {tab === 'timeline' && c.apiCourse && <JourneyTimeline course={c.apiCourse}/>}
+        {tab === 'timeline' && (tripDays.length>1?tripDays.map((day,i)=><section key={day.date} className="detail-trip-day" data-testid={'detail-day-'+(i+1)}>
+          <h2 style={S.text(20,800)}>DAY {i+1} · {day.date}</h2><p style={S.text(12,500,L.textSec)}>{day.preferences.startTime} 시작{day.preferences.endTime?' · '+day.preferences.endTime+'까지':''}</p>
+          {day.course?.apiCourse?<><h3 style={S.text(16,700)}>{day.course.title}</h3><JourneyTimeline course={day.course.apiCourse}/></>:<p role="alert">{day.error||'이 날짜의 코스를 찾지 못했어요.'}</p>}
+        </section>):c.apiCourse&&<JourneyTimeline course={c.apiCourse}/>)}
 
+        {tab === 'score' && tripDays.length>1 && <p>{tripDays.find(d=>d.course?.id===c.id)?.date} 코스 점수</p>}
         {tab === 'score' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ background: L.surface, borderRadius: L.rXl, padding: 18, boxShadow: L.shadowSm }}>
@@ -855,8 +861,9 @@ function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy,
       <div style={{ flexShrink: 0, padding: '12px 20px 18px', background: L.surface, borderTop: `1px solid ${L.borderLight}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={S.text(11, 500, L.textMuted)}>추천점수 / 뚜벅이적합도</div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: L.dark, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>{c.score} <span style={{ color: L.teal }}>/ {c.walkFitScore}</span></div>
+            {tripDays.length>1&&<div style={S.text(10,500,L.textSec)}>{tripDays.find(d=>d.course?.id===c.id)?.date} 기준</div>}
+            <div style={S.text(12,700)}>추천 점수 <strong>{c.score}점</strong></div>
+            <div style={{...S.text(12,700,L.teal),marginTop:5}}>뚜벅이 적합도 <strong>{c.walkFitScore}점</strong></div>
           </div>
 
           <button onClick={onEdit} aria-label="코스 편집" style={{ width: 44, height: 44, borderRadius: L.rFull, border: `1.5px solid ${L.border}`, background: L.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -895,11 +902,10 @@ function MapScreen({confirmedCourse:c,journeys,onDetail,preferencesById,missingD
  </div>
 }
 
-function MyTravelScreen({ loggedIn, user, onLogin, onLogout, onDeleted, bookmarkItems, history, onSelectCourse, onReplayHistory, onDeleteHistory, courses }: {
+function MyTravelScreen({ loggedIn, user, onLogin, onLogout, onDeleted, bookmarkItems, onSelectCourse, onProfile, courses }: {
   loggedIn: boolean; user: AuthUser | null; onLogin: () => void; onLogout: () => void; onDeleted:()=>void;
-  bookmarkItems: BookmarkItem[]; history: HistoryItem[];
-  onSelectCourse: (c: Course) => void; onReplayHistory: (item: HistoryItem) => void;
-  onDeleteHistory: (id?: string) => void; courses: Course[]
+  bookmarkItems: BookmarkItem[];
+  onSelectCourse: (c: Course) => void; onProfile:(user:AuthUser)=>void; courses: Course[]
 }) {
   const bm = bookmarkItems.map((item) => {
     const course = courses.find((c) => c.id === item.courseId) ?? (item.snapshot ? rankedToUiCourse(item.snapshot) : undefined)
@@ -909,7 +915,7 @@ function MyTravelScreen({ loggedIn, user, onLogin, onLogout, onDeleted, bookmark
     <div style={{ position: 'absolute', inset: 0, background: L.bg, overflowY: 'auto', paddingBottom: L.tabH }} className="hide-scroll">
       <div style={{ padding: '56px 20px 0' }}>
         <div style={{ fontSize: 28, fontWeight: 900, color: L.text, marginBottom: 4, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>내 여행</div>
-        <div style={{ ...S.text(14, 400, L.textMuted), marginBottom: 28 }}>로그인하면 북마크와 이력을 저장합니다</div>
+        <div style={{ ...S.text(14, 400, L.textMuted), marginBottom: 28 }}>마음에 드는 코스를 내 여행에 저장하세요</div>
         <div style={{ background: L.dark, borderRadius: L.rXl, padding: 28, textAlign: 'center', marginBottom: 16 }}>
           <img src={brandMark} alt="" style={{width:64,height:64,marginBottom:16}} className="float"/>
           <div style={S.text(16, 700, '#fff')}>로그인하고 더 많이 즐겨요</div>
@@ -931,7 +937,7 @@ function MyTravelScreen({ loggedIn, user, onLogin, onLogout, onDeleted, bookmark
           </div>
           <button onClick={onLogout} style={{ padding: '7px 14px', borderRadius: L.rFull, background: 'rgba(255,255,255,0.12)', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>로그아웃</button>
         </div>
-        <AccountActions onDeleted={onDeleted} />
+        <AccountActions onDeleted={onDeleted} user={user} onProfile={onProfile}/>
         <AppInfo/>
         <div style={{ ...S.text(16, 800, L.text), marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           북마크 <span style={{ fontSize: 13, fontWeight: 600, color: L.textMuted, background: L.border, padding: '2px 8px', borderRadius: 20 }}>{bm.length}</span>
@@ -949,24 +955,7 @@ function MyTravelScreen({ loggedIn, user, onLogin, onLogout, onDeleted, bookmark
               </div>)}
             </div>
         }
-        <div style={{ ...S.text(16, 800, L.text), marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>검색 이력</span>
-          {history.length ? <button onClick={() => onDeleteHistory()} style={{ background: 'none', border: 'none', color: L.textMuted, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>전체 삭제</button> : null}
-        </div>
-        {history.length === 0
-          ? <div style={{ background: L.surface, borderRadius: L.rXl, padding: '20px 16px', textAlign: 'center', ...S.text(14, 400, L.textMuted), boxShadow: L.shadowSm }}>아직 검색 이력이 없어요</div>
-          : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {history.map((item) => (
-                <div key={item.id} style={{ background: L.surface, borderRadius: L.rLg, padding: 14, display: 'flex', alignItems: 'center', gap: 10, boxShadow: L.shadowSm }}>
-                  <button onClick={() => onReplayHistory(item)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    <div style={S.text(14, 700, L.text)}>{item.query}</div>
-                    <div style={{ ...S.text(12, 400, L.textMuted), marginTop: 2 }}>{item.city || '전남'}</div>
-                  </button>
-                  <button onClick={() => onDeleteHistory(item.id)} style={{ background: 'none', border: 'none', color: L.textMuted, cursor: 'pointer', fontSize: 12 }}>삭제</button>
-                </div>
-              ))}
-            </div>
-        }
+
       </div>
     </div>
   )
@@ -1172,9 +1161,8 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
   const [confirmedCourse, setConfirmedCourse] = useState<Course | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [bookmarkItems, setBookmarkItems] = useState<BookmarkItem[]>([])
-  const [history, setHistory] = useState<HistoryItem[]>([])
   const loggedIn = Boolean(user && tokenStore.getAccess())
-  useEffect(()=>{const cleared=()=>{++recommendationVersion.current;tripBase.current=null;dayCache.current={};setActiveDay('');setUser(null);setBookmarkItems([]);setHistory([]);setCondition(undefined);setActivePrefs(null);setCourses([]);setCoursePrefs({});setSelectedCourse(null);setConfirmedCourse(null);setWizardOpen(false);setWizardSeed(undefined);setEditorOpen(false);setRoutingStatus({});setCourseState('idle');setTab('home');};window.addEventListener('ddubugi:session-cleared',cleared);return()=>window.removeEventListener('ddubugi:session-cleared',cleared);},[])
+  useEffect(()=>{const cleared=()=>{++recommendationVersion.current;tripBase.current=null;dayCache.current={};setActiveDay('');setUser(null);setBookmarkItems([]);setCondition(undefined);setActivePrefs(null);setCourses([]);setCoursePrefs({});setSelectedCourse(null);setConfirmedCourse(null);setWizardOpen(false);setWizardSeed(undefined);setEditorOpen(false);setRoutingStatus({});setCourseState('idle');setTab('home');};window.addEventListener('ddubugi:session-cleared',cleared);return()=>window.removeEventListener('ddubugi:session-cleared',cleared);},[])
 
   useEffect(() => {
     void onBackState?.(editorOpen || Boolean(selectedCourse) || wizardOpen || tab !== 'home' || screen === 'login');
@@ -1197,24 +1185,19 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
       const me=await api.me()
       if (tokenStore.version() !== version) return
       setUser(me)
-      if(needsPrivacyConsent(me)){setBookmarkItems([]);setHistory([]);return;}
-      const [bookmarks, logs] = await Promise.all([
-        api.bookmarks.list(),
-        api.history.list(8),
-      ])
+      if(needsPrivacyConsent(me)){setBookmarkItems([]);return;}
+      const bookmarks = await api.bookmarks.list()
       if (tokenStore.version() !== version) return
       setUser(me)
       setBookmarkItems(unwrapList(bookmarks, 'bookmarks'))
-      setHistory(unwrapList(logs, 'history'))
     } catch (error) {
-      if (!tokenStore.getAccess()) { setUser(null); setBookmarkItems([]); setHistory([]); return; }
+      if (!tokenStore.getAccess()) { setUser(null); setBookmarkItems([]);  return; }
       if (tokenStore.version() !== version) return
       // A temporary API/network error must not delete a real user's session.
       if (!(error instanceof ApiError) || error.status !== 401) return
       await tokenStore.clear()
       setUser(null)
       setBookmarkItems([])
-      setHistory([])
     }
   }, [])
 
@@ -1256,7 +1239,7 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
     ++recommendationVersion.current
     tripBase.current=null;dayCache.current={};setActiveDay('')
     await tokenStore.clear()
-    setUser(null);setBookmarkItems([]);setHistory([]);setCourses([])
+    setUser(null);setBookmarkItems([]);setCourses([])
     setCondition(undefined);setActivePrefs(null);setSelectedCourse(null);setConfirmedCourse(null)
     setCoursePrefs({});setRoutingStatus({});setEditorOpen(false);setWizardOpen(false);setWizardSeed(undefined)
     setCourseState('idle');setTab('home')
@@ -1319,22 +1302,18 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
   }
   const confirmTravel=async(course:Course)=>{
     const alreadySaved=bookmarkItems.some(item=>item.courseId===course.id)
-    if(loggedIn && !alreadySaved && await ask('이 코스로 여행 확정','이 코스를 내 여행에도 저장할까요? 출발 장소·좌표·방문 일정이 계정에 저장되며 직접 삭제하거나 탈퇴할 때까지 보관됩니다.','코스 저장','저장 없이 여행하기')){
+    if(loggedIn && !alreadySaved && await ask('이 코스로 여행 확정',(Object.keys(dayCache.current).length>1?'선택한 날짜의 코스를 저장할까요? ':'이 코스를 내 여행에도 저장할까요? ')+'출발 장소·좌표·방문 일정이 계정에 저장되며 직접 삭제하거나 탈퇴할 때까지 보관됩니다.','코스 저장','저장 없이 여행하기')){
       try{await api.bookmarks.add({courseId:course.id,courseName:course.title,city:course.city,snapshot:course.apiCourse});await refreshAccount()}
       catch(error){await ask('저장하지 못했어요',error instanceof Error?error.message:'동선은 계속 확인할 수 있어요.')}
     }
     setConfirmedCourse(course);setSelectedCourse(null);setTab('map')
-  }
-  const replayHistory=(item:HistoryItem)=>{
-    const seed=item.preferences?preferencesToCondition(item.preferences):{...DEFAULT_CONDITION,region:item.city||''}
-    setWizardSeed({...seed,date:todayKorea(),endDate:todayKorea()});setWizardOpen(true)
   }
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', background: '#E8EEF4' }}>
       <div style={{ width: '100%', maxWidth: 520, height: '100%', position: 'relative', overflow: 'hidden', background: L.bg, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>
         {dialog}
-        {user && needsPrivacyConsent(user) && <PrivacyConsent onAgree={async()=>{setUser(await api.acceptPrivacy());await refreshAccount();setScreen('main');}} onDecline={()=>{void tokenStore.clear();setUser(null);setBookmarkItems([]);setHistory([]);setScreen('main');}} onDelete={async()=>{await api.deleteAccount();await tokenStore.clear();setUser(null);setBookmarkItems([]);setHistory([]);setScreen('login');}}/>}
+        {user && needsPrivacyConsent(user) && <PrivacyConsent onAgree={async()=>{setUser(await api.acceptPrivacy());await refreshAccount();setScreen('main');}} onDecline={()=>{void tokenStore.clear();setUser(null);setBookmarkItems([]);setScreen('main');}} onDelete={async()=>{await api.deleteAccount();await tokenStore.clear();setUser(null);setBookmarkItems([]);setScreen('login');}}/>}
         {screen === 'splash' && <BrandIntro onDone={() => setScreen(tokenStore.getAccess() ? 'main' : 'login')} />}
         {screen === 'login' && <Login onAuthenticated={applyAuth} onLogin={handleLogin} onSignup={handleSignup} onGuest={() => setScreen('main')} error={authError} />}
         {screen === 'main' && (
@@ -1343,11 +1322,11 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
               {tab === 'home' && <HomeScreen onPlan={(seed) => { setWizardSeed(seed); setWizardOpen(true); }} courses={courses} />}
               {tab === 'course' && <CourseListScreen dates={condition?tripDates(condition.date,condition.endDate):[]} activeDate={activeDay} progress={tripProgress} dateById={Object.fromEntries(Object.entries(coursePrefs).map(([id,p])=>[id,p.travelDate||'']))} state={courseState} condition={condition?{...condition,date:activeDay||condition.date,departure:activeDay!==condition.date?(coursePrefs[courses[0]?.id??'']?.startLocation||condition.departure):condition.departure}:undefined} courses={courses} fallbackReason={fallbackReason} onSelect={(course) => void openCourse(course)} onRetry={retryDay} onPlan={() => {setWizardSeed(condition);setWizardOpen(true)}} />}
               {tab === 'map' && <MapScreen journeys={confirmedCourse&&Object.keys(dayCache.current).length>1?Object.values(dayCache.current).flatMap(d=>d.courses.slice(0,1)).map(c=>c.id===confirmedCourse.id?confirmedCourse:c):confirmedCourse?[confirmedCourse]:[]} preferencesById={coursePrefs} missingDays={Object.entries(dayCache.current).filter(([,d])=>d.error).map(([date,d])=>({date,error:d.error!}))} routingBusy={!!routingStatus[confirmedCourse?.id||'']?.busy} routingError={routingStatus[confirmedCourse?.id||'']?.error||''} confirmedCourse={confirmedCourse} onDetail={openCourse}/>}
-              {tab === 'mytravel' && <MyTravelScreen loggedIn={loggedIn} user={user} onLogin={() => setScreen('login')} onLogout={() => void handleLogout()} onDeleted={()=>void clearAccount()} bookmarkItems={bookmarkItems} history={history} onSelectCourse={(course) => void openCourse(course)} onReplayHistory={replayHistory} onDeleteHistory={async(id)=>{if(await ask('여행 기록 삭제','저장한 여행 기록을 삭제할까요?','삭제'))try{await api.history.delete(id);await refreshAccount()}catch(error){await ask('삭제 실패',error instanceof Error?error.message:'다시 시도해 주세요.')}}} courses={courses} />}
+              {tab === 'mytravel' && <MyTravelScreen loggedIn={loggedIn} user={user} onLogin={() => setScreen('login')} onLogout={() => void handleLogout()} onDeleted={()=>void clearAccount()} bookmarkItems={bookmarkItems} onSelectCourse={(course) => void openCourse(course)} onProfile={setUser} courses={courses} />}
             </div>
             <TabBar active={tab} onChange={setTab} />
             {wizardOpen && <PlanWizard initial={wizardSeed} onClose={() => { setWizardOpen(false); setWizardSeed(undefined); }} onComplete={(cond) => void handleComplete(cond)} />}
-            {selectedCourse && <CourseDetailScreen routingBusy={!!routingStatus[selectedCourse.id]?.busy} routingError={routingStatus[selectedCourse.id]?.error||''} course={selectedCourse} onBack={()=>setSelectedCourse(null)} onEdit={()=>{if(coursePrefs[selectedCourse.id])setEditorOpen(true);else void ask('코스 편집','여행 조건을 새로 선택한 후 편집해 주세요.')}} onConfirm={()=>void confirmTravel(selectedCourse)}/>}
+            {selectedCourse && <CourseDetailScreen tripDays={Object.values(dayCache.current).some(d=>d.courses.some(c=>c.id===selectedCourse.id))?Object.entries(dayCache.current).sort(([a],[b])=>a.localeCompare(b)).map(([date,d])=>({date,preferences:d.preferences,course:d.courses[0],error:d.error})):[]} routingBusy={!!routingStatus[selectedCourse.id]?.busy} routingError={routingStatus[selectedCourse.id]?.error||''} course={selectedCourse} onBack={()=>setSelectedCourse(null)} onEdit={()=>{if(coursePrefs[selectedCourse.id])setEditorOpen(true);else void ask('코스 편집','여행 조건을 새로 선택한 후 편집해 주세요.')}} onConfirm={()=>void confirmTravel(selectedCourse)}/>}
             {selectedCourse && editorOpen && <CourseEditor course={selectedCourse} pool={[...new Map(courses.flatMap(c => c.places).filter(p => p.category !== 'transit').map(p => [p.id, p])).values()]} onClose={() => setEditorOpen(false)} onSave={async updated => {
               if (!activePrefs) throw new Error('코스를 다시 추천받은 후 편집해 주세요.');
               const version=recommendationVersion.current;

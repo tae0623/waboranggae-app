@@ -13,7 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -27,11 +27,14 @@ import kr.co.waboranggae.nativepilot.data.City
 import kr.co.waboranggae.nativepilot.data.sortedTravelCities
 
 @Composable internal fun DestinationPicker(cities:List<City>,selectedCity:String,onSelect:(String)->Unit,onDismiss:()->Unit) {
-    val columns=if(LocalDensity.current.fontScale>=1.3f || LocalConfiguration.current.screenWidthDp<340)2 else 3
+    val windowSize=LocalWindowInfo.current.containerSize
+    val width=with(LocalDensity.current){windowSize.width.toDp()}
+    val maxHeight=with(LocalDensity.current){windowSize.height.toDp()*.8f}
+    val columns=if(LocalDensity.current.fontScale>=1.3f || width<340.dp)2 else 3
     ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
         shape=RoundedCornerShape(topStart=30.dp,topEnd=30.dp),containerColor=WebSoft,
         dragHandle={Box(Modifier.padding(top=12.dp,bottom=10.dp).size(36.dp,4.dp).background(Color(0xFFB6CBBE),RoundedCornerShape(8.dp)))}) {
-        Column(Modifier.fillMaxWidth().heightIn(max=(LocalConfiguration.current.screenHeightDp*.8f).dp).testTag("destination-picker")) {
+        Column(Modifier.fillMaxWidth().heightIn(max=maxHeight).testTag("destination-picker")) {
             Row(Modifier.fillMaxWidth().padding(start=24.dp,end=12.dp,bottom=20.dp),verticalAlignment=Alignment.CenterVertically) {
                 Surface(shape=RoundedCornerShape(14.dp),color=Color(0xFFE1F1E7)) {
                     Box(Modifier.size(46.dp),contentAlignment=Alignment.Center){Icon(PilotIcons.Map,null,Modifier.size(24.dp),tint=Purple)}

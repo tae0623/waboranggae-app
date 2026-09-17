@@ -152,39 +152,8 @@ export interface AuthResponse {
   refreshToken: string;
 }
 
-export interface TravelPreferences {
-  scheduleMode?: 'fixed' | 'course-first';
-  requiredContentId?: string;
-  requiredPlaceName?: string;
-  timeBudgetMode?: 'local' | 'door-to-door';
-  region: string;
-  city: string;
-  startLocation: string;
-  startType: 'station' | 'terminal' | 'current' | 'lodging' | 'custom';
-  startAddress?: string;
-  startLatitude?: number;
-  startLongitude?: number;
-  travelDate: string | null;
-  travelEndDate?: string | null;
-  startTime: string;
-  endTime?: string;
-  durationHours: number;
-  mealPreference: 'auto' | 'none' | 'lunch' | 'dinner' | 'both';
-  meals?: Array<'breakfast' | 'lunch' | 'dinner'>;
-  pace: 'easy' | 'balanced' | 'full';
-  preferLocal: boolean;
-  interests: Array<'nature' | 'food' | 'cafe' | 'photo' | 'market' | 'history'>;
-  companions: string;
-  lowMobility: boolean;
-  publicTransportOnly: boolean;
-  preferredTransit?: string[];
-  lodgingName?: string;
-  lodgingAddress?: string;
-  lodgingLatitude?: number;
-  lodgingLongitude?: number;
-  summary: string;
-  confidence: number;
-}
+export type { TravelPreferences } from '../../src/types/travel';
+import type { TravelPreferences } from '../../src/types/travel';
 
 export type { RankedCourse } from '../../src/types/travel';
 import type { RankedCourse } from '../../src/types/travel';

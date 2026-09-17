@@ -27,10 +27,10 @@ describe('Android / web parity',()=>{
     expect(conditionToPreferences({...form(),region:'고흥'}).startLocation).toBe('선택한 출발지');
     expect(conditionError({...form(),departureLat:Infinity})).toContain('검색 결과');
   });
-  it('keeps a single local day and optionally limits the end time',()=>{
+  it('keeps the full range client-side and applies the end time to its last day',()=>{
     vi.useFakeTimers();vi.setSystemTime(new Date('2026-09-16'));
     const p=conditionToPreferences({...form(),endDate:'2026-09-23',startTime:'12:00',endTime:'18:30',endTimeLimited:true});
-    expect(p.travelEndDate).toBe('2026-09-20');expect(p.durationHours).toBe(6.5);expect(p.endTime).toBe('18:30');
+    expect(p.travelEndDate).toBe('2026-09-23');expect(p.endTime).toBeUndefined();expect(p.daySchedules?.['2026-09-23']).toEqual({startTime:'09:00',endTime:'18:30'});
     expect(conditionError({...form(),startTime:'18:00',endTime:'12:00',endTimeLimited:true})).toContain('1시간');
   });
   it.each([['08:00','09:00',['아침']],['11:30','12:30',['점심']],['17:30','18:30',['저녁']],['13:31','16:00',[]]])('enables meals for %s-%s',(startTime,endTime,expected)=>{

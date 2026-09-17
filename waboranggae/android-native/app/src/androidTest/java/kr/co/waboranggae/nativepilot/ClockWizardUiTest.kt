@@ -49,12 +49,12 @@ class ClockWizardUiTest {
   lateinit var vm:TravelViewModel
   ui.runOnUiThread{
    vm=TravelViewModel(repository)
-   vm.chooseDeparture(PlaceSuggestion("public-test","검증 장소","전남 순천",34.95,127.49))
+   vm.chooseDeparture(PlaceSuggestion("public-test","검증 장소","전남 순천",34.95,127.49));vm.chooseDestination("순천")
    vm.updateForm{it.copy(date="2026-10-01",startTime="09:15",endTime="15:40")}
    vm.nextWizardStep()
   }
   ui.setContent{WaboranggaeTheme{val state by vm.state.collectAsState();WebWizard(state,vm)}}
-  ui.onNodeWithText("오전 9:15 현지 여행 시작").assertExists()
+  ui.onNodeWithText("오전 9:15 · 현지 여행 시작").assertExists()
   ui.onNodeWithTag("travel-end-time").assertDoesNotExist()
   ui.onNodeWithTag("end-time-limit").performScrollTo().assertIsOff().performClick().assertIsOn()
   ui.onNodeWithText("오후 3:40까지").performScrollTo().assertIsDisplayed()
@@ -125,12 +125,22 @@ class ClockWizardUiTest {
   repeat(layouts.single().lineCount){Assert.assertFalse(layouts.single().isLineEllipsized(it))}
   shot("17-full-course-title")
  }
+ @Test fun rangeSelectionCrossesMonthAndSameDayIsADayTrip(){
+  var first="";var last=""
+  ui.setContent{WaboranggaeTheme{TravelDateDialog("2026-10-01",onConfirm={a,b->first=a;last=b},onDismiss={})}}
+  ui.onNodeWithTag("calendar-day-30").performScrollTo().performClick()
+  ui.onNodeWithTag("calendar-next").performClick()
+  ui.onNodeWithTag("calendar-day-2").performScrollTo().performClick()
+  ui.onNodeWithTag("calendar-confirm").performScrollTo().performClick()
+  Assert.assertEquals("2026-10-30",first);Assert.assertEquals("2026-11-02",last)
+  shot("18-range-calendar")
+ }
  @Test fun calendarFitsAtLargeTextAndLastDayCanBeSelected(){
   var selected=""
   ui.setContent{
    val density=LocalDensity.current
    CompositionLocalProvider(LocalDensity provides Density(density.density,1.3f)){
-    WaboranggaeTheme{TravelDateDialog("2026-10-01",{selected=it},{})}
+    WaboranggaeTheme{TravelDateDialog("2026-10-01",onConfirm={first,_->selected=first},onDismiss={})}
    }
   }
   ui.onNodeWithTag("calendar-day-31").performScrollTo().assertIsDisplayed().performClick()

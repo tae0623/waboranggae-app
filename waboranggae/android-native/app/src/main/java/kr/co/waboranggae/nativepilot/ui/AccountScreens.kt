@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.*
 import kr.co.waboranggae.nativepilot.BuildConfig
 
-const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으로 이메일·표시 이름·비밀번호 해시(이메일 가입) 또는 공급자 식별자·표시 이름(소셜 로그인), 동의 버전·시각을 탈퇴 시까지 수집·이용하는 데 동의합니다. 클라우드 검증에서는 Supabase의 서버와 DB에 저장·처리됩니다. 거부해도 게스트 이용과 기존 계정 삭제는 가능합니다. 여행 조건·코스 저장은 별도 선택입니다."
+const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으로 이메일·닉네임·비밀번호 해시(이메일 가입) 또는 공급자 식별자·닉네임(소셜 로그인), 동의 버전·시각을 탈퇴 시까지 수집·이용하는 데 동의합니다. 클라우드 검증에서는 Supabase의 서버와 DB에 저장·처리됩니다. 거부해도 게스트 이용과 기존 계정 삭제는 가능합니다. 여행 조건·코스 저장은 별도 선택입니다."
 @Composable fun AccountConsentScreen(state:AccountState,account:AccountViewModel) {
     var consent by remember{mutableStateOf(false)};var legal by remember{mutableStateOf(false)};var delete by remember{mutableStateOf(false)}
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp).testTag("privacy-consent-page"),verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -50,7 +50,7 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
     AppDialog(onDismissRequest=onDismiss,title={Text("개인정보·출처 안내")},text={
         Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("개발 테스트 안내 · $NOTICE_VERSION\n운영자: $OPERATOR_NAME\n문의: waboranggae.help@gmail.com\n아직 스토어 출시용 최종 방침이 아닙니다.",color=MaterialTheme.colorScheme.error)
-            Text("계정 관리: 이메일 가입은 이메일·표시 이름·비밀번호 해시, 소셜 로그인은 공급자 식별자·표시 이름 및 동의 버전을 탈퇴할 때까지 저장합니다. 비밀번호 원문은 저장하지 않습니다. 동의하지 않으면 계정 기능 없이 게스트로 여행을 찾을 수 있습니다.")
+            Text("계정 관리: 이메일 가입은 이메일·닉네임·비밀번호 해시, 소셜 로그인은 공급자 식별자·닉네임 및 동의 버전을 탈퇴할 때까지 저장합니다. 비밀번호 원문은 저장하지 않습니다. 동의하지 않으면 계정 기능 없이 게스트로 여행을 찾을 수 있습니다.")
             Text("선택 로그인 설정: 아이디 저장은 이메일만 이 기기에 암호화해 저장합니다. 자동 로그인은 선택한 경우에만 갱신 토큰을 암호화해 저장합니다. 비밀번호는 저장하지 않으며, 선택을 해제하면 해당 저장 정보를 지웁니다.")
             Text("선택 저장: 코스·최근 여행을 직접 저장할 때 출발 장소·좌표·일시·취향 등이 계정과 함께 저장됩니다. 각 항목 삭제 또는 탈퇴 시 삭제됩니다. 여행 이력 자동 저장은 하지 않습니다.")
             Text("추천에 필요한 장소·좌표·여행 조건은 서버, 관광·지도·날씨·교통 서비스로 전송됩니다. 보조 AI는 서버의 Ollama를 이용합니다. 선택적 가까운 순 검색은 대략적인 단말기 위치를 기기 안에서만 사용합니다. 좌표는 서버·카카오에 전송하거나 저장하지 않으며 화면 종료 시 해제됩니다. 동의 여부만 이 기기에 저장하고 내 여행에서 변경할 수 있습니다. 지도·이미지·소셜 로그인 및 개발용 Cloudflare 중계 사업자는 접속 IP 등 통신 정보를 처리할 수 있습니다.")
@@ -78,7 +78,7 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
             Surface(shape=RoundedCornerShape(26.dp),color=Color.White.copy(alpha=.95f)){
                 Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){WebChip("로그인",!signup){signup=false};WebChip("회원가입",signup){signup=true}}
-                    if(signup)OutlinedTextField(name,{name=it.take(50)},label={Text("표시 이름 (2~50자)")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("signup-name"),enabled=!state.busy)
+                    if(signup)OutlinedTextField(name,{name=it.take(50)},label={Text("닉네임 (2~50자)")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("signup-name"),enabled=!state.busy)
                     OutlinedTextField(email,{email=it.take(254)},label={Text("이메일")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email),singleLine=true,modifier=Modifier.fillMaxWidth().testTag("login-email"),enabled=!state.busy)
                     OutlinedTextField(password,{password=it.take(128)},label={Text("비밀번호")},visualTransformation=PasswordVisualTransformation(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),singleLine=true,modifier=Modifier.fillMaxWidth().testTag("login-password"),enabled=!state.busy)
                     if(!signup)FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){
@@ -122,15 +122,15 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
     var appInfo by remember{mutableStateOf(false)}
     val travel by model.state.collectAsState()
     var legal by remember{mutableStateOf(false)};var delete by remember{mutableStateOf(false)}
-    var clearHistory by remember{mutableStateOf(false)};var name by remember(state.user){mutableStateOf(state.user?.text("displayName").orEmpty())}
+    var name by remember(state.user){mutableStateOf(state.user?.text("displayName").orEmpty())}
     LaunchedEffect(state.user?.text("id")){account.load()}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).testTag("my-travel"),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         Text("내 여행",fontSize=28.sp,fontWeight=FontWeight.Black)
         if(state.user==null){Text("저장한 여행을 보려면 로그인해 주세요. 게스트 추천은 계속 이용할 수 있습니다.");WebAction("로그인 / 회원가입",account::loginScreen)}
         else {
             Text("${state.user.text("displayName")} 님",fontSize=20.sp,fontWeight=FontWeight.Bold)
-            OutlinedTextField(name,{name=it.take(50)},label={Text("표시 이름")},singleLine=true,modifier=Modifier.fillMaxWidth())
-            TextButton({account.updateName(name)},enabled=!state.busy && name.trim().length>=2){Text("이름 수정")}
+            OutlinedTextField(name,{name=it.take(50)},label={Text("닉네임")},singleLine=true,modifier=Modifier.fillMaxWidth())
+            TextButton({account.updateName(name)},enabled=!state.busy && name.trim().length>=2){Text("닉네임 수정")}
             Text("저장한 코스",fontSize=20.sp,fontWeight=FontWeight.Bold)
             if(state.bookmarks.isEmpty())Text("아직 저장한 코스가 없습니다.",color=Muted)
             state.bookmarks.forEach{item->
@@ -140,18 +140,6 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
                     Row{TextButton({val snapshot=item["snapshot"] as? JsonObject;if(snapshot!=null)model.openSaved(snapshot)},enabled=item["snapshot"] is JsonObject){Text("코스 열기")};TextButton({account.removeBookmark(item.text("courseId"))},enabled=!state.busy){Text("저장 취소")}}
                 }}
             }
-            Text("최근 여행 조건",fontSize=20.sp,fontWeight=FontWeight.Bold)
-            Text("직접 저장한 조건만 표시합니다. 다시 추천할 때 날짜와 출발지를 확인하세요.",fontSize=12.sp,color=Muted)
-            if(state.history.isEmpty())Text("저장한 여행 조건이 없습니다.",color=Muted)
-            state.history.forEach{item->
-                Surface(shape=RoundedCornerShape(18.dp),color=Color.White){Column(Modifier.fillMaxWidth().padding(14.dp)){
-                    Text(item.text("query"));Row{
-                        TextButton({(item["preferences"] as? JsonObject)?.let{model.restorePreferences(it)}},enabled=item["preferences"] is JsonObject){Text("조건 다시 열기")}
-                        TextButton({account.removeHistory(item.text("id"))},enabled=!state.busy){Text("삭제")}
-                    }
-                }}
-            }
-            if(state.history.isNotEmpty())TextButton({clearHistory=true},enabled=!state.busy){Text("여행 조건 전체 삭제")}
             if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
             state.message?.let{Text(it,fontSize=12.sp,color=Purple)}
             OutlinedButton(account::logout,enabled=!state.busy,modifier=Modifier.fillMaxWidth().testTag("logout-current")){Text("로그아웃")}
@@ -168,7 +156,7 @@ const val ACCOUNT_CONSENT_TEXT="[계정 이용 필수] 계정 관리 목적으�
     }
     if(legal)PrivacyInfo{legal=false}
     if(delete)AppDialog(onDismissRequest={delete=false},title={Text("계정을 영구 삭제할까요?")},text={Text("계정·북마크·여행 이력·앱 내 소셜 연결 정보를 삭제하며 복구할 수 없습니다. 카카오·구글 계정 자체는 삭제하지 않습니다.")},confirmButton={TextButton({delete=false;account.deleteAccount()}){Text("영구 삭제")}},dismissButton={TextButton({delete=false}){Text("취소")}})
-    if(clearHistory)AppDialog(onDismissRequest={clearHistory=false},title={Text("저장한 여행 조건을 모두 삭제할까요?")},text={Text("이 계정의 여행 이력만 삭제합니다. 복구할 수 없습니다.")},confirmButton={TextButton({clearHistory=false;account.removeHistory(null)}){Text("삭제")}},dismissButton={TextButton({clearHistory=false}){Text("취소")}})
+
     if(appInfo)AppDialog(onDismissRequest={appInfo=false},title={Text("뚜버기 · 앱 정보")},text={
         Column(verticalArrangement=Arrangement.spacedBy(14.dp)) {
             Text(OPERATOR_NAME,fontWeight=FontWeight.Bold);Text("waboranggae.help@gmail.com",fontSize=13.sp)

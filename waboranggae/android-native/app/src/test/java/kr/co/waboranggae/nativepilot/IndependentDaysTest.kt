@@ -12,7 +12,7 @@ class IndependentDaysTest {
   for(day in listOf("2026-10-02","2026-10-03")){
    val p=base.forDay(day,local).preferences()
    assertEquals("나주",p.city);assertEquals(local.name,p.startLocation);assertEquals(local.latitude,p.startLatitude,0.0)
-   assertEquals(day,p.travelDate);assertEquals(day,p.travelEndDate);assertEquals(6.5,p.durationHours,0.0);assertEquals("16:30",p.endTime)
+   assertEquals(day,p.travelDate);assertEquals(day,p.travelEndDate);assertEquals("09:00",p.startTime);assertEquals(if(day=="2026-10-03")7.5 else 6.0,p.durationHours,0.0);assertEquals(if(day=="2026-10-03")"16:30" else null,p.endTime)
   }
  }
  @Test fun firstDayRetainsOutsideOriginButLaterDaysDropRequiredVenue(){

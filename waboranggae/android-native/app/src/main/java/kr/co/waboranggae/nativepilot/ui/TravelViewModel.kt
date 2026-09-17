@@ -259,17 +259,6 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
             openDetails(course.id)
         }.onFailure{e->mutable.update{it.copy(error=e.message)}}
     }
-    fun restorePreferences(raw:JsonObject) {
-        runCatching{
-            val p=json.decodeFromJsonElement<Preferences>(raw)
-            val start=PlaceSuggestion("saved-origin",p.startLocation,p.startAddress,p.startLatitude,p.startLongitude)
-            val form=TravelForm(requiredPlace=p.requiredContentId?.let{HotPlace(it,p.requiredPlaceName?:"선택한 관광지",p.city)},city=p.city,startType=p.startType,query=p.startLocation,departure=start,date=p.travelDate,
-                startTime=p.startTime,hours=p.durationHours.toInt(),meal=p.mealPreference,pace=p.pace,interests=p.interests.toSet(),
-                companion=p.companions,lowMobility=p.lowMobility,transitModes=p.preferredTransit.toSet(),endDate=p.travelEndDate?.takeIf{it!=p.travelDate},endTime=p.endTime?:"16:00",limitEndTime=p.endTime!=null,meals=p.meals?.toSet(),
-                lodging=if(p.lodgingName!=null && p.lodgingLatitude!=null && p.lodgingLongitude!=null)PlaceSuggestion("saved-lodging",p.lodgingName,p.lodgingAddress.orEmpty(),p.lodgingLatitude,p.lodgingLongitude)else null)
-            mutable.update{it.copy(form=form.forCurrentApp().normalizeMeals(),page=Page.CONDITIONS,wizardStep=1,error="저장 당시의 날짜와 출발지입니다. 확인한 뒤 추천해 주세요.")}
-        }.onFailure{mutable.update{it.copy(error="이전 버전의 조건은 자동 복원할 수 없습니다. 조건을 다시 선택해 주세요.")}}
-    }
     fun explain() {
         val s=mutable.value;val course=s.selectedCourse?:return;val p=s.preferences?:return
         if(s.detailBusy)return

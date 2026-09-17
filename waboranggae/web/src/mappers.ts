@@ -1,6 +1,7 @@
 import type { Condition, Course, Place, PlaceCat, TransitStep } from './App';
 import type { RankedCourse, TravelPreferences } from './api';
-import { conditionError, normalizeMeals } from './parity';
+import { conditionError, normalizeMeals, conditionSchedule } from './parity';
+import {tripDates} from '../../src/domain/tripDays';
 import { mediaUrl } from './runtime';
 
 const PURPOSE_TO_INTEREST: Record<string, TravelPreferences['interests'][number]> = {
@@ -87,6 +88,9 @@ function interestsFromCondition(cond: Condition): TravelPreferences['interests']
 
 export function conditionToPreferences(cond: Condition): TravelPreferences {
   const invalid = conditionError(cond); if (invalid) throw new Error(invalid);
+  const rangeEnd=cond.endDate,daySchedules=Object.fromEntries(tripDates(cond.date,cond.endDate).map(date=>[date,conditionSchedule(cond,date)]));
+  const first=conditionSchedule(cond,cond.date);
+  cond={...cond,startTime:first.startTime,endTime:first.endTime||cond.endTime,endTimeLimited:!!first.endTime};
   const automaticMeals=cond.meals.includes('자동');
   const meals = mealsFromCondition(normalizeMeals(cond));
   const interests = interestsFromCondition(cond);
@@ -118,7 +122,7 @@ export function conditionToPreferences(cond: Condition): TravelPreferences {
     startLatitude: cond.departureLat,
     startLongitude: cond.departureLng,
     travelDate: cond.date || null,
-    travelEndDate: cond.date || null,
+    travelEndDate: rangeEnd || cond.date, daySchedules,
     startTime: cond.startTime,
     endTime: cond.endTimeLimited ? cond.endTime : undefined,
     durationHours,

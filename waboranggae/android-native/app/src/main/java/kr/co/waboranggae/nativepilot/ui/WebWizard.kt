@@ -31,10 +31,10 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
     val f=state.form;val step=state.wizardStep;val focus=LocalFocusManager.current
     var regions by remember { mutableStateOf(false) }
     if(regions)DestinationPicker(state.cities,f.city,{city->model.chooseDestination(city);regions=false},{regions=false})
-    var datePicker by remember{mutableStateOf<String?>(null)}
-    var timePicker by remember{mutableStateOf<String?>(null)}
-    datePicker?.let{target->TravelDateDialog(if(target=="end")f.endDate?:f.date else f.date,{value->model.updateForm{if(target=="end")it.copy(endDate=value) else it.copy(date=value,endDate=it.endDate?.let{end->maxOf(end,value)})};datePicker=null},{datePicker=null})}
-    timePicker?.let{target->TravelTimeDialog(if(target=="start")f.startTime else f.endTime,{value->model.updateForm{if(target=="start")it.copy(startTime=value)else it.copy(endTime=value)};timePicker=null},{timePicker=null})}
+    var datePicker by remember{mutableStateOf(false)}
+    var timePicker by remember{mutableStateOf<Pair<String,String>?>(null)}
+    if(datePicker)TravelDateDialog(f.date,f.endDate?:f.date,{first,last->model.updateForm{it.withRange(first,last)};datePicker=false},{datePicker=false})
+    timePicker?.let{(day,target)->val window=f.schedule(day);TravelTimeDialog(if(target=="start")window.startTime else window.endTime?:"18:00",{value->model.updateForm{it.withSchedule(day,if(target=="start")it.schedule(day).copy(startTime=value)else it.schedule(day).copy(endTime=value))};timePicker=null},{timePicker=null})}
     Column(Modifier.fillMaxSize().background(WebSoft).imePadding()) {
         Row(Modifier.padding(start=20.dp,end=20.dp,top=16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Surface(onClick=model::back,shape=RoundedCornerShape(100.dp),color=Soft,border=BorderStroke(1.dp,WebBorder)) {
@@ -49,7 +49,7 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
             val title=listOf("어디서\n출발하세요?","어디로\n떠날까요?","어떻게\n여행할까요?","어떤 여행을\n원하세요?")[step-1]
             val subtitle=listOf("","전남 22개 지역 중 목적지 선택","내게 맞는 걷기 부담과 여행 속도","가고 싶은 곳과 식사 계획을 골라주세요")[step-1]
             Text(title,fontSize=30.sp,lineHeight=35.sp,fontWeight=FontWeight.Black,letterSpacing=(-.9).sp)
-            if(step!=1)Text(subtitle,fontSize=14.sp,color=WebMuted,modifier=Modifier.padding(top=6.dp,bottom=24.dp))
+            Text(if(step==1)" " else subtitle,fontSize=14.sp,lineHeight=20.sp,color=WebMuted,modifier=Modifier.padding(top=6.dp,bottom=24.dp))
             f.requiredPlace?.let{place->
                 Surface(color=Color.White,shape=RoundedCornerShape(16.dp),border=BorderStroke(1.dp,WebBorder),modifier=Modifier.fillMaxWidth().padding(bottom=18.dp).testTag("required-place")) {
                     Row(Modifier.padding(start=16.dp,end=6.dp,top=12.dp,bottom=12.dp),verticalAlignment=Alignment.CenterVertically){
@@ -65,7 +65,7 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
             when(step) {
                 1->{
                     OutlinedTextField(f.query,model::changeQuery,modifier=Modifier.fillMaxWidth().testTag("departure-query"),
-                        placeholder={Text("가게, 명소, 주소 — 전국 검색",fontSize=14.sp)},singleLine=true,shape=RoundedCornerShape(18.dp),
+                        placeholder={Text("출발지를 검색하세요",fontSize=14.sp)},singleLine=true,shape=RoundedCornerShape(18.dp),
                         colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=Ink,unfocusedBorderColor=WebBorder),
                         keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),keyboardActions=KeyboardActions(onSearch={focus.clearFocus();model.search()}),
                         trailingIcon={IconButton(onClick={focus.clearFocus();model.search()},enabled=!state.searching){Icon(PilotIcons.Search,"출발지 검색")}})
@@ -91,16 +91,21 @@ import kr.co.waboranggae.nativepilot.data.PlaceSuggestion
                     }
                     state.cityError?.let { Text(it,fontSize=12.sp);TextButton(model::loadCities){Text("지역 다시 불러오기")} }
                     WebSectionLabel("여행 날짜")
-                    OutlinedButton(onClick={datePicker="start"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()) { Text(f.date,color=Ink) }
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("여러 날 여행",modifier=Modifier.weight(1f));Switch(checked=f.endDate!=null,onCheckedChange={value->model.updateForm{it.copy(endDate=if(value)it.date else null)}},colors=SwitchDefaults.colors(checkedTrackColor=Ink),modifier=Modifier.testTag("multiple-days"))}
-                    if(f.endDate!=null){OutlinedButton({datePicker="end"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth().testTag("trip-end-date")){Text("마지막 여행 날짜 · ${f.endDate}",color=Ink)};Text("최대 7일 · 같은 지역에서 날짜마다 새 코스를 만들어요.",fontSize=12.sp,color=Muted)}
-                    WebSectionLabel("시작 시각")
-                    OutlinedButton(onClick={timePicker="start"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth()) { Text("${formatKoreanClock(f.startTime)} 현지 여행 시작",color=Ink) }
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                        Text("종료 시각 설정",color=Ink,modifier=Modifier.weight(1f))
-                        Switch(checked=f.limitEndTime,onCheckedChange={value->model.updateForm{it.copy(limitEndTime=value)}},modifier=Modifier.testTag("end-time-limit"),colors=SwitchDefaults.colors(checkedTrackColor=Ink))
+                    OutlinedButton(onClick={datePicker=true},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth().testTag("trip-date-range")) { Text(if(f.tripDates().size>1)"${f.date} — ${f.endDate}" else f.date,color=Ink) }
+                    f.tripDates().forEachIndexed{index,day->
+                        val window=f.schedule(day);val multiple=f.tripDates().size>1
+                        Surface(color=Color.White,shape=RoundedCornerShape(20.dp),border=BorderStroke(1.dp,WebBorder),modifier=Modifier.padding(top=12.dp).fillMaxWidth().testTag("day-window-$day")){
+                            Column(Modifier.padding(14.dp)){
+                                if(multiple)Text("DAY ${index+1} · $day",fontSize=14.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(bottom=8.dp))
+                                OutlinedButton(onClick={timePicker=day to "start"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth().testTag("day-start-$day")) { Text("${formatKoreanClock(window.startTime)} · ${if(multiple&&index==0)"첫날 " else ""}현지 여행 시작",color=Ink) }
+                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                                    Text(if(multiple&&index==f.tripDates().lastIndex)"마지막 날 종료 시각 설정" else "종료 시각 설정",color=Ink,modifier=Modifier.weight(1f),fontSize=14.sp)
+                                    Switch(checked=window.endTime!=null,onCheckedChange={value->model.updateForm{it.withSchedule(day,it.schedule(day).copy(endTime=if(value)if(multiple)"18:00" else f.endTime else null))}},modifier=Modifier.testTag(if(index==0)"end-time-limit" else "end-time-limit-$day"),colors=SwitchDefaults.colors(checkedTrackColor=Ink))
+                                }
+                                if(window.endTime!=null)OutlinedButton(onClick={timePicker=day to "end"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth().testTag(if(index==0)"travel-end-time" else "travel-end-time-$day")) { Text("${formatKoreanClock(window.endTime)}까지",color=Ink) }
+                            }
+                        }
                     }
-                    if(f.limitEndTime)OutlinedButton(onClick={timePicker="end"},shape=RoundedCornerShape(14.dp),modifier=Modifier.fillMaxWidth().testTag("travel-end-time")) { Text("${formatKoreanClock(f.endTime)}까지",color=Ink) }
                     Text("예상 소요 시간은 코스에서 확인하세요 · 도시 간 이동 별도",fontSize=12.sp,color=WebMuted,modifier=Modifier.padding(top=14.dp))
                 }
                 3->{

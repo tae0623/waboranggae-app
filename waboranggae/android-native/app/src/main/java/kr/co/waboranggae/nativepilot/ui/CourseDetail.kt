@@ -23,6 +23,7 @@ import kr.co.waboranggae.nativepilot.data.*
     val course=state.selectedCourse?:return
     var savePrompt by remember(course.id){mutableStateOf(false)}
     var scoreDetails by remember(course.id){mutableStateOf(false)}
+    val tripDays=state.tripDays.takeIf{days->days.size>1 && days.any{it.courseId==course.id}}.orEmpty()
     val photos=course.places.filter{!it.imageUrl.isNullOrBlank()}.distinctBy{it.imageUrl}.take(4)
     var photoIndex by remember(course.id){mutableIntStateOf(0)}
     Column(Modifier.fillMaxSize().background(Soft).testTag("course-detail")) {
@@ -63,7 +64,21 @@ import kr.co.waboranggae.nativepilot.data.*
                 Surface(shape=RoundedCornerShape(24.dp),color=Color.White){Row(Modifier.fillMaxWidth().padding(4.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)){
                     listOf(false to "타임라인",true to "점수 분석").forEach{(value,label)->Surface(onClick={scoreDetails=value},shape=RoundedCornerShape(18.dp),color=if(scoreDetails==value)Ink else Color.White,modifier=Modifier.weight(1f)){Box(Modifier.padding(12.dp),contentAlignment=Alignment.Center){Text(label,fontSize=13.sp,color=if(scoreDetails==value)Color.White else Muted,fontWeight=FontWeight.Bold)}}}
                 }}
-                if(scoreDetails)ScoreAnalysis(course) else JourneyTimeline(course,model.repository)
+                if(scoreDetails){
+                    if(tripDays.isNotEmpty())Text("${state.tripDays.find{it.courseId==course.id}?.date} 코스 점수",fontSize=13.sp,color=Muted)
+                    ScoreAnalysis(course)
+                } else if(tripDays.isEmpty())JourneyTimeline(course,model.repository) else {
+                    tripDays.forEachIndexed{index,day->
+                        Column(verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("detail-day-${index+1}")){
+                            Text("DAY ${index+1} · ${day.date}",fontSize=20.sp,fontWeight=FontWeight.ExtraBold)
+                            Text("${formatKoreanClock(day.preferences.startTime)} 시작"+(day.preferences.endTime?.let{" · ${formatKoreanClock(it)}까지"}?:""),fontSize=12.sp,color=Muted)
+                            val dailyCourse=state.courses.find{it.id==day.courseId}
+                            if(dailyCourse==null)Text(day.error?:"이 날짜의 코스를 찾지 못했어요.",color=MaterialTheme.colorScheme.error)
+                            else {Text(dailyCourse.title,fontWeight=FontWeight.Bold);JourneyTimeline(dailyCourse,model.repository)}
+                        }
+                        if(index<tripDays.lastIndex)HorizontalDivider(Modifier.padding(vertical=10.dp))
+                    }
+                }
                 if(state.detailBusy||auth.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
                 state.detailError?.let{Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.error)}
                 auth.message?.let{Text(it,fontSize=12.sp,color=Muted)}
@@ -71,7 +86,7 @@ import kr.co.waboranggae.nativepilot.data.*
         }
         Surface(color=Color.White,shadowElevation=6.dp){
             Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                Column(Modifier.weight(1f)){Text("추천 / 뚜벅이",fontSize=9.sp,color=Muted);Text("${course.fitScore.toInt()} / ${course.walkingScore.toInt()}",fontSize=17.sp,fontWeight=FontWeight.ExtraBold)}
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)){if(tripDays.isNotEmpty())Text("${tripDays.find{it.courseId==course.id}?.date} 기준",fontSize=9.sp,color=Muted);Text("추천 점수  ${course.fitScore.toInt()}점",fontSize=11.sp,fontWeight=FontWeight.Bold);Text("뚜벅이 적합도  ${course.walkingScore.toInt()}점",fontSize=11.sp,color=Purple,fontWeight=FontWeight.Bold)}
                 if(state.preferences!=null)OutlinedIconButton({model.navigate(Page.EDITOR)},enabled=!state.detailBusy&&!auth.busy,modifier=Modifier.size(42.dp).testTag("edit-course")){Icon(PilotIcons.Edit,"코스 편집",Modifier.size(18.dp))}
                 Button({
                     if(auth.user!=null && auth.bookmarks.none{it.text("courseId")==course.id})savePrompt=true else model.confirmTravel(course.id)
@@ -79,7 +94,7 @@ import kr.co.waboranggae.nativepilot.data.*
             }
         }
     }
-    if(savePrompt)AppDialog(onDismissRequest={savePrompt=false},title={Text("이 코스로 여행 확정")},text={Text("내 여행에도 코스를 저장할까요? 출발 장소·좌표와 방문 일정이 계정에 연결되어 직접 삭제하거나 탈퇴할 때까지 보관됩니다.")},
+    if(savePrompt)AppDialog(onDismissRequest={savePrompt=false},title={Text("이 코스로 여행 확정")},text={Text((if(tripDays.isNotEmpty())"선택한 날짜의 코스를 저장할까요? " else "내 여행에도 코스를 저장할까요? ")+"출발 장소·좌표와 방문 일정이 계정에 연결되어 직접 삭제하거나 탈퇴할 때까지 보관됩니다.")},
         confirmButton={TextButton({savePrompt=false;account.save(course){model.confirmTravel(course.id)}}){Text("코스 저장")}},
         dismissButton={TextButton({savePrompt=false;model.confirmTravel(course.id)}){Text("저장 없이 여행하기")}})
 }

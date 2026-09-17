@@ -103,8 +103,11 @@ fun HotPlace.travelDateError(date:String):String? {
     val lodgingName:String?=null,val lodgingAddress:String?=null,val lodgingLatitude:Double?=null,val lodgingLongitude:Double?=null
 )
 @Serializable data class RecommendRequest(val preferences: Preferences)
+data class DaySchedule(val startTime:String,val endTime:String?=null)
+
 data class TravelForm(
     val limitEndTime:Boolean=false,
+    val daySchedules:Map<String,DaySchedule> = emptyMap(),
     val requiredPlace:HotPlace?=null,
     val city: String = "", val startType: String = "custom",
     val query: String = "", val departure: PlaceSuggestion? = null,
@@ -118,18 +121,46 @@ data class TravelForm(
     fun forCurrentApp():TravelForm = copy(lodging=null,companion="혼자",
         interests=(interests-"photo").ifEmpty{if("photo" in interests)setOf("nature")else emptySet()})
     fun tripDates():List<String> = runCatching{val first=LocalDate.parse(date);val last=LocalDate.parse(endDate?:date);val count=java.time.temporal.ChronoUnit.DAYS.between(first,last)+1;require(count in 1..7);(0 until count).map{first.plusDays(it).toString()}}.getOrDefault(emptyList())
+    fun schedule(day:String)=daySchedules[day]?:DaySchedule(if(day==date)startTime else "09:00",endTime.takeIf{limitEndTime && day==(endDate?:date)})
+    fun withRange(first:String,last:String):TravelForm {
+        val base=copy(date=first,endDate=last.takeIf{it!=first})
+        val schedules=base.tripDates().associateWith{day->daySchedules[day]?:DaySchedule(if(day==first)startTime else "09:00",endTime.takeIf{limitEndTime && day==last})}
+        return base.copy(daySchedules=schedules,startTime=schedules[first]?.startTime?:startTime,endTime=schedules[last]?.endTime?:endTime,limitEndTime=schedules[last]?.endTime!=null)
+    }
+    fun withSchedule(day:String,value:DaySchedule)=copy(daySchedules=daySchedules+(day to value),
+        startTime=if(day==date)value.startTime else startTime,
+        endTime=if(day==(endDate?:date))value.endTime?:endTime else endTime,
+        limitEndTime=if(day==(endDate?:date))value.endTime!=null else limitEndTime)
+    fun scheduleError():String? {
+        for(day in tripDates()){
+            val window=schedule(day)
+            val start=runCatching{LocalTime.parse(window.startTime)}.getOrNull()?:return "$day · 시작 시각을 확인해 주세요."
+            if(window.endTime!=null){
+                val end=runCatching{LocalTime.parse(window.endTime)}.getOrNull()?:return "$day · 종료 시각을 확인해 주세요."
+                if(Duration.between(start,end).toMinutes() !in 60..1439)return "$day · 종료 시각은 같은 날 시작보다 1시간 이상 뒤로 선택해 주세요."
+            }
+        }
+        return null
+    }
     fun forDay(day:String,localOrigin:Origin?):TravelForm {
         require(day in tripDates()){"여행 기간 밖의 날짜입니다."}
-        if(day==date)return copy(endDate=null)
+        val window=schedule(day)
+        val single=copy(date=day,endDate=null,daySchedules=emptyMap(),startTime=window.startTime,endTime=window.endTime?:"18:00",limitEndTime=window.endTime!=null)
+        if(day==date)return single.normalizeMeals()
         val origin=requireNotNull(localOrigin){"첫날 코스를 먼저 추천받아 주세요."}
-        return copy(date=day,endDate=null,requiredPlace=null,query=origin.name,startType="custom",departure=PlaceSuggestion("day-origin",origin.name,origin.address,origin.latitude,origin.longitude))
+        return single.copy(requiredPlace=null,query=origin.name,startType="custom",departure=PlaceSuggestion("day-origin",origin.name,origin.address,origin.latitude,origin.longitude)).normalizeMeals()
     }
     fun tripMinutes():Long = Duration.between(LocalDateTime.of(LocalDate.parse(date),LocalTime.parse(startTime)),LocalDateTime.of(LocalDate.parse(date),LocalTime.parse(endTime))).toMinutes()
     fun totalHours()=tripMinutes()/60.0
     fun durationLabel():String { val minutes=tripMinutes();return listOfNotNull((minutes/60).takeIf{it>0}?.let{"${it}시간"},(minutes%60).takeIf{it>0}?.let{"${it}분"}).joinToString(" ") }
     fun availableMeals():Set<String> = runCatching {
-        val start=LocalTime.parse(startTime).toSecondOfDay()/60
-        val finish=if(limitEndTime)start+tripMinutes()else 1439L
+        if(tripDates().size>1)return tripDates().flatMap{day->
+            val window=schedule(day)
+            copy(date=day,endDate=null,daySchedules=emptyMap(),startTime=window.startTime,endTime=window.endTime?:"18:00",limitEndTime=window.endTime!=null).availableMeals()
+        }.toSet()
+        val window=schedule(date)
+        val start=LocalTime.parse(window.startTime).toSecondOfDay()/60
+        val finish=window.endTime?.let{LocalTime.parse(it).toSecondOfDay()/60L}?:1439L
         val windows=listOf(Triple("breakfast",480,570),Triple("lunch",690,810),Triple("dinner",1050,1170))
         (0..(finish/1440).toInt()).flatMap { day->windows.filter { (_,from,to)->
             val arrival=maxOf(start,day*1440+from)
@@ -155,14 +186,13 @@ data class TravelForm(
         transitModes.isEmpty() -> "이용할 교통수단을 하나 이상 선택해 주세요."
         runCatching { LocalDate.parse(date) }.isFailure -> "날짜를 다시 선택해 주세요."
         LocalDate.parse(date).isBefore(LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))) -> "오늘 이후의 여행 날짜를 선택해 주세요."
-        runCatching { LocalTime.parse(startTime) }.isFailure -> "출발 시간을 다시 선택해 주세요."
-        limitEndTime && runCatching{tripMinutes()}.isFailure -> "종료 시간을 확인해 주세요."
-        limitEndTime && tripMinutes() !in 60..1439 -> "같은 날에 시작보다 1시간 이상 늦게 끝나도록 선택해 주세요."
+        scheduleError()!=null -> scheduleError()
         requiredPlace?.travelDateError(date)!=null -> requiredPlace?.travelDateError(date)
         else -> null
     }
     fun preferences(): Preferences {
         require(validationError() == null) { validationError().orEmpty() }
+        if(daySchedules.isNotEmpty()||tripDates().size>1)return forDay(date,null).preferences()
         val start = requireNotNull(departure)
         return Preferences(scheduleMode="course-first",requiredContentId=requiredPlace?.tourContentId(),requiredPlaceName=requiredPlace?.name?.take(160),city = city,timeBudgetMode="local", startLocation = start.name, startType = startType,
             startAddress = start.address, startLatitude = start.latitude, startLongitude = start.longitude,

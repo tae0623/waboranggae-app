@@ -15,7 +15,7 @@ data class AccountState(
     val rememberId:Boolean=false,val autoLogin:Boolean=false,val savedEmail:String="",
     val user:JsonObject?=null,val message:String?=null,
     val providers:List<JsonObject> = emptyList(),val bookmarks:List<JsonObject> = emptyList(),
-    val history:List<JsonObject> = emptyList(),val authorizationUrl:String?=null,
+    val authorizationUrl:String?=null,
     val needsConsent:Boolean=false,val pendingSocial:JsonObject?=null,
     val providersLoading:Boolean=false,val providersError:String?=null
 )
@@ -83,7 +83,7 @@ class AccountViewModel(private val repository:TravelRepository):ViewModel() {
         repository.acceptSession(value)
         mutable.update{it.copy(savedEmail=saved)}
         val user=value["user"]!!.jsonObject
-        mutable.update{it.copy(user=user,showLogin=false,authorizationUrl=null,bookmarks=emptyList(),history=emptyList(),needsConsent=needsPrivacyConsent(user),pendingSocial=null)}
+        mutable.update{it.copy(user=user,showLogin=false,authorizationUrl=null,bookmarks=emptyList(),needsConsent=needsPrivacyConsent(user),pendingSocial=null)}
         if(!needsPrivacyConsent(user))refreshLists()
     }
     fun login(email:String,password:String,name:String,signup:Boolean,consent:Boolean) {
@@ -126,13 +126,12 @@ class AccountViewModel(private val repository:TravelRepository):ViewModel() {
     }
     private suspend fun refreshLists() {
         val bookmarks=repository.api("/api/user/bookmarks",auth=true).jsonArray.map{it.jsonObject}
-        val history=repository.api("/api/user/search-history",auth=true).jsonArray.map{it.jsonObject}
-        mutable.update{it.copy(bookmarks=bookmarks,history=history)}
+        mutable.update{it.copy(bookmarks=bookmarks)}
     }
     fun load() { if(mutable.value.user!=null) task{refreshLists()} }
     fun updateName(name:String)=task{
         val user=repository.api("/api/user/profile","PATCH",buildJsonObject{put("displayName",name.trim())},true).jsonObject
-        mutable.update{it.copy(user=user,message="이름을 수정했습니다.")}
+        mutable.update{it.copy(user=user,message="닉네임을 수정했어요.")}
     }
     fun logout()=task{
         repository.logoutCurrentSession()
@@ -152,11 +151,6 @@ class AccountViewModel(private val repository:TravelRepository):ViewModel() {
         repository.api("/api/user/bookmarks/add","POST",buildJsonObject{put("courseId",course.id);put("courseName",course.title);put("city",course.city);put("snapshot",snapshot)},true)
         refreshLists();mutable.update{it.copy(message="코스를 저장했습니다.")};onSaved()
     }
-    fun saveHistory(preferences:Preferences)=task{
-        val json=Json{encodeDefaults=true;explicitNulls=false}
-        repository.api("/api/user/search-history","POST",buildJsonObject{put("query",preferences.summary);put("preferences",json.encodeToJsonElement(Preferences.serializer(),preferences));put("saveConsent",true)},true)
-        refreshLists();mutable.update{it.copy(message="여행 조건을 저장했습니다.")}
-    }
     fun removeBookmark(id:String)=task{repository.api("/api/user/bookmarks/${java.net.URLEncoder.encode(id,"UTF-8")}","DELETE",auth=true);refreshLists()}
-    fun removeHistory(id:String?)=task{repository.api("/api/user/search-history"+(id?.let{"/${java.net.URLEncoder.encode(it,"UTF-8")}"}?:""),"DELETE",auth=true);refreshLists()}
+
 }

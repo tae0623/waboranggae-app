@@ -1,5 +1,4 @@
 <resources>
-    <color name="brand_background">#FFFFFF</color>
     <style name="Theme.Waboranggae" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>

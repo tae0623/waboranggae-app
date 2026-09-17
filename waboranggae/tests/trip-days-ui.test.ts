@@ -25,7 +25,7 @@ describe('independent travel days',()=>{
   expect(first.startLocation).toBe('광주 출발');expect(first.requiredContentId).toBe('123');
   for(const day of ['2026-09-21','2026-09-22']){
    const p=preferencesForDay(base,day,origin);
-   expect(p).toMatchObject({city:'나주',travelDate:day,travelEndDate:day,durationHours:6.5,startTime:'10:00',endTime:'16:30',startLocation:origin.name,startLatitude:origin.latitude});
+   expect(p).toMatchObject({city:'나주',travelDate:day,travelEndDate:day,durationHours:day==='2026-09-22'?7.5:6,startTime:'09:00',endTime:day==='2026-09-22'?'16:30':undefined,startLocation:origin.name,startLatitude:origin.latitude});
    expect(p.requiredContentId).toBeUndefined();expect(p.interests).toEqual(base.interests);expect(p.preferredTransit).toEqual(['bus']);
   }
   expect(()=>preferencesForDay(base,'2026-09-21')).toThrow('첫날');

@@ -35,6 +35,15 @@ import kr.co.waboranggae.nativepilot.data.*
 import kr.co.waboranggae.nativepilot.data.Coordinate
 import kotlinx.coroutines.delay
 
+/** Observe child gestures without consuming clicks or recreating the SDK view. */
+private class GestureAwareMapContainer(context:android.content.Context):android.widget.FrameLayout(context) {
+    override fun dispatchTouchEvent(event:android.view.MotionEvent):Boolean {
+        val finished=event.actionMasked==android.view.MotionEvent.ACTION_UP || event.actionMasked==android.view.MotionEvent.ACTION_CANCEL
+        parent?.requestDisallowInterceptTouchEvent(!finished)
+        return super.dispatchTouchEvent(event)
+    }
+}
+
 @Composable fun NativeCourseMap(course: Course, selected: MapStop?, onSelect: (MapStop)->Unit, modifier: Modifier = Modifier,onMapPoint:((Coordinate,String?)->Unit)?=null,cameraMemory:MapCameraMemory?=null) {
     if (BuildConfig.KAKAO_NATIVE_APP_KEY.isBlank()) {
         Box(modifier.background(Color(0xFFEDE9FE)).testTag("map-key-missing"),contentAlignment=Alignment.Center) {
@@ -120,7 +129,7 @@ import kotlinx.coroutines.delay
             onDispose { cameraMemory?.position=kakaoMap?.cameraPosition; active=false; owner.lifecycle.removeObserver(observer); mapView.pause(); mapView.finish() }
         }
         Box(modifier.testTag(when { error!=null->"map-state-error"; kakaoMap!=null->"map-state-ready"; else->"map-state-loading" })) {
-            AndroidView(factory={android.widget.FrameLayout(context).apply{addView(mapView,android.widget.FrameLayout.LayoutParams(-1,-1))}.also{container->container.setOnTouchListener{v,event->v.parent?.requestDisallowInterceptTouchEvent(event.actionMasked!=android.view.MotionEvent.ACTION_UP&&event.actionMasked!=android.view.MotionEvent.ACTION_CANCEL);false}}},modifier=Modifier.fillMaxSize().testTag("native-kakao-map"))
+            AndroidView(factory={GestureAwareMapContainer(context).apply{addView(mapView,android.widget.FrameLayout.LayoutParams(-1,-1))}},modifier=Modifier.fillMaxSize().testTag("native-kakao-map"))
             if(error!=null) Surface(color=Color.White.copy(alpha=.97f),modifier=Modifier.align(Alignment.Center).padding(24.dp)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(error!!,fontSize=13.sp)

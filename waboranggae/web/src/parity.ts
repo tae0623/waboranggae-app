@@ -1,6 +1,6 @@
 import type { Condition } from './App';
 import type { HotPlace, RankedCourse } from './api';
-import { tripDates } from '../../src/domain/tripDays';
+import { tripDates, scheduleForDate, mealsForSchedule, scheduleError } from '../../src/domain/tripDays';
 
 export const HOME_SCENERY_URL = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=700&fit=crop&auto=format';
 export const PURPOSES = ['자연 명소', '맛집 탐방', '카페', '역사·문화', '시장·골목'];
@@ -34,12 +34,22 @@ export function minutes(time: string) {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return NaN;
   const [h,m] = time.split(':').map(Number); return h! * 60 + m!;
 }
-export function availableMeals(cond: Pick<Condition,'startTime'|'endTime'|'endTimeLimited'>) {
-  const start = minutes(cond.startTime), finish = cond.endTimeLimited ? minutes(cond.endTime) : 1439;
-  return [{label:'아침',from:480,to:570},{label:'점심',from:690,to:810},{label:'저녁',from:1050,to:1170}]
-    .filter(w => Math.max(start,w.from) <= w.to && Math.max(start,w.from)+60 <= finish).map(w=>w.label);
+export function conditionSchedule(cond:Pick<Condition,'date'|'endDate'|'startTime'|'endTime'|'endTimeLimited'|'daySchedules'>,date:string) {
+  return scheduleForDate({travelDate:cond.date,travelEndDate:cond.endDate,startTime:cond.startTime,endTime:cond.endTimeLimited?cond.endTime:undefined,daySchedules:cond.daySchedules},date);
 }
-export function normalizeMeals(cond: Pick<Condition,'startTime'|'endTime'|'endTimeLimited'|'meals'>) {
+export function withTripRange(old:Condition,date:string,endDate:string):Condition {
+  const daySchedules=Object.fromEntries(tripDates(date,endDate).map((day,i)=>[day,old.daySchedules?.[day]??{startTime:i===0?old.startTime:'09:00',endTime:day===endDate&&old.endTimeLimited?old.endTime:undefined}]));
+  const next={...old,date,endDate,daySchedules,startTime:daySchedules[date]?.startTime||old.startTime,endTime:daySchedules[endDate]?.endTime||old.endTime,endTimeLimited:!!daySchedules[endDate]?.endTime};
+  return {...next,meals:normalizeMeals(next)};
+}
+type MealCondition=Pick<Condition,'startTime'|'endTime'|'endTimeLimited'> & Partial<Pick<Condition,'date'|'endDate'|'daySchedules'>>;
+export function availableMeals(cond:MealCondition) {
+  const days=cond.date?tripDates(cond.date,cond.endDate||cond.date):[];
+  const windows=days.length?days.map(date=>conditionSchedule({...cond,date:cond.date!,endDate:cond.endDate||cond.date!},date)):[{startTime:cond.startTime,endTime:cond.endTimeLimited?cond.endTime:undefined}];
+  const kinds=new Set(windows.flatMap(mealsForSchedule));
+  return [['아침','breakfast'],['점심','lunch'],['저녁','dinner']].filter(([,id])=>kinds.has(id as 'breakfast'|'lunch'|'dinner')).map(([label])=>label!);
+}
+export function normalizeMeals(cond:MealCondition & Pick<Condition,'meals'>) {
   return cond.meals.includes('자동') ? ['자동'] : [...new Set(cond.meals)].filter(m=>availableMeals(cond).includes(m));
 }
 export function conditionError(cond: Condition, step = 4) {
@@ -49,8 +59,7 @@ export function conditionError(cond: Condition, step = 4) {
   if (!cond.region) return '여행지를 선택해 주세요.';
   if (!normalizeDate(cond.date) || cond.date < todayKorea()) return '오늘 이후의 여행 날짜를 선택해 주세요.';
   if (!tripDates(cond.date,cond.endDate||cond.date).length) return '여행 기간은 시작일부터 최대 7일로 선택해 주세요.';
-  if (!Number.isFinite(minutes(cond.startTime))) return '시작 시간을 확인해 주세요.';
-  if (cond.endTimeLimited && (!Number.isFinite(minutes(cond.endTime)) || minutes(cond.endTime)-minutes(cond.startTime)<60)) return '종료 시간은 시작 시간보다 1시간 이상 뒤로 선택해 주세요.';
+  for(const date of tripDates(cond.date,cond.endDate||cond.date)){const error=scheduleError(conditionSchedule(cond,date));if(error)return date+' · '+error;}
   if (cond.requiredPlace) {
     if (cond.region !== cond.requiredPlace.city) return '선택한 장소와 같은 여행지를 선택하거나 포함 장소를 해제해 주세요.';
     if (cond.requiredPlace.source === 'festival' || cond.requiredPlace.category === '축제·행사') {

@@ -66,9 +66,9 @@ class SessionContractTest {
         val form=old.forCurrentApp().normalizeMeals()
         assertNull(form.validationError())
         val p=form.preferences()
-        assertEquals(8.0,p.durationHours,0.0);assertEquals("2026-10-01",p.travelEndDate)
+        assertEquals(6.0,p.durationHours,0.0);assertNull(p.endTime);assertEquals("2026-10-01",p.travelEndDate)
         assertEquals("터미널",p.startLocation);assertEquals("혼자",p.companions)
         assertNull(p.lodgingName);assertNull(p.lodgingLatitude);assertNull(p.lodgingLongitude)
-        assertEquals(listOf("nature"),p.interests);assertEquals(emptyList<String>(),p.meals)
+        assertEquals(listOf("nature"),p.interests);assertEquals(listOf("dinner"),p.meals)
     }
 }

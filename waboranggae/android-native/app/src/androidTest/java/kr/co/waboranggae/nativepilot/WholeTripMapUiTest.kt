@@ -37,7 +37,7 @@ class WholeTripMapUiTest {
   lateinit var vm:TravelViewModel;ui.runOnUiThread{vm=ViewModelProvider(ui.activity)[TravelViewModel::class.java]}
   val departure=vm.repository.search("광주종합버스터미널").first{it.name.contains("터미널") && it.latitude in 34.0..36.0}
   val date=LocalDate.now(ZoneId.of("Asia/Seoul"))
-  ui.runOnUiThread{vm.chooseDeparture(departure);vm.chooseDestination("순천");vm.updateForm{it.copy(date=date.toString(),endDate=date.plusDays(1).toString(),limitEndTime=false)};vm.recommend()}
+  ui.runOnUiThread{vm.chooseDeparture(departure);vm.chooseDestination("순천");vm.updateForm{it.copy(date=date.toString(),endDate=date.plusDays(1).toString(),limitEndTime=false).withSchedule(date.toString(),DaySchedule("10:00","18:00")).withSchedule(date.plusDays(1).toString(),DaySchedule("09:00","15:00"))};vm.recommend()}
   ui.waitUntil(240000){!vm.state.value.loading&&vm.state.value.tripDays.isNotEmpty()}
   val state=vm.state.value
   Assert.assertEquals(state.error,2,state.courses.size);Assert.assertEquals(2,state.tripDays.size)
@@ -46,7 +46,11 @@ class WholeTripMapUiTest {
   Assert.assertTrue(first.places.map{it.name}.intersect(second.places.map{it.name}.toSet()).isEmpty())
   Assert.assertNotNull(first.accessTrip);Assert.assertEquals(1,first.mapStops().first().index)
   Assert.assertNull(second.accessTrip)
+  Assert.assertEquals(listOf("10:00","09:00"),state.tripDays.map{it.preferences.startTime})
+  Assert.assertEquals(listOf("18:00","15:00"),state.tripDays.map{it.preferences.endTime})
   ui.onAllNodesWithTag("course-card")[0].performScrollTo().performClick();shot("01-detail")
+  ui.onNodeWithTag("detail-day-2").performScrollTo().assertIsDisplayed();shot("01b-detail-second-day")
+  ui.onNodeWithText("추천 / 뚜벅이").assertDoesNotExist()
   ui.onNodeWithTag("confirm-course").performClick()
   if(ui.onAllNodesWithText("저장 없이 여행하기").fetchSemanticsNodes().isNotEmpty())ui.onNodeWithText("저장 없이 여행하기").performClick()
   ui.onNodeWithTag("map-page").assertIsDisplayed()

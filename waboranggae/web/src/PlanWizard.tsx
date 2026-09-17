@@ -4,8 +4,9 @@ import { api, type PlaceSuggestion } from './api';
 import { getWebRuntime } from './runtime';
 import { ExpandableMap } from './ExpandableMap';
 import { Modal } from './Dialogs';
-import { availableMeals, conditionError, normalizeMeals, PURPOSES, todayKorea } from './parity';
+import { availableMeals, conditionError, conditionSchedule, normalizeMeals, withTripRange, PURPOSES, todayKorea } from './parity';
 
+import { tripDates } from '../../src/domain/tripDays';
 const CITIES=['강진','고흥','곡성','광양','구례','나주','담양','목포','무안','보성','순천','신안','여수','영광','영암','완도','장성','장흥','진도','함평','해남','화순'];
 export function defaultCondition():Condition {return {
   departure:'',region:'',date:todayKorea(),endDate:todayKorea(),startTime:'10:00',endTime:'16:00',endTimeLimited:false,
@@ -23,16 +24,24 @@ export function TimePicker({label,value,onChange}:{label:string;value:string;onC
       <span>:</span><label>분<select aria-label="분" value={m} onChange={e=>change(h!,Number(e.target.value))}>{Array.from({length:60},(_,i)=>i).map(n=><option key={n} value={n}>{String(n).padStart(2,'0')}</option>)}</select></label></div>
       <div className="dialog-actions"><button onClick={()=>setOpen(false)}>취소</button><button className="primary" onClick={()=>{onChange(draft);setOpen(false);}}>확인</button></div></Modal>}</>;
 }
-export function DatePicker({value,onChange,label='여행 날짜'}:{value:string;onChange:(s:string)=>void;label?:string}){
-  const [open,setOpen]=useState(false),[month,setMonth]=useState(value.slice(0,7)),[draft,setDraft]=useState(value);
+export function DateRangePicker({start,end,onChange}:{start:string;end:string;onChange:(start:string,end:string)=>void}){
+  const [open,setOpen]=useState(false),[month,setMonth]=useState(start.slice(0,7));
+  const [first,setFirst]=useState(start),[last,setLast]=useState(end),[choosingEnd,setChoosingEnd]=useState(false);
   const [year,mon]=month.split('-').map(Number);
   const count=new Date(year!,mon!,0).getDate(),offset=new Date(year!,mon!-1,1).getDay();
   function move(n:number){const date=new Date(year!,mon!-1+n,1);setMonth(`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`);}
-  return <><button className="field-button" aria-label={label} onClick={()=>{setDraft(value);setMonth(value.slice(0,7));setOpen(true);}}><span>{label}</span><strong>{value.replaceAll('-','. ')}</strong></button>
-    {open&&<Modal title={label} onClose={()=>setOpen(false)}><div className="calendar-head"><button aria-label="이전 달" onClick={()=>move(-1)}>‹</button><strong>{year}년 {mon}월</strong><button aria-label="다음 달" onClick={()=>move(1)}>›</button></div>
-      <div className="calendar-grid">{['일','월','화','수','목','금','토'].map(d=><span key={d}>{d}</span>)}{Array.from({length:offset},(_,i)=><span key={'blank'+i}/>)}{Array.from({length:count},(_,i)=>i+1).map(day=>{
-        const date=month+'-'+String(day).padStart(2,'0');return <button key={date} aria-label={date} aria-pressed={draft===date} disabled={date<todayKorea()} onClick={()=>setDraft(date)}>{day}</button>;
-      })}</div><div className="dialog-actions"><button onClick={()=>setOpen(false)}>취소</button><button className="primary" onClick={()=>{onChange(draft);setOpen(false);}}>확인</button></div></Modal>}</>;
+  function select(date:string){if(!choosingEnd||date<first){setFirst(date);setLast(date);setChoosingEnd(true);}else {setLast(date);setChoosingEnd(false);}}
+  return <><button className="field-button" aria-label="여행 날짜 선택" onClick={()=>{setFirst(start);setLast(end);setMonth(start.slice(0,7));setChoosingEnd(false);setOpen(true);}}><span>여행 날짜</span><strong>{start===end?start:`${start} — ${end}`}</strong></button>
+    {open&&<Modal title="여행 날짜" onClose={()=>setOpen(false)}>
+      <p className="calendar-selection" aria-live="polite">{first===last?first+' · 당일치기':first+' — '+last+' · '+tripDates(first,last).length+'일'}</p>
+      <p className="muted">{choosingEnd?'마지막 여행 날짜를 선택하세요. 같은 날도 선택할 수 있어요.':'시작 날짜와 마지막 날짜를 차례로 선택하세요.'} · 최대 7일</p>
+      <div className="calendar-head"><button aria-label="이전 달" onClick={()=>move(-1)}>‹</button><strong>{year}년 {mon}월</strong><button aria-label="다음 달" onClick={()=>move(1)}>›</button></div>
+      <div className="calendar-grid range-calendar">{['일','월','화','수','목','금','토'].map(d=><span key={d}>{d}</span>)}{Array.from({length:offset},(_,i)=><span key={'blank'+i}/>)}{Array.from({length:count},(_,i)=>i+1).map(day=>{
+        const date=month+'-'+String(day).padStart(2,'0'),edge=date===first||date===last,inRange=date>=first&&date<=last;
+        const disabled=date<todayKorea()||(choosingEnd&&date>first&&!tripDates(first,date).length);
+        return <button key={date} className={inRange?'in-range':''} aria-label={date} aria-pressed={edge} disabled={disabled} onClick={()=>select(date)}><span>{day}</span>{edge&&<small>{first===last?'당일':date===first?'시작':'마지막'}</small>}</button>;
+      })}</div><div className="dialog-actions"><button onClick={()=>setOpen(false)}>취소</button><button className="primary" onClick={()=>{onChange(first,last);setOpen(false);}}>선택</button></div>
+    </Modal>}</>;
 }
 function DepartureSearch({condition,onChange}:{condition:Condition;onChange:(v:Partial<Condition>)=>void}){
   const [results,setResults]=useState<PlaceSuggestion[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[highlight,setHighlight]=useState(-1);
@@ -60,7 +69,7 @@ function DepartureSearch({condition,onChange}:{condition:Condition;onChange:(v:P
   // This map receives only the user's explicit search selection, never device location.
   const mapUrl=preview?(getWebRuntime().mapBaseUrl||window.location.origin)+'/maps/embed#'+encodeURIComponent(JSON.stringify({origin:preview,places:[],routeSegments:[],conveniences:[],selectDeparture:true,parentOrigin:window.location.origin})):null;
   return <><label className="field-label" htmlFor="departure">출발지</label><div className="departure-field"><input id="departure" role="combobox" aria-controls="departure-results" aria-expanded={results.length>0} aria-autocomplete="list" aria-activedescendant={highlight>=0?'departure-option-'+highlight:undefined}
-    autoComplete="off" placeholder="출발지 검색" value={condition.departure}
+    autoComplete="off" placeholder="출발지를 검색하세요" value={condition.departure}
     onChange={e=>onChange({departure:e.target.value,departureAddress:undefined,departureLat:undefined,departureLng:undefined})}
     onKeyDown={e=>{if(e.key==='ArrowDown'){e.preventDefault();setHighlight(v=>Math.min(v+1,results.length-1));}if(e.key==='ArrowUp'){e.preventDefault();setHighlight(v=>Math.max(v-1,0));}if(e.key==='Enter'&&highlight>=0&&results[highlight]){e.preventDefault();select(results[highlight]!);}if(e.key==='Escape'){setResults([]);}}}/>
     {condition.departure&&<button aria-label="출발지 지우기" onClick={()=>onChange({departure:'',departureAddress:undefined,departureLat:undefined,departureLng:undefined})}>×</button>}</div>
@@ -78,26 +87,32 @@ const TITLES=['어디서 출발하세요?','어디로 떠날까요?','어떻게 
 const SUBTITLES=['출발할 장소를 검색해 주세요.','여행지와 현지 시작 시간을 골라주세요.','편안한 걷기와 여행 속도를 골라주세요.','가고 싶은 곳과 식사 계획을 골라주세요.'];
 export function PlanWizard({initial,onClose,onComplete}:{initial?:Partial<Condition>;onClose:()=>void;onComplete:(c:Condition)=>void}){
   const [cond,setCond]=useState<Condition>(()=>({...defaultCondition(),...initial,endDate:initial?.endDate||initial?.date||todayKorea(),companion:'혼자',transitModes:['bus']}));
-  const [multipleDays,setMultipleDays]=useState(Boolean(initial?.endDate&&initial.endDate!==initial.date));
+  const dates=tripDates(cond.date,cond.endDate),multipleDays=dates.length>1;
   const [step,setStep]=useState(1),[error,setError]=useState(''),[regionOpen,setRegionOpen]=useState(false);
   const body=useRef<HTMLDivElement>(null);
-  function update(p:Partial<Condition>){setCond(old=>{const c={...old,...p};return {...c,endDate:!multipleDays?c.date:c.endDate<c.date?c.date:c.endDate,meals:normalizeMeals(c)};});setError('');}
+  function update(p:Partial<Condition>){setCond(old=>{const c={...old,...p};return {...c,endDate:c.endDate<c.date?c.date:c.endDate,meals:normalizeMeals(c)};});setError('');}
+  function setRange(date:string,endDate:string){setCond(old=>withTripRange(old,date,endDate));setError('');}
+  function setDay(date:string,patch:Partial<{startTime:string;endTime:string|undefined}>){
+    const schedule={...conditionSchedule(cond,date),...patch};
+    update({daySchedules:{...cond.daySchedules,[date]:schedule},...(date===cond.date?{startTime:schedule.startTime}:{}),...(date===cond.endDate?{endTime:schedule.endTime||cond.endTime,endTimeLimited:!!schedule.endTime}:{})});
+  }
   function next(){const e=conditionError(cond,step);setError(e);if(e)return;if(step===4)onComplete(cond);else setStep(step+1);}
   useEffect(()=>{body.current?.scrollTo(0,0);},[step]);
   useEffect(()=>{const back=(e:Event)=>{e.stopImmediatePropagation();if(regionOpen)setRegionOpen(false);else if(step>1)setStep(step-1);else onClose();};window.addEventListener('waboranggae:back',back,{capture:true});return()=>window.removeEventListener('waboranggae:back',back,{capture:true});},[step,regionOpen,onClose]);
   return <div className="travel-wizard" role="dialog" aria-modal="true" aria-label="여행 조건">
     <header><button aria-label="이전 단계" onClick={()=>step>1?setStep(step-1):onClose()}>‹</button><span>코스 만들기</span><button aria-label="조건 선택 닫기" onClick={onClose}>×</button></header>
     <div className="wizard-progress" aria-label={step+' / 4단계'}>{[1,2,3,4].map(i=><span key={i} className={i<=step?'active':''}/>)}</div>
-    <div className="wizard-body" ref={body}><span className="step-label">STEP 0{step}</span><h1>{TITLES[step-1]}</h1>{step!==1&&<p className="wizard-subtitle">{SUBTITLES[step-1]}</p>}
+    <div className="wizard-body" ref={body}><span className="step-label">STEP 0{step}</span><h1>{TITLES[step-1]}</h1><p className="wizard-subtitle" aria-hidden={step===1}>{step===1?'\u00a0':SUBTITLES[step-1]}</p>
       {cond.requiredContentId&&<div className="required-place"><div><small>코스에 포함할 장소</small><strong>{cond.requiredPlaceName}</strong>{cond.requiredPlace?.periodLabel&&<small>{cond.requiredPlace.periodLabel}</small>}</div><button aria-label="포함 장소 해제" onClick={()=>update({requiredContentId:undefined,requiredPlaceName:undefined,requiredPlace:undefined})}>×</button></div>}
       {step===1&&<DepartureSearch condition={cond} onChange={update}/>}
       {step===2&&<><button className="destination-card" onClick={()=>setRegionOpen(true)} aria-label="여행지 선택"><small>전라남도</small><strong>{cond.region||'여행지 선택'} <span>⌄</span></strong></button>
-        <DatePicker value={cond.date} onChange={date=>update({date})}/>
-        <label className="option-row"><span>여러 날 여행</span><input type="checkbox" checked={multipleDays} onChange={e=>{setMultipleDays(e.target.checked);setCond(c=>({...c,endDate:c.date}));setError('')}}/></label>
-        {multipleDays&&<><DatePicker label="마지막 여행 날짜" value={cond.endDate} onChange={endDate=>update({endDate})}/><p className="muted">최대 7일 · 같은 지역에서 날짜마다 새 코스를 만들어요.</p></>}
-        <TimePicker label={multipleDays?'매일 현지 여행 시작':'현지 여행 시작'} value={cond.startTime} onChange={startTime=>update({startTime})}/>
-        <label className="option-row"><span>종료 시각 설정<small>돌아갈 시간이 정해져 있을 때만 선택하세요.</small></span><input type="checkbox" checked={!!cond.endTimeLimited} onChange={e=>update({endTimeLimited:e.target.checked})}/></label>
-        {cond.endTimeLimited&&<TimePicker label="현지 여행 종료" value={cond.endTime} onChange={endTime=>update({endTime})}/>}
+        <DateRangePicker start={cond.date} end={cond.endDate} onChange={setRange}/>
+        {dates.map((date,index)=>{const schedule=conditionSchedule(cond,date);return <section key={date} className="day-time-card" aria-label={date+' 여행 시간'}>
+          {multipleDays&&<h2>DAY {index+1} <small>{date}</small></h2>}
+          <TimePicker label={multipleDays?(index===0?'첫날 현지 여행 시작':'현지 여행 시작'):'현지 여행 시작'} value={schedule.startTime} onChange={startTime=>setDay(date,{startTime})}/>
+          <label className="option-row"><span>{multipleDays&&index===dates.length-1?'마지막 날 종료 시각 설정':'종료 시각 설정'}</span><input aria-label={date+' 종료 시각 설정'} type="checkbox" checked={!!schedule.endTime} onChange={e=>setDay(date,{endTime:e.target.checked?'18:00':undefined})}/></label>
+          {schedule.endTime&&<TimePicker label="현지 여행 종료" value={schedule.endTime} onChange={endTime=>setDay(date,{endTime})}/>}
+        </section>})}
         <p className="muted">예상 소요 시간은 코스에서 확인하세요 · 도시 간 이동 별도</p>
       </>}
       {step===3&&<><h2>걷기 부담</h2><div className="choice-grid">{[{v:'보통',desc:'걷기와 대중교통을 함께 이용해요'},{v:'적게 걷기',desc:'도보 이동 부담을 줄여요'}].map(o=><button key={o.v} aria-pressed={cond.walkLevel===o.v} onClick={()=>update({walkLevel:o.v})}><strong>{o.v}</strong><small>{o.desc}</small></button>)}</div>

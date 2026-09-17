@@ -73,6 +73,8 @@ export type TravelMode = 'walk' | 'transit';
 export interface SegmentResponse { segment: RouteSegment | null; externalUrl: string; notice: string; }
 
 export interface TravelPreferences {
+  /** Client-only date windows; stripped before individual API requests. */
+  daySchedules?: Record<string, {startTime:string;endTime?:string}>;
   visitedPlaces?: Array<{id:string;name:string;latitude?:number;longitude?:number}>;
   scheduleMode?: 'fixed' | 'course-first';
   /** Explicit home-card selection, not a location inferred from the device. */
