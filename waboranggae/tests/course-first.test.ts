@@ -8,7 +8,7 @@ import {buildRulePlannedCourses,validateScheduledPlaces,minimumStayMinutes} from
 import {attachRoutingToCourses} from '../server/src/modules/recommendation/routing';
 import {preferencesForSelection} from '../server/src/modules/recommendation/local-trip';
 import {rankValidatedCourses,verifyTopCourses} from '../server/src/modules/recommendation/verification';
-import {wallLimitMinutes} from '../src/domain/tripWindow';
+import {planningHours,wallLimitMinutes} from '../src/domain/tripWindow';
 
 function prefs(extra:Partial<TravelPreferences>={}):TravelPreferences{
  return {...parseTravelText('순천 6시간 자연 여행'),scheduleMode:'course-first',timeBudgetMode:'local',travelDate:'2026-09-18',travelEndDate:'2026-09-18',startTime:'10:00',endTime:undefined,startLocation:'순천종합버스터미널',startAddress:'전남 순천시',startLatitude:34.95,startLongitude:127.49,mealPreference:'auto',meals:undefined,interests:['nature','food','cafe'],...extra};
@@ -33,6 +33,21 @@ describe('course-first recommendations and editing',()=>{
  it('does not secretly use the old duration field as a limit or stop count',()=>{
    const signature=(hours:number)=>buildRulePlannedCourses(prefs({durationHours:hours}),pool).map(c=>({places:c.places.map(p=>p.id),duration:c.durationHours}));
    expect(signature(2)).toEqual(signature(8));
+ });
+ it('uses an explicit time window for candidate generation instead of a hidden pace cap',()=>{
+   for(const pace of ['easy','balanced','full'] as const)expect(planningHours(prefs({pace,endTime:'18:00'}))).toBe(8);
+   expect(planningHours(prefs({endTime:'13:00'}))).toBe(3);
+   expect(planningHours(prefs())).toBe(6);
+   expect(planningHours(prefs({pace:'easy'}))).toBe(4.5);
+   expect(planningHours(prefs({pace:'full'}))).toBe(7.5);
+ });
+ it('offers additional real stops for a longer explicit window without inflating their stays',()=>{
+   const p=prefs({endTime:'18:00',mealPreference:'none',meals:[],interests:['nature']});
+   const candidates=Array.from({length:8},(_,i)=>place('park-'+i,'nature',i));
+   const plans=buildRulePlannedCourses(p,candidates),openEnded=buildRulePlannedCourses({...p,endTime:undefined},candidates);
+   expect(Math.max(...plans.map(c=>c.places.length))).toBeGreaterThan(Math.max(...openEnded.map(c=>c.places.length)));
+   expect(plans.every(c=>c.places.every(x=>x.stayMinutes===minimumStayMinutes(x.category)))).toBe(true);
+   expect(plans.every(c=>validateScheduledPlaces(p,c.places).length===0)).toBe(true);
  });
  it('does not pad stays to a hidden six-hour target',async()=>{
    const p=prefs();const plans=buildRulePlannedCourses(p,pool);expect(plans.length).toBeGreaterThan(0);

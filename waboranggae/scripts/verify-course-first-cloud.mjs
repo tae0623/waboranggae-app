@@ -13,13 +13,14 @@ async function send(path,body){
 }
 const common={scheduleMode:'course-first',timeBudgetMode:'local',region:'전라남도',city:'순천',
  startLocation:'순천종합버스터미널',startType:'terminal',startAddress:'전남 순천시 장천3길 13',startLatitude:34.9475959,startLongitude:127.4913557,
- travelDate:'2026-09-17',startTime:'10:00',mealPreference:'auto',pace:'balanced',preferLocal:false,interests:['nature','food','cafe'],companions:'혼자',lowMobility:false,publicTransportOnly:true,preferredTransit:['bus'],summary:'코스 먼저 추천 검증',confidence:1};
+ travelDate:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date()),startTime:'10:00',mealPreference:'auto',pace:'balanced',preferLocal:false,interests:['nature','food','cafe'],companions:'혼자',lowMobility:false,publicTransportOnly:true,preferredTransit:['bus'],summary:'코스 먼저 추천 검증',confidence:1};
 const scenarios=[
  {name:'순천 오전 자동식사',change:{}},
  {name:'나주 오후 식사제외·도시 간 이동 별도',change:{city:'나주',startTime:'14:00',mealPreference:'none',meals:[],interests:['nature','history']}},
  {name:'강진 정오 점심',change:{city:'강진',startTime:'12:00',mealPreference:'lunch',meals:['lunch'],interests:['nature','food']}},
  {name:'순천 저녁 자동식사',change:{startTime:'18:00',interests:['food','cafe','history']}},
  {name:'순천 3시간 종료 제한',change:{endTime:'13:00',mealPreference:'none',meals:[],interests:['nature','cafe']}},
+ {name:'나주 8시간 종료 제한·도시 간 이동 별도',change:{city:'나주',endTime:'18:00',interests:['nature','history','food']}},
 ];
 const selected=process.argv.find(x=>x.startsWith('--case='))?.slice(7);
 let failed=false;
@@ -38,7 +39,7 @@ for(const [index,s] of scenarios.entries()){
    const t=c.timeBreakdown;assert.ok(t&&t.totalMinutes>0);
    assert.equal(t.totalMinutes,t.originToFirstMinutes+t.betweenPlacesMinutes+t.stayMinutes+t.waitAndRestMinutes);
    assert.equal(c.routeSegments.length,c.places.length);
-   if(preferences.endTime)assert.ok(t.totalMinutes<=180);else assert.equal(t.requestedMinutes,undefined);
+   if(preferences.endTime){const minutes=s=>Number(s.slice(0,2))*60+Number(s.slice(3));assert.ok(t.totalMinutes<=minutes(preferences.endTime)-minutes(preferences.startTime));}else assert.equal(t.requestedMinutes,undefined);
    if(preferences.mealPreference==='none')assert.ok(c.places.every(p=>p.category!=='food'));
    if(preferences.mealPreference==='lunch')assert.ok(c.places.some(p=>p.category==='food'));
    if(preferences.city!=='순천')assert.equal(c.accessTrip?.excludedFromBudget,true);

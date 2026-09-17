@@ -63,7 +63,7 @@ class WholeTripMapUiTest {
   shot("03-expanded-map")
   ui.onNodeWithTag("map-collapse").performClick()
   ui.onNodeWithTag("expanded-map").assertDoesNotExist()
-  ui.onAllNodesWithTag("map-expand")[0].performClick()
+  ui.onAllNodesWithTag("map-expand")[1].performScrollTo().performClick()
   ui.onNodeWithTag("expanded-map").assertIsDisplayed();kotlinx.coroutines.delay(3000);shot("04-reopened-map")
   ui.onNodeWithTag("map-collapse").performClick()
   ui.onNodeWithText("지도에서 보기").assertDoesNotExist()

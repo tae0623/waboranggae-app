@@ -120,7 +120,9 @@ export function planningHours(preferences: {
   if(preferences.scheduleMode==='course-first'){
     const suggested=preferences.pace==='easy'?4.5:preferences.pace==='full'?7.5:6;
     const available=(clockMinutes(preferences.endTime || '23:59')-clockMinutes(preferences.startTime))/60;
-    return Math.max(0.5,Math.min(suggested,available));
+    // An explicit window must not be silently shortened by the no-deadline default.
+    // Actual routing/meal/walking constraints still decide which candidates are feasible.
+    return Math.max(0.5,preferences.endTime?available:Math.min(suggested,available));
   }
   if (preferences.travelDate && preferences.travelEndDate && preferences.endTime) {
     return touringHours(

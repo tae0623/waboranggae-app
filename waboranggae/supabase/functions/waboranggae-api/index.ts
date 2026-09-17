@@ -1,7 +1,7 @@
 import process from 'node:process';
 try {
   if(process.env.NODE_ENV!=='production'||process.env.API_RUNTIME!=='supabase-edge')throw new Error('EDGE_ENVIRONMENT_NOT_CONFIGURED');
-  const { app } = await import('./app-839c53067b5ad8c0.mjs');
+  const { app } = await import('./app-005b5b65d6be3166.mjs');
   app.listen(8000);
 } catch(error) {
   // Details are available only to private validation tooling, never public probes.
