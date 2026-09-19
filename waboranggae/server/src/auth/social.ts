@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import { sharedRateLimit } from '../middleware/sharedRateLimit';
 import { z } from 'zod';
 import { prisma } from '../db/client';
 import { generateTokenPair } from './jwt';
@@ -88,9 +88,9 @@ async function persistConsentedIdentity(provider: Provider, pending: PendingIden
 }
 export const socialRouter = Router();
 // Coarse network cap, plus a separate cap per unguessable flow for result polling.
-socialRouter.use(rateLimit({ windowMs: 60_000, max: 600, standardHeaders: true, legacyHeaders: false }));
-const startLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
-const pollLimiter = rateLimit({ windowMs: 60_000, max: 30, keyGenerator: req => /^[a-f0-9]{64}$/.test(req.body?.flowId || '') ? req.body.flowId : 'invalid-flow', standardHeaders: true, legacyHeaders: false });
+socialRouter.use(sharedRateLimit('social',{ windowMs: 60_000, max: 600, standardHeaders: true, legacyHeaders: false }));
+const startLimiter = sharedRateLimit('social-start',{ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
+const pollLimiter = sharedRateLimit('social-poll',{ windowMs: 60_000, max: 30, keyGenerator: req => /^[a-f0-9]{64}$/.test(req.body?.flowId || '') ? req.body.flowId : 'invalid-flow', standardHeaders: true, legacyHeaders: false });
 socialRouter.get('/providers', (_req, res) => res.json({ providers: (['kakao','google'] as const).map(id=>{
   const {enabled,reason}=socialConfiguration(id);return {id,enabled,reason};
 }) }));

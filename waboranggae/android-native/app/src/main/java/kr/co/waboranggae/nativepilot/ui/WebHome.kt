@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.sp
 import kr.co.waboranggae.nativepilot.data.*
 
 @Composable fun WebHome(state:TravelUiState,model:TravelViewModel) {
-    var notifications by remember { mutableStateOf(false) }
     var homeDay by remember { mutableStateOf(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))) }
     LaunchedEffect(Unit){while(true){homeDay=java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));kotlinx.coroutines.delay(30_000)}}
     val visiblePlaces=state.hotPlaces.filter{it.visibleOnHome(homeDay)}
@@ -29,12 +28,6 @@ import kr.co.waboranggae.nativepilot.data.*
                 Box(Modifier.fillMaxWidth().height(400.dp).background(Brush.linearGradient(listOf(Color(0xFF174438),Color(0xFF3F6A68))))) {
                     Photo(HOME_SCENERY_URL,"산 풍경",Modifier.fillMaxSize().testTag("hero-photo"),contentScale=androidx.compose.ui.layout.ContentScale.Crop)
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha=.08f),Color.Black.copy(alpha=.12f),Color.Black.copy(alpha=.72f)))))
-                    Row(Modifier.fillMaxWidth().padding(top=28.dp,start=20.dp,end=20.dp),verticalAlignment=Alignment.CenterVertically) {
-                        Surface(shape=RoundedCornerShape(10.dp),color=Color.White) { Box(Modifier.size(40.dp),contentAlignment=Alignment.Center) { BrandMark(Modifier.size(40.dp)) } }
-                        Text("뚜버기",Modifier.padding(start=8.dp),fontSize=18.sp,fontWeight=FontWeight.ExtraBold,color=Color.White)
-                        Spacer(Modifier.weight(1f))
-                        Surface(onClick={notifications=true},shape=RoundedCornerShape(100.dp),color=Color.White.copy(alpha=.18f)) { Box(Modifier.size(38.dp),contentAlignment=Alignment.Center) { Icon(PilotIcons.Bell,"알림 준비 상태",Modifier.size(17.dp),tint=Color.White) } }
-                    }
                     Column(Modifier.align(Alignment.BottomStart).padding(start=20.dp,end=20.dp,bottom=96.dp)) {
                         Text("전남을\n걸어봐요",fontSize=36.sp,lineHeight=40.sp,fontWeight=FontWeight.Black,color=Color.White,letterSpacing=(-1).sp)
                         Text("가볍게 떠나는 전남 여행",fontSize=13.sp,color=Color.White.copy(alpha=.72f),modifier=Modifier.padding(top=10.dp))
@@ -75,8 +68,6 @@ import kr.co.waboranggae.nativepilot.data.*
         visiblePlaces.drop(3).forEach { place -> item { Box(Modifier.padding(start=20.dp,end=20.dp,top=10.dp)){HotCard(place,model,2)} } }
         item { Spacer(Modifier.height(24.dp)) }
     }
-    if(notifications) AppDialog(onDismissRequest={notifications=false},confirmButton={TextButton({notifications=false}){Text("확인")}},
-        title={Text("알림 안내")},text={Text("푸시 알림은 아직 제공하지 않습니다. 여행 정보는 앱에서 직접 확인해 주세요.")})
 }
 private fun hotMetric(p:HotPlace)=if(p.source=="festival" || p.category=="축제·행사") p.periodShort ?: p.statusLabel ?: "행사" else if(p.visitors>0) "${p.metricLabel ?: "지표"} ${p.visitors.toInt()}" else p.metricLabel ?: "관광정보"
 @Composable private fun HotBadge(p:HotPlace) {
@@ -89,7 +80,7 @@ private fun hotMetric(p:HotPlace)=if(p.source=="festival" || p.category=="축제
         Photo(model.repository.imageUrl(p.img),p.name,Modifier.fillMaxSize())
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.35f)))))
         Surface(color=Color.White.copy(alpha=.94f),shape=RoundedCornerShape(100.dp),modifier=Modifier.align(Alignment.TopEnd).padding(10.dp)) {
-            Text("👀 ${hotMetric(p)}",Modifier.padding(horizontal=10.dp,vertical=5.dp),fontSize=11.sp,fontWeight=FontWeight.Bold)
+            Text(hotMetric(p),Modifier.padding(horizontal=10.dp,vertical=5.dp),fontSize=11.sp,fontWeight=FontWeight.Bold)
         }
         Row(Modifier.align(Alignment.BottomStart).padding(12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) { HotBadge(p);Text(p.category,fontSize=10.sp,color=Color.White) }
     }

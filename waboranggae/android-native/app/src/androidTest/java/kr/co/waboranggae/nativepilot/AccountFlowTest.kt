@@ -24,7 +24,7 @@ class AccountFlowTest {
         val marker=UUID.randomUUID().toString()
         val email="native-test-$marker@example.invalid"
         val password="Test!Aa1-$marker"
-        val created=repo.api("/auth/signup","POST",buildJsonObject{put("email",email);put("password",password);put("displayName","네이티브 검증");put("privacyConsent",true);put("consentVersion",kr.co.waboranggae.nativepilot.ui.NOTICE_VERSION)}).jsonObject
+        val created=repo.api("/auth/signup","POST",buildJsonObject{put("email",email);put("password",password);put("displayName","네이티브 검증");put("privacyConsent",true);put("ageConfirmed",true);put("consentVersion",kr.co.waboranggae.nativepilot.ui.NOTICE_VERSION)}).jsonObject
         repo.acceptSession(created)
         try {
             ui.runOnUiThread {ui.activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)}

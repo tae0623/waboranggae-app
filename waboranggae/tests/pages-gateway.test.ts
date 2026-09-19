@@ -26,6 +26,21 @@ async function session(env: PagesEnv) {
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('private Pages gateway', () => {
+  it('publishes only the isolated signup widget without widening team access', async () => {
+    const {env,assets,upstream}=setup();
+    env.TEAM_WEB_ORIGIN='https://waboranggae-app.pages.dev';
+    env.TURNSTILE_SITE_KEY='fixture-site-key';
+    const widget=await handlePagesRequest(new Request(env.TEAM_WEB_ORIGIN+'/auth/bot-check'),env,upstream);
+    expect(widget.status).toBe(200);
+    expect(widget.headers.get('set-cookie')).toBeNull();
+    expect(await widget.text()).not.toContain(env.TEAM_WEB_API_KEY);
+    for(const path of ['/', '/auth/signup-config','/api/user/me']){
+      expect((await handlePagesRequest(new Request(env.TEAM_WEB_ORIGIN+path),env,upstream)).status).toBe(401);
+    }
+    expect((await handlePagesRequest(new Request(env.TEAM_WEB_ORIGIN+'/auth/bot-check',{method:'POST'}),env,upstream)).status).toBe(401);
+    expect((await handlePagesRequest(new Request('https://preview.waboranggae-app.pages.dev/auth/bot-check'),env,upstream)).status).toBe(403);
+    expect(assets).not.toHaveBeenCalled();expect(upstream).not.toHaveBeenCalled();
+  });
   it.each(['TEAM_WEB_PASSWORD', 'TEAM_WEB_SESSION_SECRET', 'TEAM_WEB_API_KEY', 'TEAM_WEB_API_EXPIRES_AT', 'TEAM_WEB_ORIGIN'] as const)('fails closed when %s is absent', async field => {
     const { env, request, assets, upstream } = setup(); env[field] = '';
     expect((await handlePagesRequest(request(), env, upstream)).status).toBe(503);

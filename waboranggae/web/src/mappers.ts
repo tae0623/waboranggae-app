@@ -261,6 +261,7 @@ export function rankedToUiCourse(course: RankedCourse): Course {
         name: place.name,
         address: place.address,
         imageUrl: mediaUrl(place.imageUrl) || undefined,
+        latitude:place.latitude,longitude:place.longitude,
         arriveAt: place.arrival,
         stayMin: place.stayMinutes,
         description: place.description,

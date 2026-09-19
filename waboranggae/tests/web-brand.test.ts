@@ -24,12 +24,11 @@ describe('web home brand matches the native app', () => {
     expect(svg).not.toMatch(/<script|<image|href=|onload=/i);
   });
 
-  it('loads the versioned brand asset beside the home title instead of an emoji', () => {
+  it('removes home branding without removing the app icon assets',()=>{
     expect(app).toContain("import brandMark from './assets/brand-mark.svg'");
-    const header = app.split('{/* 앱 로고 */}')[1]!.split('{/* 히어로 텍스트 */}')[0]!;
-    expect(header).toContain('data-testid="home-brand-mark" src={brandMark}');
-    expect(header).toContain('alt="전남 지도 위 발자국"');
-    expect(header).toContain('width={40} height={40}');
-    expect(header).not.toContain('🚶');
+    const home=app.slice(app.indexOf('function HomeScreen'),app.indexOf('function CourseListScreen'));
+    expect(home).not.toContain('home-brand-mark');
+    expect(home).not.toContain('>뚜버기<');
+    expect(home).toContain('여행 코스 만들기');
   });
 });

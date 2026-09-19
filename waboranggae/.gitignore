@@ -67,3 +67,17 @@ supabase/.temp/
 supabase/.branches/
 supabase/functions/waboranggae-api/app.mjs
 supabase/functions/waboranggae-api/app-*.mjs
+
+# Permanent release signing material (never upload)
+.release-private/
+android-native/release.properties
+
+# Private material and generated packages, even when copied outside build folders
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.apk
+*.aab
+release-assets/*.zip

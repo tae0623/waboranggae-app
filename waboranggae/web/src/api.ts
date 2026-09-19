@@ -139,6 +139,7 @@ async function request<T>(path: string, options: {
 }
 
 export interface AuthUser {
+  loginAlias?: string | null;
   id: string;
   email: string;
   displayName?: string | null;
@@ -241,16 +242,17 @@ export const api = {
   socialProviders: () => request<{ providers: Array<{ id: string; enabled: boolean; reason: string }> }>('/auth/social/providers', { auth: false }),
   socialStart: (provider: 'kakao' | 'google') => request<{ flowId: string; pollSecret: string; authorizationUrl: string }>(`/auth/social/${provider}/start`, { method: 'POST', auth: false, body: { client: 'web' } }),
   socialResult: (flowId: string, pollSecret: string) => request<({ status: 'pending' | 'consent_required' } | (AuthResponse & { status: 'complete' }))>('/auth/social/result', { method: 'POST', auth: false, body: { flowId, pollSecret } }),
-  socialConsent: (flowId: string, pollSecret: string) => request('/auth/social/consent', { method: 'POST', auth: false, body: { flowId, pollSecret, privacyConsent: true, consentVersion: PRIVACY_NOTICE_VERSION } }),
-  acceptPrivacy: () => request<AuthUser>('/auth/consent', { method: 'POST', body: { privacyConsent: true, consentVersion: PRIVACY_NOTICE_VERSION } }),
+  socialConsent: (flowId: string, pollSecret: string) => request('/auth/social/consent', { method: 'POST', auth: false, body: { flowId, pollSecret, privacyConsent: true, ageConfirmed: true, consentVersion: PRIVACY_NOTICE_VERSION } }),
+  acceptPrivacy: () => request<AuthUser>('/auth/consent', { method: 'POST', body: { privacyConsent: true, ageConfirmed: true, consentVersion: PRIVACY_NOTICE_VERSION } }),
   weather: (lat: number, lng: number) =>
     request<import('../../src/types/weather').WeatherResult>(`/api/weather/current?lat=${lat}&lng=${lng}`, { auth: false, timeoutMs: 10000 }),
   routeSegment: (from: RoutingPoint, to: RoutingPoint, mode: TravelMode) =>
     request<SegmentResponse>('/api/routes/segment', { method: 'POST', body: {from, to, mode}, timeoutMs: 15000 }),
   login: (email: string, password: string) =>
     request<AuthResponse>('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
-  signup: (email: string, displayName: string, password: string) =>
-    request<AuthResponse>('/auth/signup', { method: 'POST', body: { email, displayName, password, privacyConsent: true, consentVersion: PRIVACY_NOTICE_VERSION }, auth: false }),
+  signupConfig:()=>request<{required:boolean;available:boolean}>('/auth/signup-config',{auth:false}),
+  signup: (email: string, displayName: string, password: string,botToken='') =>
+    request<AuthResponse>('/auth/signup', { method: 'POST', body: { email, displayName, password,botToken, privacyConsent: true, ageConfirmed: true, consentVersion: PRIVACY_NOTICE_VERSION }, auth: false }),
   logout: () => request('/auth/logout/current', { method: 'POST', body: {} }),
   me: () => request<AuthUser>('/api/user/me'),
   updateProfile: (displayName: string) =>

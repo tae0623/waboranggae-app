@@ -33,6 +33,7 @@ class AccountSocialReturnTest {
         vm.social("kakao");runCurrent();assertEquals("android",repo.start!!.text("client"));assertEquals(0,repo.accepted)
         advanceTimeBy(3000);runCurrent();assertEquals(0,repo.accepted);assertNull(vm.state.value.user)
         advanceTimeBy(3000);runCurrent();assertEquals(1,repo.accepted);assertFalse(vm.state.value.showLogin);assertNull(vm.state.value.authorizationUrl)
+        assertNull(vm.state.value.message);assertNull(vm.state.value.saveError)
     }
     @Test fun providerCompletionDoesNotSkipFirstConsent()=runTest {
         val repo=Fake(true);val vm=AccountViewModel(repo);advanceUntilIdle();vm.social("kakao");advanceUntilIdle()

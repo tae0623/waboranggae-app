@@ -2,6 +2,7 @@
 // requests; account routes must still validate the app JWT, owner and consent.
 const routes: Record<string, readonly string[]> = {
   GET: [
+    '/auth/signup-config',
     '/auth/social/providers', '/api/regions/jeonnam-cities', '/api/hot-places',
     '/api/login-photo', '/api/places/search', '/api/media/tour-image',
     '/api/weather/current', '/api/weather/forecast', '/api/user/me',

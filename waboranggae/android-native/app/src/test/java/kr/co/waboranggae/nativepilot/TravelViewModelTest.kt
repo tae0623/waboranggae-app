@@ -13,6 +13,7 @@ import org.junit.Assert.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TravelViewModelTest {
+    private val futureDate=java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(7)
     @Before fun setup() { Dispatchers.setMain(StandardTestDispatcher()) }
     @After fun teardown() { Dispatchers.resetMain() }
     private class FakeRepository:TravelRepository {
@@ -143,23 +144,25 @@ class TravelViewModelTest {
         vm.clearRequiredPlace();vm.chooseDestination("순천");assertNull(vm.state.value.form.requiredPlace)
     }
     @Test fun forecastUsesTripDateAndDestinationInsteadOfTodayOrOrigin()=runTest {
+        val tripDate=futureDate.toString()
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2026-09-18",startTime="10:00",hours=6)}
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date=tripDate,startTime="10:00",hours=6)}
         vm.recommend();advanceUntilIdle()
         val course=vm.state.value.courses.first();val point=course.places.firstNotNullOf{it.coordinate()}
         vm.openDetails(course.id);advanceUntilIdle();assertTrue(repo.weatherPaths.isEmpty())
         vm.confirmTravel(course.id);advanceUntilIdle()
-        assertEquals("/api/weather/forecast?lat=${point.latitude}&lng=${point.longitude}&date=2026-09-18&startTime=10:00&endTime=16:00",repo.weatherPaths.single())
-        assertEquals("2026-09-18",vm.state.value.weather?.get("requestedDate")?.jsonPrimitive?.content)
+        assertEquals("/api/weather/forecast?lat=${point.latitude}&lng=${point.longitude}&date=$tripDate&startTime=10:00&endTime=16:00",repo.weatherPaths.single())
+        assertEquals(tripDate,vm.state.value.weather?.get("requestedDate")?.jsonPrimitive?.content)
         assertFalse(vm.state.value.weatherLoading)
     }
     @Test fun multipleDaysKeepRangeButApiRequestsOneDay()=runTest {
+        val firstDate=futureDate.toString();val lastDate=futureDate.plusDays(2).toString()
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2026-09-18",endDate="2026-09-20",startTime="10:00",endTime="15:00")}
-        assertEquals("2026-09-20",vm.state.value.form.endDate)
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date=firstDate,endDate=lastDate,startTime="10:00",endTime="15:00")}
+        assertEquals(lastDate,vm.state.value.form.endDate)
         vm.recommend();advanceUntilIdle();vm.confirmTravel(vm.state.value.courses.first().id);advanceUntilIdle()
-        assertTrue(repo.weatherPaths.single().endsWith("date=2026-09-18&startTime=10:00&endTime=16:00"))
-        assertEquals("2026-09-18",vm.state.value.preferences?.travelEndDate)
+        assertTrue(repo.weatherPaths.single().endsWith("date=$firstDate&startTime=10:00&endTime=16:00"))
+        assertEquals(firstDate,vm.state.value.preferences?.travelEndDate)
     }
     @Test fun unpublishedForecastDoesNotSubstituteTodaysWeather()=runTest {
         val repo=FakeRepository().apply{forecastAvailable=false};val vm=TravelViewModel(repo)
@@ -171,19 +174,20 @@ class TravelViewModelTest {
         assertFalse(vm.state.value.weatherLoading)
     }
     @Test fun allDaysAreGeneratedAtOnceIndependentAndExcludedAndLogoutClearsIt()=runTest {
+        val firstDate=futureDate.toString();val secondDate=futureDate.plusDays(1).toString();val lastDate=futureDate.plusDays(2).toString()
         val repo=FakeRepository();val vm=TravelViewModel(repo)
-        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date="2026-10-01",endDate="2026-10-03")}
+        vm.chooseDeparture(repo.place);vm.chooseDestination("순천");vm.updateForm{it.copy(date=firstDate,endDate=lastDate)}
         vm.recommend();advanceUntilIdle();assertEquals(3,repo.requests)
         assertEquals(3,vm.state.value.tripDays.size);assertEquals(3,vm.state.value.courses.size)
         val local=requireNotNull(vm.state.value.courses.first().origin)
         val second=repo.requestedPreferences[1];val third=repo.requestedPreferences[2]
-        assertEquals("2026-10-02",second.travelDate);assertEquals(second.travelDate,second.travelEndDate)
+        assertEquals(secondDate,second.travelDate);assertEquals(second.travelDate,second.travelEndDate)
         assertEquals(local.name,second.startLocation);assertEquals(local.latitude,second.startLatitude,0.0)
         assertTrue(second.visitedPlaces.isNotEmpty());assertTrue(third.visitedPlaces.size>second.visitedPlaces.size)
-        vm.selectDay("2026-10-02");assertEquals(3,repo.requests)
+        vm.selectDay(secondDate);assertEquals(3,repo.requests)
         vm.confirmTravel(vm.state.value.courses[1].id);advanceUntilIdle()
-        assertEquals(3,vm.state.value.tripDays.size);assertEquals("2026-10-02",vm.state.value.preferences?.travelDate)
-        vm.clearPersonalTravel();vm.selectDay("2026-10-02");advanceUntilIdle()
+        assertEquals(3,vm.state.value.tripDays.size);assertEquals(secondDate,vm.state.value.preferences?.travelDate)
+        vm.clearPersonalTravel();vm.selectDay(secondDate);advanceUntilIdle()
         assertEquals(3,repo.requests);assertTrue(vm.state.value.courses.isEmpty());assertTrue(vm.state.value.tripDays.isEmpty())
     }
 

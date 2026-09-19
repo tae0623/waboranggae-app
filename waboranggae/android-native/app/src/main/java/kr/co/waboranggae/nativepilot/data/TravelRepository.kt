@@ -87,18 +87,26 @@ class HttpTravelRepository(
                             400 -> if(relativeApiPath(request.url).startsWith("/auth/social")) "로그인 요청이 만료되었거나 취소되었습니다. 다시 시작해 주세요." else "입력한 정보를 확인해 주세요."
                             401 -> "로그인 정보가 올바르지 않거나 만료되었습니다. 다시 로그인해 주세요."
                             403 -> "접근 권한 또는 개인정보 동의 상태를 확인해 주세요."
+                            413 -> if(relativeApiPath(request.url)=="/api/user/bookmarks/add") "저장할 코스 정보가 너무 큽니다. 코스를 나누거나 장소를 줄인 뒤 다시 저장해 주세요." else "전송할 정보가 너무 큽니다."
                             429 -> "요청이 많습니다. 잠시 후 다시 시도해 주세요."
                             503 -> "지도·관광정보 서비스를 일시적으로 사용할 수 없어요. 나중에 다시 시도해 주세요."
                             in 300..399 -> "API 주소가 다른 곳으로 이동했습니다. 서버 주소를 확인해 주세요."
                             else -> "요청을 처리하지 못했습니다 (HTTP ${it.code})."
                         }
+                        val signupDetail=if(relativeApiPath(request.url)=="/auth/signup" && it.code==400)runCatching{
+                            val body=it.peekBody(2049).string()
+                            if(body.length>2048)null else when(json.parseToJsonElement(body).jsonObject["code"]?.jsonPrimitive?.contentOrNull){
+                                "DISPOSABLE_EMAIL_DOMAIN" -> "일회용 이메일로는 가입할 수 없어요. 계속 사용할 이메일 주소를 입력해 주세요."
+                                else -> null
+                            }
+                        }.getOrNull() else null
                         val detail=if(relativeApiPath(request.url)=="/api/recommend" && it.code in listOf(422,503))runCatching{
                             val body=it.body?.string().orEmpty()
                             if(body.length>2048)null else json.parseToJsonElement(body).jsonObject.let{error->
                                 error["error"]?.jsonPrimitive?.contentOrNull?.takeIf{value->error["code"]?.jsonPrimitive?.contentOrNull=="REQUIRED_VISIT" && value.length in 1..240}
                             }
                         }.getOrNull() else null
-                        continuation.resumeWithException(ApiFailure(detail?:message,it.code)); return
+                        continuation.resumeWithException(ApiFailure(signupDetail?:detail?:message,it.code)); return
                     }
                     val text = try { it.body?.string() } catch (_: IOException) {
                         if(continuation.isActive) continuation.resumeWithException(ApiFailure("응답을 받는 중 연결이 끊겼습니다. 다시 시도해 주세요."))

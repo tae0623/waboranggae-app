@@ -1,9 +1,11 @@
+import {nearbyAdditions} from '../../src/domain/routeInsertion'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, ApiError, tokenStore, unwrapList, browserSessionStatus, restoreBrowserLogin, setAutoLogin, type AuthUser, type BookmarkItem, type HotPlace, type RankedCourse, type TravelPreferences } from './api'
 import { conditionToPreferences, rankedToUiCourse } from './mappers'
 import { CourseRouteMap } from './CourseRouteMap'
 import { useWeather } from './useWeather'
 import { SocialLoginButtons } from './SocialLoginButtons'
+import { LocationSetting } from './LocationSettings'
 import { AccountActions } from './AccountActions'
 import { PrivacyConsent } from './PrivacyConsent'
 import brandMark from './assets/brand-mark.svg'
@@ -13,7 +15,8 @@ import { HOME_SCENERY_URL, todayKorea, visibleHomePlaces, hotPlaceSeed, accepted
 import { useDialogs } from './Dialogs'
 import { RouteSummary } from './RouteSummary'
 import { JourneyTimeline, Stars } from './JourneyTimeline'
-import { AppInfo } from './AppInfo'
+import { AppInfo, LegalLinks } from './AppInfo'
+import {SignupBotCheck} from './SignupBotCheck'
 import { tripDates, recommendTrip } from '../../src/domain/tripDays'
 import type { RouteOrigin } from '../../src/types/travel'
 import './parity.css'
@@ -69,6 +72,7 @@ export interface TransitStep {
   toStop?: string
 }
 export interface Place {
+  latitude?:number;longitude?:number;
   imageUrl?: string
   id: string; category: PlaceCat; name: string; address: string
   arriveAt: string; stayMin: number; description: string
@@ -222,11 +226,21 @@ function rememberEmail(value:string|null){try{if(value)localStorage.setItem('ddu
 function Login({ onLogin, onSignup, onGuest, error, onAuthenticated }: {
   onAuthenticated: (result: import('./api').AuthResponse) => Promise<void>
   onLogin: (email: string, password: string) => Promise<void>
-  onSignup: (email: string, name: string, password: string) => Promise<void>
+  onSignup: (email: string, name: string, password: string,botToken:string) => Promise<void>
   onGuest: () => void
   error?: string | null
 }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [botToken,setBotToken]=useState(''),[botAttempt,setBotAttempt]=useState(0)
+  const [botConfigAttempt,setBotConfigAttempt]=useState(0)
+  const [botConfig,setBotConfig]=useState({required:true,available:false})
+  useEffect(()=>{
+    setBotToken('')
+    if(mode!=='signup')return
+    let active=true;setBotConfig({required:true,available:false})
+    api.signupConfig().then(config=>{if(active)setBotConfig(config)}).catch(()=>{})
+    return()=>{active=false}
+  },[mode,botConfigAttempt])
   const [privacyConsent, setPrivacyConsent] = useState(false)
   const [rememberId,setRememberId]=useState(()=>Boolean(readRememberedEmail()))
   const [automatic,setAutomatic]=useState(false),[canPersist,setCanPersist]=useState(false)
@@ -235,17 +249,18 @@ function Login({ onLogin, onSignup, onGuest, error, onAuthenticated }: {
   const backdrop = HOME_SCENERY_URL
   useEffect(()=>{let active=true;browserSessionStatus().then(status=>{if(active){setCanPersist(status.supported);setAutoLogin(false)}});return()=>{active=false}},[])
   const submit = async () => {
-    if (mode === 'signup' && !privacyConsent) return
+    if (mode === 'signup' && (!privacyConsent||!botConfig.available||(botConfig.required&&!botToken))) return
     rememberEmail(rememberId?email.trim():null)
     setAutoLogin(automatic&&canPersist)
     setLoading(true)
     try {
-      if (mode === 'signup') await onSignup(email.trim(), name.trim(), pw)
+      if (mode === 'signup') await onSignup(email.trim(), name.trim(), pw,botToken)
       else await onLogin(email.trim(), pw)
     } catch {
       // 에러는 상위에서 표시
     } finally {
       setLoading(false)
+      if(mode==='signup'){setBotToken('');setBotAttempt(n=>n+1)}
     }
   }
 
@@ -269,13 +284,15 @@ function Login({ onLogin, onSignup, onGuest, error, onAuthenticated }: {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {mode === 'signup' && <div><div style={{ ...S.text(13, 500, 'rgba(255,255,255,0.72)'), marginBottom: 6 }}>이름</div><TxtInput glass value={name} onChange={setName} placeholder="홍길동" /></div>}
-            <div><div style={{ ...S.text(13, 500, 'rgba(255,255,255,0.72)'), marginBottom: 6 }}>이메일</div><TxtInput glass value={email} onChange={setEmail} placeholder="email@example.com" type="email" icon="user" /></div>
+            <div><div style={{ ...S.text(13, 500, 'rgba(255,255,255,0.72)'), marginBottom: 6 }}>{mode==='signup'?'이메일':'이메일 또는 아이디'}</div><TxtInput glass value={email} onChange={setEmail} placeholder={mode==='signup'?'email@example.com':'이메일 또는 아이디'} type={mode==='signup'?'email':'text'} icon="user" /></div>
             <div><div style={{ ...S.text(13, 500, 'rgba(255,255,255,0.72)'), marginBottom: 6 }}>비밀번호</div><TxtInput glass value={pw} onChange={setPw} placeholder="비밀번호" type="password" /></div>
-            {mode === 'signup' ? <div style={S.text(12, 400, 'rgba(255,255,255,0.58)')}>8자 이상, 대문자·소문자·숫자·특수문자를 포함해야 합니다.</div> : null}
+            {mode === 'signup' ? <div style={S.text(12, 400, 'rgba(255,255,255,0.58)')}>8자 이상, 소문자·숫자·특수문자를 포함해 주세요.</div> : null}
             {error ? <div style={{ ...S.text(13, 600, '#FECACA') }}>{error}</div> : null}
             {mode==='signup' ? <label style={{color:'white',fontSize:12,lineHeight:1.7}}><input type="checkbox" checked={privacyConsent} onChange={e=>setPrivacyConsent(e.target.checked)} /> {ACCOUNT_CONSENT_TEXT} <a href="/legal/privacy" target="_blank" rel="noreferrer" style={{color:'white'}}>개인정보 안내</a></label> : null}
             {mode==='login'&&<div className="login-options"><label><input type="checkbox" checked={rememberId} onChange={e=>{setRememberId(e.target.checked);if(!e.target.checked)rememberEmail(null)}}/>아이디 저장</label><label title={canPersist?'개인 기기에서만 사용하세요.':'고정 팀 웹 주소에서 이용할 수 있어요.'}><input type="checkbox" checked={automatic} disabled={!canPersist} onChange={e=>{setAutomatic(e.target.checked);setAutoLogin(e.target.checked)}}/>자동 로그인</label></div>}
-            <Btn frost onClick={submit} loading={loading}>{mode === 'login' ? '로그인' : '회원가입'}</Btn>
+            {mode==='signup'&&botConfig.required&&<SignupBotCheck key={botAttempt} onToken={setBotToken}/>}
+            {mode==='signup'&&!botConfig.available&&<div style={{color:'white',fontSize:12}}>회원가입 연결을 확인 중입니다. <button type="button" onClick={()=>setBotConfigAttempt(n=>n+1)} style={{color:'white',background:'none',border:0,textDecoration:'underline',cursor:'pointer'}}>다시 확인</button></div>}
+            <Btn frost onClick={submit} loading={loading} disabled={mode==='signup'&&(!privacyConsent||!botConfig.available||(botConfig.required&&!botToken))}>{mode === 'login' ? '로그인' : '회원가입'}</Btn>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0 16px' }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.14)' }} /><span style={S.text(13, 400, 'rgba(255,255,255,0.58)')}>또는</span><div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.14)' }} />
@@ -524,14 +541,6 @@ function HomeScreen({ onPlan, courses }: { onPlan: (seed?: Partial<Condition>) =
         {hero.img ? <img src={hero.img} alt={hero.title || '한국관광공사 관광사진'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{width:'100%',height:'100%',background:'linear-gradient(135deg,#174438,#3F6A68)'}} />}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.12) 40%, rgba(0,0,0,0.72) 100%)' }} />
 
-        {/* 앱 로고 */}
-        <div style={{ position: 'absolute', top: 52, left: 20, right: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img data-testid="home-brand-mark" src={brandMark} alt="전남 지도 위 발자국" width={40} height={40} style={{ display: 'block', borderRadius: 12, background: '#F0FDF4', flexShrink: 0 }} />
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", letterSpacing: '-0.02em' }}>뚜버기</span>
-          </div>
-        </div>
-
         {/* 히어로 텍스트 */}
         <div style={{ position: 'absolute', bottom: 96, left: 20, right: 20 }} className="anim-fade-up">
           <div style={{ fontSize: 36, fontWeight: 900, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em', marginBottom: 10, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>전남을<br />걸어봐요</div>
@@ -698,114 +707,25 @@ function CourseListScreen({ state, condition, courses, onSelect, onRetry, onPlan
     <div style={{ position: 'absolute', inset: 0, background: L.bg, overflowY: 'auto', paddingBottom: L.tabH }} className="hide-scroll">
       <div style={{ background: L.surface, padding: '52px 20px 0', position: 'sticky', top: 0, zIndex: 10 }}>
         {condition && <div style={{ ...S.text(13, 500, L.textMuted), marginBottom: 2 }}>{condition.departure} → {condition.region} · {condition.date} {condition.startTime} 시작{condition.endTimeLimited ? ` · ${condition.endTime}까지` : ''}</div>}
-        <div style={{ fontSize: 22, fontWeight: 900, color: L.text, marginBottom: 14, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>추천 코스 {courses.length}개</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: L.text, marginBottom: 14, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>{dates.length>1?'나의 여행 일정':'추천 코스 '+courses.length+'개'}</div>
         {(state === 'demo' || fallbackReason) && <div style={{ background: '#FEF9C3', borderRadius: L.rMd, padding: '8px 14px', marginBottom: 12, ...S.text(12, 500, '#92400E') }}>{fallbackReason || '시연 코스로 대체했습니다'}</div>}
         {dayTabs}
       </div>
       {filtered.length === 0
         ? <Empty icon="list" title="추천 코스가 없어요" cta="조건 변경" onCta={onPlan} />
         : <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 20px 20px' }}>
-            {filtered.map((c, i) => <section key={c.id}>{dates.length>1&&<h2 style={{fontSize:17}}>DAY {dates.indexOf(dateById[c.id]||'')+1} · {dateById[c.id]}</h2>}<CourseCard course={c} onPress={() => onSelect(c)} wide={i === 0} /></section>)}
+            {dates.length>1?<button className="trip-bundle" onClick={()=>onSelect(filtered[0]!)}><h2>{condition?.region} {dates.length}일 여행</h2><p>{dates[0]} — {dates.at(-1)}</p>{dates.map((date,i)=>{const daily=filtered.find(c=>dateById[c.id]===date);return <section className="trip-bundle-day" key={date}><span className="day-tag">DAY {i+1}</span><small>{date}</small>{daily?<><h3>{daily.title}</h3><p style={S.text(12,400,L.textSec)}>{daily.places.map(p=>p.name).join(' → ')}</p><DayScores course={daily}/></>:<p>이 날짜의 코스를 확인해 주세요.</p>}</section>})}<strong>전체 일정 살펴보기 →</strong></button>:filtered.map((c,i)=><CourseCard key={c.id} course={c} onPress={()=>onSelect(c)} wide={i===0}/>)}
           </div>
       }
     </div>
   )
 }
 
-// ── Course Detail — hero + right thumbnail strip (reference) ─────────────────
-function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy, routingError, tripDays=[] }: {
-  course: Course; onBack: () => void; onEdit: () => void; onConfirm: () => void
-  routingBusy:boolean; routingError:string
-  tripDays?:Array<{date:string;course?:Course;preferences:TravelPreferences;error?:string}>
-}) {
-  const [tab, setTab] = useState<'timeline' | 'score'>('timeline')
-  const efficiency = Math.round((c.apiCourse?.scoreFacts?.stayRatio??0)*100)
-  const totalMin = c.apiCourse?.timeBreakdown?.totalMinutes ?? Math.round(c.hours*60)
-  const totalH = Math.floor(totalMin / 60); const totalM = totalMin % 60
-
-  // Never represent unrelated stock photography as the recommended destination.
-  const thumbUrls = [...new Set([c.imageUrl, ...(c.apiCourse?.places.map(p=>p.imageUrl)||[])].filter((value):value is string=>Boolean(value)))].slice(0,4)
-
-  return (
-    <div style={{ position: 'absolute', inset: 0, background: L.bg, zIndex: 110, display: 'flex', flexDirection: 'column' }} className="anim-fade-in">
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className="hide-scroll">
-      {/* Hero + thumbnail strip */}
-      <div style={{ position: 'relative', height: 340 }}>
-        <img src={c.imageUrl} alt={c.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.7) 100%)' }} />
-
-        {/* Back + heart */}
-        <div style={{ position: 'absolute', top: 52, left: 16, right: 16, display: 'flex', justifyContent: 'space-between' }}>
-          <button onClick={onBack} aria-label="뒤로가기" style={{ width: 40, height: 40, borderRadius: L.rFull, background: 'rgba(255,255,255,0.92)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.15)' }}>
-            <Ic n="back" sz={18} c={L.dark} />
-          </button>
-
-        </div>
-
-        {/* Right thumbnail strip — reference style */}
-        <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {thumbUrls.map((u, i) => (
-            <div key={i} style={{ width: 52, height: 52, borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.8)', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
-              <img src={u} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-          ))}
-        </div>
-
-        {/* Title block bottom */}
-        <div style={{ position: 'absolute', bottom: 20, left: 16, right: 76 }}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}><Badge type={c.dataSource} /><Badge type={c.routeSource} /></div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 6 }}>{c.title}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Ic n="location" sz={12} c="rgba(255,255,255,0.8)" />
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{c.city}</span>
-          </div>
-        </div>
-      </div>
-
-      <RouteSummary course={c.apiCourse} busy={routingBusy} error={routingError} compact/>
-      {/* Metrics row — reference style */}
-      <div style={{ background: L.surface, padding: '16px 20px', display: 'flex', gap: 0, marginBottom: 12 }}>
-        {[
-          { label: '현지 예상시간', value: formatMinutes(c.hours*60), valueCol: L.dark },
-          { label: '걷기 부담', value: c.walkFitScore >= 85 ? '낮음' : c.walkFitScore >= 70 ? '보통' : '높음', valueCol: L.teal },
-          { label: '추천 점수', value: String(c.score), valueCol: '#F59E0B' },
-        ].map((m, i) => (
-          <div key={m.label} style={{ flex: 1, textAlign: 'center', borderRight: i < 2 ? `1px solid ${L.borderLight}` : 'none' }}>
-            <div style={S.text(11, 500, L.textMuted)}>{m.label}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: m.valueCol, fontFamily: "'Pretendard Variable', Pretendard, sans-serif", marginTop: 3 }}>{m.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Reason */}
-      <div style={{ margin: '0 16px 12px', background: L.surface, borderRadius: L.rXl, padding: '16px 18px', boxShadow: L.shadowSm }}>
-        <div style={{ ...S.text(12, 700, L.textMuted), marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>이 코스를 추천한 이유</div>
-        <div style={{ ...S.text(14, 400, L.textSec), lineHeight: 1.7 }}>{c.reason}</div>
-        {/* Move metrics */}
-        <div style={{ display: 'flex', flexWrap:'wrap', gap: 14, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${L.borderLight}` }}>
-          <span style={S.text(12, 600, L.dark)}>🚶 {c.unclassifiedMin?'확인된 ':''}도보 {c.walkMin}분</span>
-          <span style={S.text(12, 600, L.textSec)}>🚌 대중교통 {c.transitMin}분</span>
-          {!!c.unclassifiedMin&&<span style={S.text(12,600,L.textSec)}>이동·대기 {c.unclassifiedMin}분 미분류</span>}
-          <span style={S.text(12, 600, L.textSec)}>🔄 환승 {c.transferCount}회</span>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ padding: '0 16px' }}>
-        <div style={{ display: 'flex', background: L.surface, borderRadius: L.rXl, padding: 4, marginBottom: 14, boxShadow: L.shadowSm }}>
-          {([['timeline','타임라인'],['score','점수 분석']] as const).map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: '10px', borderRadius: L.rLg, background: tab === id ? L.dark : 'transparent', border: 'none', fontSize: 13, fontWeight: tab === id ? 700 : 400, color: tab === id ? '#fff' : L.textMuted, cursor: 'pointer', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", transition: 'all 0.15s' }}>{label}</button>
-          ))}
-        </div>
-
-        {tab === 'timeline' && (tripDays.length>1?tripDays.map((day,i)=><section key={day.date} className="detail-trip-day" data-testid={'detail-day-'+(i+1)}>
-          <h2 style={S.text(20,800)}>DAY {i+1} · {day.date}</h2><p style={S.text(12,500,L.textSec)}>{day.preferences.startTime} 시작{day.preferences.endTime?' · '+day.preferences.endTime+'까지':''}</p>
-          {day.course?.apiCourse?<><h3 style={S.text(16,700)}>{day.course.title}</h3><JourneyTimeline course={day.course.apiCourse}/></>:<p role="alert">{day.error||'이 날짜의 코스를 찾지 못했어요.'}</p>}
-        </section>):c.apiCourse&&<JourneyTimeline course={c.apiCourse}/>)}
-
-        {tab === 'score' && tripDays.length>1 && <p>{tripDays.find(d=>d.course?.id===c.id)?.date} 코스 점수</p>}
-        {tab === 'score' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+function DayScores({course}:{course:Course}){return <div className="day-score-pair"><div><small>추천 점수</small><strong>{course.score}점</strong></div><div><small>뚜벅이 적합도</small><strong>{course.walkFitScore}점</strong><Stars score={course.walkFitScore}/></div></div>}
+function CourseScoreReport({c}:{c:Course}){
+ const efficiency=Math.round((c.apiCourse?.scoreFacts?.stayRatio??0)*100);
+ const totalMin=c.apiCourse?.timeBreakdown?.totalMinutes??Math.round(c.hours*60),totalH=Math.floor(totalMin/60),totalM=totalMin%60;
+ return (          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ background: L.surface, borderRadius: L.rXl, padding: 18, boxShadow: L.shadowSm }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
                 <div style={{ fontSize: 48, fontWeight: 900, color: L.dark, fontFamily: "'Pretendard Variable', Pretendard, sans-serif", lineHeight: 1 }}>{c.score}</div>
@@ -850,8 +770,105 @@ function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy,
                 <div><div style={S.text(11, 500, L.textMuted)}>예상</div><div style={{ fontSize: 20, fontWeight: 800, color: L.teal, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>{totalH}시간 {totalM}분</div></div>
               </div>
             </div>
+          </div>);
+}
+// ── Course Detail — hero + right thumbnail strip (reference) ─────────────────
+function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy, routingError, tripDays=[] }: {
+  course: Course; onBack: () => void; onEdit: (course?:Course) => void; onConfirm: () => void
+  routingBusy:boolean; routingError:string
+  tripDays?:Array<{date:string;course?:Course;preferences:TravelPreferences;error?:string}>
+}) {
+  const [tab, setTab] = useState<'timeline' | 'score'>('timeline')
+  const efficiency = Math.round((c.apiCourse?.scoreFacts?.stayRatio??0)*100)
+  const totalMin = c.apiCourse?.timeBreakdown?.totalMinutes ?? Math.round(c.hours*60)
+  const totalH = Math.floor(totalMin / 60); const totalM = totalMin % 60
+
+  // Never represent unrelated stock photography as the recommended destination.
+  const thumbUrls = [...new Set([c.imageUrl, ...(c.apiCourse?.places.map(p=>p.imageUrl)||[])].filter((value):value is string=>Boolean(value)))].slice(0,4)
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: L.bg, zIndex: 110, display: 'flex', flexDirection: 'column' }} className="anim-fade-in">
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className="hide-scroll">
+      {/* Hero + thumbnail strip */}
+      <div style={{ position: 'relative', height: 340 }}>
+        <img src={c.imageUrl} alt={c.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.7) 100%)' }} />
+
+        {/* Back + heart */}
+        <div style={{ position: 'absolute', top: 52, left: 16, right: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <button onClick={onBack} aria-label="뒤로가기" style={{ width: 40, height: 40, borderRadius: L.rFull, background: 'rgba(255,255,255,0.92)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.15)' }}>
+            <Ic n="back" sz={18} c={L.dark} />
+          </button>
+
+        </div>
+
+        {/* Right thumbnail strip — reference style */}
+        <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {thumbUrls.map((u, i) => (
+            <div key={i} style={{ width: 52, height: 52, borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.8)', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+              <img src={u} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          ))}
+        </div>
+
+        {/* Title block bottom */}
+        <div style={{ position: 'absolute', bottom: 20, left: 16, right: 76 }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}><Badge type={c.dataSource} /><Badge type={c.routeSource} /></div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 6 }}>{tripDays.length>1?c.city+' '+tripDays.length+'일 여행':c.title}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Ic n="location" sz={12} c="rgba(255,255,255,0.8)" />
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{c.city}</span>
           </div>
-        )}
+        </div>
+      </div>
+
+      {tripDays.length<=1&&<RouteSummary course={c.apiCourse} busy={routingBusy} error={routingError} compact/>}
+      {/* Metrics row — reference style */}
+      <div style={{ background: L.surface, padding: '16px 20px', display: 'flex', gap: 0, marginBottom: 12 }}>
+        {(tripDays.length>1?[
+          {label:'여행 일정',value:tripDays.length+'일',valueCol:L.dark},
+          {label:'현지 시간 합계',value:formatMinutes(tripDays.reduce((sum,d)=>sum+(d.course?.apiCourse?.timeBreakdown?.totalMinutes??(d.course?.hours??0)*60),0)),valueCol:L.teal},
+          {label:'방문 장소',value:tripDays.reduce((sum,d)=>sum+(d.course?.apiCourse?.places.length??0),0)+'곳',valueCol:L.dark},
+        ]:[
+          { label: '현지 예상시간', value: formatMinutes(c.hours*60), valueCol: L.dark },
+          { label: '걷기 부담', value: c.walkFitScore >= 85 ? '낮음' : c.walkFitScore >= 70 ? '보통' : '높음', valueCol: L.teal },
+          { label: '추천 점수', value: String(c.score), valueCol: '#F59E0B' },
+        ]).map((m, i) => (
+          <div key={m.label} style={{ flex: 1, textAlign: 'center', borderRight: i < 2 ? `1px solid ${L.borderLight}` : 'none' }}>
+            <div style={S.text(11, 500, L.textMuted)}>{m.label}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: m.valueCol, fontFamily: "'Pretendard Variable', Pretendard, sans-serif", marginTop: 3 }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Reason */}
+      {tripDays.length<=1&&<div style={{ margin: '0 16px 12px', background: L.surface, borderRadius: L.rXl, padding: '16px 18px', boxShadow: L.shadowSm }}>
+        <div style={{ ...S.text(12, 700, L.textMuted), marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>이 코스를 추천한 이유</div>
+        <div style={{ ...S.text(14, 400, L.textSec), lineHeight: 1.7 }}>{c.reason}</div>
+        {/* Move metrics */}
+        <div style={{ display: 'flex', flexWrap:'wrap', gap: 14, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${L.borderLight}` }}>
+          <span style={S.text(12, 600, L.dark)}>🚶 {c.unclassifiedMin?'확인된 ':''}도보 {c.walkMin}분</span>
+          <span style={S.text(12, 600, L.textSec)}>🚌 대중교통 {c.transitMin}분</span>
+          {!!c.unclassifiedMin&&<span style={S.text(12,600,L.textSec)}>이동·대기 {c.unclassifiedMin}분 미분류</span>}
+          <span style={S.text(12, 600, L.textSec)}>🔄 환승 {c.transferCount}회</span>
+        </div>
+      </div>}
+
+      {/* Tabs */}
+      <div style={{ padding: '0 16px' }}>
+        <div style={{ display: 'flex', background: L.surface, borderRadius: L.rXl, padding: 4, marginBottom: 14, boxShadow: L.shadowSm }}>
+          {([['timeline','타임라인'],['score','점수 분석']] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: '10px', borderRadius: L.rLg, background: tab === id ? L.dark : 'transparent', border: 'none', fontSize: 13, fontWeight: tab === id ? 700 : 400, color: tab === id ? '#fff' : L.textMuted, cursor: 'pointer', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", transition: 'all 0.15s' }}>{label}</button>
+          ))}
+        </div>
+
+        {tab === 'timeline' && (tripDays.length>1?tripDays.map((day,i)=><section key={day.date} className="detail-trip-day" data-testid={'detail-day-'+(i+1)}>
+          <h2 style={S.text(20,800)}>DAY {i+1} · {day.date}</h2><p style={S.text(12,500,L.textSec)}>{day.preferences.startTime} 시작{day.preferences.endTime?' · '+day.preferences.endTime+'까지':''}</p>
+          {day.course?.apiCourse?<><h3 style={S.text(16,700)}>{day.course.title}</h3><DayScores course={day.course}/><button className="field-button" onClick={()=>onEdit(day.course)}>이 날짜 코스 편집</button><JourneyTimeline course={day.course.apiCourse}/></>:<p role="alert">{day.error||'이 날짜의 코스를 찾지 못했어요.'}</p>}
+        </section>):c.apiCourse&&<JourneyTimeline course={c.apiCourse}/>)}
+
+        {tab==='score'&&(tripDays.length>1?tripDays.map((day,i)=><section className="score-day" key={day.date}><h2>DAY {i+1} · {day.date}</h2>{day.course?<CourseScoreReport c={day.course}/>:<p>{day.error||'점수 미확인'}</p>}</section>):<CourseScoreReport c={c}/>)}
+
 
       </div>
       <div style={{ height: 16 }} />
@@ -861,14 +878,12 @@ function CourseDetailScreen({ course: c, onBack, onEdit, onConfirm, routingBusy,
       <div style={{ flexShrink: 0, padding: '12px 20px 18px', background: L.surface, borderTop: `1px solid ${L.borderLight}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            {tripDays.length>1&&<div style={S.text(10,500,L.textSec)}>{tripDays.find(d=>d.course?.id===c.id)?.date} 기준</div>}
-            <div style={S.text(12,700)}>추천 점수 <strong>{c.score}점</strong></div>
-            <div style={{...S.text(12,700,L.teal),marginTop:5}}>뚜벅이 적합도 <strong>{c.walkFitScore}점</strong></div>
+            {tripDays.length>1?<><strong>{tripDays.length}일 전체 일정</strong><div style={S.text(11,500,L.textSec)}>날짜별 점수·동선</div></>:<><div style={S.text(12,700)}>추천 점수 <strong>{c.score}점</strong></div><div style={{...S.text(12,700,L.teal),marginTop:5}}>뚜벅이 적합도 <strong>{c.walkFitScore}점</strong></div></>}
           </div>
 
-          <button onClick={onEdit} aria-label="코스 편집" style={{ width: 44, height: 44, borderRadius: L.rFull, border: `1.5px solid ${L.border}`, background: L.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {tripDays.length<=1&&<button onClick={()=>onEdit()} aria-label="코스 편집" style={{ width: 44, height: 44, borderRadius: L.rFull, border: `1.5px solid ${L.border}`, background: L.surface, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Ic n="edit" sz={17} c={L.dark} />
-          </button>
+          </button>}
           <button onClick={onConfirm} disabled={!c.apiCourse || !canPreviewCourse(c.apiCourse)} className="card-press" style={{ height: 44, borderRadius: L.rFull, background: '#16A34A', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 18px', flexShrink: 0, boxShadow: '0 4px 14px rgba(22,163,74,0.35)' }}>
             <span style={{ fontSize: 14 }}>🗺</span>
             <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", whiteSpace: 'nowrap' }}>이 코스로 여행하기</span>
@@ -902,63 +917,20 @@ function MapScreen({confirmedCourse:c,journeys,onDetail,preferencesById,missingD
  </div>
 }
 
-function MyTravelScreen({ loggedIn, user, onLogin, onLogout, onDeleted, bookmarkItems, onSelectCourse, onProfile, courses }: {
-  loggedIn: boolean; user: AuthUser | null; onLogin: () => void; onLogout: () => void; onDeleted:()=>void;
-  bookmarkItems: BookmarkItem[];
-  onSelectCourse: (c: Course) => void; onProfile:(user:AuthUser)=>void; courses: Course[]
-}) {
-  const bm = bookmarkItems.map((item) => {
-    const course = courses.find((c) => c.id === item.courseId) ?? (item.snapshot ? rankedToUiCourse(item.snapshot) : undefined)
-    return { item, course }
-  })
-  if (!loggedIn) return (
-    <div style={{ position: 'absolute', inset: 0, background: L.bg, overflowY: 'auto', paddingBottom: L.tabH }} className="hide-scroll">
-      <div style={{ padding: '56px 20px 0' }}>
-        <div style={{ fontSize: 28, fontWeight: 900, color: L.text, marginBottom: 4, fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>내 여행</div>
-        <div style={{ ...S.text(14, 400, L.textMuted), marginBottom: 28 }}>마음에 드는 코스를 내 여행에 저장하세요</div>
-        <div style={{ background: L.dark, borderRadius: L.rXl, padding: 28, textAlign: 'center', marginBottom: 16 }}>
-          <img src={brandMark} alt="" style={{width:64,height:64,marginBottom:16}} className="float"/>
-          <div style={S.text(16, 700, '#fff')}>로그인하고 더 많이 즐겨요</div>
-          <div style={{ ...S.text(13, 400, 'rgba(255,255,255,0.6)'), marginTop: 6, lineHeight: 1.65, marginBottom: 24 }}>마음에 드는 코스를 내 여행에 모아보세요</div>
-          <button onClick={onLogin} style={{ background: '#fff', color: L.dark, border: 'none', borderRadius: L.rFull, padding: '14px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: "'Noto Sans KR', sans-serif', width: '100%'" }}>로그인 / 회원가입</button>
-        </div>
-        <AppInfo/>
-      </div>
-    </div>
-  )
-  return (
-    <div style={{ position: 'absolute', inset: 0, background: L.bg, overflowY: 'auto', paddingBottom: L.tabH + 16 }} className="hide-scroll">
-      <div style={{ padding: '56px 20px 0' }}>
-        <div style={{ background: L.dark, borderRadius: L.rXl, padding: 20, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 20, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0 }}>🚶</div>
-          <div style={{ flex: 1 }}>
-            <div style={S.text(17, 700, '#fff')}>{user?.displayName || '여행자님'}</div>
-            <div style={{ ...S.text(12, 400, 'rgba(255,255,255,0.55)'), marginTop: 2 }}>{user?.email?.endsWith('@social.waboranggae.invalid') ? '소셜 로그인 계정' : user?.email || ''}</div>
-          </div>
-          <button onClick={onLogout} style={{ padding: '7px 14px', borderRadius: L.rFull, background: 'rgba(255,255,255,0.12)', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>로그아웃</button>
-        </div>
-        <AccountActions onDeleted={onDeleted} user={user} onProfile={onProfile}/>
-        <AppInfo/>
-        <div style={{ ...S.text(16, 800, L.text), marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-          북마크 <span style={{ fontSize: 13, fontWeight: 600, color: L.textMuted, background: L.border, padding: '2px 8px', borderRadius: 20 }}>{bm.length}</span>
-        </div>
-        {bm.length === 0
-          ? <div style={{ background: L.surface, borderRadius: L.rXl, padding: '20px 16px', textAlign: 'center', ...S.text(14, 400, L.textMuted), marginBottom: 20, boxShadow: L.shadowSm }}>북마크한 코스가 없어요</div>
-          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {bm.map(({ item, course }) => <div key={item.id} onClick={() => course && onSelectCourse(course)} style={{ background: L.surface, borderRadius: L.rXl, padding: 14, cursor: course ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 12, boxShadow: L.shadowSm, opacity: course ? 1 : 0.7 }}>
-                <img src={course?.imageUrl || brandMark} alt="" style={{ width: 52, height: 52, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ ...S.text(14, 700, L.text), overflowWrap: 'anywhere' }}>{item.courseName}</div>
-                  <div style={{ ...S.text(12, 400, L.textMuted), marginTop: 2 }}>{course ? `${item.city} · ${course.hours}시간` : `${item.city} · 현재 추천에서 이용할 수 없는 코스예요`}</div>
-                </div>
-                <Ic n="chevR" sz={16} c={L.textMuted} />
-              </div>)}
-            </div>
-        }
-
-      </div>
-    </div>
-  )
+function MyTravelScreen({ loggedIn,user,onLogin,onLogout,onDeleted,bookmarkItems,onSelectCourse,onProfile,courses }:{
+ loggedIn:boolean;user:AuthUser|null;onLogin:()=>void;onLogout:()=>void;onDeleted:()=>void;bookmarkItems:BookmarkItem[];onSelectCourse:(c:Course)=>void;onProfile:(user:AuthUser)=>void;courses:Course[];
+}){
+ const [settings,setSettings]=useState(false);
+ const bm=bookmarkItems.map(item=>({item,course:courses.find(c=>c.id===item.courseId)??(item.snapshot?rankedToUiCourse(item.snapshot):undefined)}));
+ return <div className="account-page hide-scroll">
+  <header className="account-header">{settings&&<button aria-label="내 여행으로" onClick={()=>setSettings(false)}>‹</button>}<h1>{settings?'앱 설정':'내 여행'}</h1>{!settings&&<button aria-label="앱 설정" onClick={()=>setSettings(true)}><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m10 3-.5 2-2 1-2-.6-2 3 1.5 1.5v3L3.5 14l2 3 2-.5 2 1 .5 2h4l.5-2 2-1 2 .5 2-3-1.5-1.1v-3L21 8.5l-2-3-2 .5-2-1-.5-2Z"/><circle cx="12" cy="11.5" r="3"/></svg></button>}</header>
+  {settings?<>{loggedIn&&<section className="settings-card"><h2>프로필</h2><AccountActions mode="profile" onDeleted={onDeleted} user={user} onProfile={onProfile}/></section>}<LocationSetting/><section className="settings-card"><AppInfo/></section><LegalLinks/></>:
+  !loggedIn?<section className="settings-card"><h2>나만의 여행을 모아보세요</h2><p>로그인하면 코스를 저장할 수 있어요.</p><button className="primary" onClick={onLogin}>로그인 / 회원가입</button></section>:
+  <><section className="account-identity"><small>로그인 정보</small><h2>{user?.displayName||'여행자'}</h2><p>{user?.loginAlias||(user?.email?.endsWith('@social.waboranggae.invalid')?'소셜 로그인 계정':user?.email)}</p></section>
+  <h2 className="section-title">저장한 코스 <small>{bm.length}</small></h2>
+  {!bm.length?<section className="settings-card muted">아직 저장한 코스가 없어요.</section>:bm.map(({item,course})=><button className="saved-course-row" key={item.id} disabled={!course} onClick={()=>course&&onSelectCourse(course)}><img src={course?.imageUrl||brandMark} alt=""/><span><strong>{item.courseName}</strong><small>{item.city}{course?' · '+formatMinutes(course.hours*60):''}</small></span><b>›</b></button>)}
+  <section className="account-session"><button className="settings-row" onClick={onLogout}>로그아웃 <span>→</span></button><AccountActions mode="delete" onDeleted={onDeleted} user={user} onProfile={onProfile}/></section></>}
+ </div>;
 }
 
 // ── Nearby place suggestions ──────────────────────────────────────────────────
@@ -976,7 +948,7 @@ function CourseEditor({ course, onClose, onSave, pool }: {
   const [activeDrag, setActiveDrag] = useState<number | null>(null)
   const [overIdx, setOverIdx] = useState<number | null>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
-  const ITEM_H = 74
+  const rowRefs=useRef(new Map<string,HTMLDivElement>())
 
   const catMeta: Record<PlaceCat, { emoji: string; col: string; bg: string }> = {
     transit: { emoji: '🚉', col: '#2563EB', bg: '#EFF6FF' },
@@ -1000,14 +972,17 @@ function CourseEditor({ course, onClose, onSave, pool }: {
     if (dragIdx.current === null) return
     const delta = e.clientY - startClientY.current
     if (ghostRef.current) ghostRef.current.style.transform = `translateY(${delta}px)`
-    setOverIdx(Math.max(places[0]?.category === 'transit' ? 1 : 0, Math.min(places.length - 1, dragIdx.current + Math.round(delta / ITEM_H))))
+    const valid=places.map((p,i)=>({p,i,rect:rowRefs.current.get(p.id)?.getBoundingClientRect()})).filter(x=>x.p.category!=='transit'&&x.rect&&x.i!==dragIdx.current);
+    const nearest=valid.sort((a,b)=>Math.abs(e.clientY-(a.rect!.top+a.rect!.height/2))-Math.abs(e.clientY-(b.rect!.top+b.rect!.height/2)))[0];
+    if(nearest&&Math.abs(delta)>20)setOverIdx(nearest.i);
   }
   const handleUp = () => {
-    if (dragIdx.current !== null && overIdx !== null && dragIdx.current !== overIdx) {
+    const from=dragIdx.current,to=overIdx;
+    if (from !== null && to !== null && from !== to) {
       setPlaces(prev => {
         const arr = [...prev]
-        const [item] = arr.splice(dragIdx.current!, 1)
-        if (item) arr.splice(overIdx, 0, item)
+        const [item] = arr.splice(from, 1)
+        if (item) arr.splice(to, 0, item)
         return arr
       })
     }
@@ -1015,10 +990,11 @@ function CourseEditor({ course, onClose, onSave, pool }: {
     if (ghostRef.current) ghostRef.current.style.transform = 'translateY(0)'
   }
   const removePlace = (idx: number) => { if (!saved && places[idx]?.category !== 'transit' && places.length > 2) setPlaces(prev => prev.filter((_, i) => i !== idx)) }
-  const addPlace = (p: Place) => { if (!places.some(x => x.id === p.id)) { setPlaces(prev => [...prev, { ...p, arriveAt: '–' }]); setAddOpen(false) } }
+  const addPlace = (p: Place) => { if(saved||places.length>=9)return;const target=additions.find(x=>x.place.id===p.id);if(target&&!places.some(x=>x.id===p.id)){setPlaces(prev=>{const next=[...prev];next.splice(target.index+(prev[0]?.category==='transit'?1:0),0,{...p,arriveAt:'–'});return next;});setAddOpen(false);} }
   const handleSave = async () => { setSaved(true); setSaveError(''); try { await onSave({ ...course, places, placeCount: places.length }); onClose() } catch (error) { setSaveError(error instanceof Error ? error.message : '편집 검증 실패'); } finally { setSaved(false); } }
 
-  const addable = pool.filter(p => !places.some(x => x.id === p.id))
+  const additions=nearbyAdditions(places.filter(p=>p.category!=='transit'),pool,course.apiCourse?.origin);
+  const addable=additions.map(c=>c.place)
   const ptX = (i: number, n: number) => 24 + (i / Math.max(n - 1, 1)) * 284
   const ptY = (i: number) => 30 + Math.sin(i * 1.1) * 12
 
@@ -1034,15 +1010,14 @@ function CourseEditor({ course, onClose, onSave, pool }: {
           <div style={S.text(12, 400, L.textMuted)}>≡ 드래그로 순서 변경 · × 로 삭제</div>
         </div>
         <button disabled={saved} onClick={()=>void handleSave()} style={{ padding: '10px 20px', borderRadius: L.rFull, background: saved ? L.success : L.dark, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", display: 'flex', alignItems: 'center', gap: 5, transition: 'background 0.3s' }}>
-          {saved ? '경로 검증 중…' : '검증 후 적용'}
+          {saved ? '저장 중…' : '저장'}
         </button>
       </div>
 
       {saveError && <p role="alert" style={{padding:'8px 16px',color:L.error}}>{saveError}</p>}
-      <p style={{padding:'4px 16px',fontSize:12}}>순서 미리보기입니다. 적용 시 이동 시간·일정·점수를 다시 계산합니다. 출발지는 고정됩니다.</p>
       {/* Order preview, not a geographic map */}
       <div style={{ background: '#1C1C1E', padding: '12px 20px 8px', flexShrink: 0 }}>
-        <div style={{ ...S.text(11, 600, 'rgba(255,255,255,0.5)'), marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>실시간 동선 · {places.length}곳</div>
+        <div style={{ ...S.text(11, 600, 'rgba(255,255,255,0.5)'), marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>방문 순서 · {places.length}곳</div>
         <svg width="100%" height={56} viewBox="0 0 332 56">
           {places.length > 1 && <polyline points={places.map((_, i) => `${ptX(i, places.length)},${ptY(i)}`).join(' ')} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2" strokeDasharray="5 4" />}
           {places.map((_, i) => {
@@ -1065,10 +1040,10 @@ function CourseEditor({ course, onClose, onSave, pool }: {
             return (
               <div key={p.id}>
                 {isOver && overIdx !== null && overIdx < (dragIdx.current ?? 0) && <div style={{ height: 3, background: L.dark, borderRadius: 2, margin: '3px 0' }} />}
-                <div onPointerDown={e => handleDown(e, i)} onPointerMove={handleMove} onPointerUp={handleUp}
-                  ref={isDragging ? ghostRef : undefined}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: L.surface, borderRadius: L.rLg, border: `1.5px solid ${isDragging ? L.dark : isOver ? L.border : L.borderLight}`, marginBottom: 8, boxShadow: isDragging ? L.shadowLg : L.shadowSm, transform: isDragging ? 'scale(1.02)' : 'scale(1)', transition: isDragging ? 'none' : 'all 0.15s', position: 'relative', touchAction: 'none', userSelect: 'none' }}>
-                  <div data-handle="true" style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '4px 6px', cursor: 'grab', flexShrink: 0, opacity: 0.35 }}>
+                <div onPointerDown={e => handleDown(e, i)} onPointerMove={handleMove} onPointerUp={handleUp} onPointerCancel={()=>{dragIdx.current=null;setActiveDrag(null);setOverIdx(null)}}
+                  ref={node=>{if(node)rowRefs.current.set(p.id,node);else rowRefs.current.delete(p.id);if(isDragging)ghostRef.current=node}}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: L.surface, borderRadius: L.rLg, border: `1.5px solid ${isDragging ? L.dark : isOver ? L.border : L.borderLight}`, marginBottom: 8, boxShadow: isDragging ? L.shadowLg : L.shadowSm, transform: isDragging ? 'scale(1.02)' : 'scale(1)', transition: isDragging ? 'none' : 'all 0.15s', position: 'relative', userSelect: 'none' }}>
+                  <div data-handle="true" role="button" tabIndex={saved||p.category==='transit'?-1:0} aria-label={p.name+' 순서 변경'} onKeyDown={e=>{if(saved||p.category==='transit'||!['ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();const target=i+(e.key==='ArrowUp'?-1:1);if(target<(places[0]?.category==='transit'?1:0)||target>=places.length)return;setPlaces(prev=>{const next=[...prev];next.splice(target,0,next.splice(i,1)[0]!);return next;});}} style={{touchAction:'none', display: 'flex', flexDirection: 'column', gap: 3, padding: '4px 6px', cursor: 'grab', flexShrink: 0, opacity: 0.35 }}>
                     {[0,1,2].map(d => <div key={d} style={{ width: 16, height: 2, background: L.text, borderRadius: 1 }} />)}
                   </div>
                   <div style={{ width: 36, height: 36, borderRadius: 12, background: cat.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0, position: 'relative' }}>
@@ -1084,7 +1059,7 @@ function CourseEditor({ course, onClose, onSave, pool }: {
                       {p.transitMin && p.transitMin > 0 && <span style={S.text(10, 400, L.textMuted)}>→ {p.transitMin}분</span>}
                     </div>
                   </div>
-                  <button onPointerDown={e => e.stopPropagation()} onClick={() => removePlace(i)} disabled={places.length <= 2 || p.category === 'transit' || saved}
+                  <button aria-label={p.name+' 삭제'} onPointerDown={e => e.stopPropagation()} onClick={() => removePlace(i)} disabled={places.length <= 2 || p.category === 'transit' || saved}
                     style={{ width: 30, height: 30, borderRadius: 8, background: places.length <= 2 ? L.bg : '#FEE2E2', border: 'none', cursor: places.length <= 2 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: places.length <= 2 ? 0.35 : 1 }}>
                     <Ic n="close" sz={13} c={places.length <= 2 ? L.textMuted : '#DC2626'} />
                   </button>
@@ -1104,7 +1079,7 @@ function CourseEditor({ course, onClose, onSave, pool }: {
         <Sheet onClose={() => setAddOpen(false)} maxH="60%">
           <div style={{ padding: '0 20px 8px' }}>
             <div style={S.text(17, 800, L.text)}>장소 추가</div>
-            <div style={{ ...S.text(13, 400, L.textMuted), marginTop: 3 }}>{course.city} 주변 추천 장소</div>
+            <div style={{ ...S.text(13, 400, L.textMuted), marginTop: 3 }}>{course.city} · 현재 동선에 가까운 장소</div>
           </div>
           <div style={{ padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {addable.length === 0
@@ -1116,7 +1091,7 @@ function CourseEditor({ course, onClose, onSave, pool }: {
                       <div style={{ width: 40, height: 40, borderRadius: 12, background: cat.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{cat.emoji}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={S.text(14, 700, L.text)}>{p.name}</div>
-                        <div style={{ ...S.text(12, 400, L.textMuted), marginTop: 2 }}>{p.description.slice(0, 36)}…</div>
+                        <div style={{ ...S.text(12, 400, L.textMuted), marginTop: 2 }}>{p.description.slice(0,36)}{p.description.length>36?'…':''}</div>
                         <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
                           {p.interests.slice(0, 2).map(tag => <span key={tag} style={{ fontSize: 10, background: L.border, color: L.textSec, borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>{tag}</span>)}
                         </div>
@@ -1140,7 +1115,7 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
   const {ask,dialog}=useDialogs()
   const recommendationVersion=useRef(0)
   const tripBase=useRef<{condition:Condition;preferences:TravelPreferences;origin?:RouteOrigin}|null>(null)
-  const dayCache=useRef<Record<string,{courses:Course[];preferences:TravelPreferences;error?:string}>>({})
+  const dayCache=useRef<Record<string,{courses:Course[];preferences:TravelPreferences;error?:string;candidates?:import('../../src/types/travel').Place[]}>>({})
   const [activeDay,setActiveDay]=useState('')
   const [tripProgress,setTripProgress]=useState('')
   const routingPending=useRef(new Set<string>())
@@ -1225,10 +1200,10 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
     }
   }
 
-  const handleSignup = async (email: string, name: string, password: string) => {
+  const handleSignup = async (email: string, name: string, password: string,botToken:string) => {
     setAuthError(null)
     try {
-      await applyAuth(await api.signup(email, name, password))
+      await applyAuth(await api.signup(email, name, password,botToken))
     } catch (error) {
       setAuthError(error instanceof ApiError || error instanceof Error ? error.message : '회원가입에 실패했습니다')
       throw error
@@ -1300,10 +1275,17 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
     setSelectedCourse(course);setActivePrefs(coursePrefs[course.id]??null)
     void refreshRoute(course)
   }
+  const editorPool=(course:Course):Place[]=>{
+    const date=coursePrefs[course.id]?.travelDate;
+    const candidates=date?dayCache.current[date]?.candidates:undefined;
+    const otherIds=new Set(Object.entries(dayCache.current).filter(([d])=>d!==date).flatMap(([,d])=>d.courses.slice(0,1).flatMap(c=>c.places.map(p=>p.id))));
+    const pool=candidates&&course.apiCourse?rankedToUiCourse({...course.apiCourse,places:candidates}).places:courses.filter(c=>coursePrefs[c.id]?.travelDate===date).flatMap(c=>c.places);
+    return [...new Map(pool.filter(p=>p.category!=='transit'&&!otherIds.has(p.id)).map(p=>[p.id,p])).values()];
+  };
   const confirmTravel=async(course:Course)=>{
     const alreadySaved=bookmarkItems.some(item=>item.courseId===course.id)
-    if(loggedIn && !alreadySaved && await ask('이 코스로 여행 확정',(Object.keys(dayCache.current).length>1?'선택한 날짜의 코스를 저장할까요? ':'이 코스를 내 여행에도 저장할까요? ')+'출발 장소·좌표·방문 일정이 계정에 저장되며 직접 삭제하거나 탈퇴할 때까지 보관됩니다.','코스 저장','저장 없이 여행하기')){
-      try{await api.bookmarks.add({courseId:course.id,courseName:course.title,city:course.city,snapshot:course.apiCourse});await refreshAccount()}
+    if(loggedIn && !alreadySaved && await ask('이 코스로 여행 확정',(Object.keys(dayCache.current).length>1?'여러 날의 코스를 모두 저장할까요? ':'이 코스를 내 여행에도 저장할까요? ')+'출발 장소·좌표·방문 일정이 계정에 저장되며 직접 삭제하거나 탈퇴할 때까지 보관됩니다.','코스 저장','저장 없이 여행하기')){
+      try{const saving=Object.values(dayCache.current).some(d=>d.courses.some(c=>c.id===course.id))&&Object.keys(dayCache.current).length>1?Object.values(dayCache.current).flatMap(d=>d.courses.slice(0,1)):[course];for(const item of saving)await api.bookmarks.add({courseId:item.id,courseName:item.title,city:item.city,snapshot:item.apiCourse});void refreshAccount()}
       catch(error){await ask('저장하지 못했어요',error instanceof Error?error.message:'동선은 계속 확인할 수 있어요.')}
     }
     setConfirmedCourse(course);setSelectedCourse(null);setTab('map')
@@ -1326,8 +1308,8 @@ export default function App({ onBackState }: { onBackState?: (canGoBack: boolean
             </div>
             <TabBar active={tab} onChange={setTab} />
             {wizardOpen && <PlanWizard initial={wizardSeed} onClose={() => { setWizardOpen(false); setWizardSeed(undefined); }} onComplete={(cond) => void handleComplete(cond)} />}
-            {selectedCourse && <CourseDetailScreen tripDays={Object.values(dayCache.current).some(d=>d.courses.some(c=>c.id===selectedCourse.id))?Object.entries(dayCache.current).sort(([a],[b])=>a.localeCompare(b)).map(([date,d])=>({date,preferences:d.preferences,course:d.courses[0],error:d.error})):[]} routingBusy={!!routingStatus[selectedCourse.id]?.busy} routingError={routingStatus[selectedCourse.id]?.error||''} course={selectedCourse} onBack={()=>setSelectedCourse(null)} onEdit={()=>{if(coursePrefs[selectedCourse.id])setEditorOpen(true);else void ask('코스 편집','여행 조건을 새로 선택한 후 편집해 주세요.')}} onConfirm={()=>void confirmTravel(selectedCourse)}/>}
-            {selectedCourse && editorOpen && <CourseEditor course={selectedCourse} pool={[...new Map(courses.flatMap(c => c.places).filter(p => p.category !== 'transit').map(p => [p.id, p])).values()]} onClose={() => setEditorOpen(false)} onSave={async updated => {
+            {selectedCourse && <CourseDetailScreen tripDays={Object.values(dayCache.current).some(d=>d.courses.some(c=>c.id===selectedCourse.id))?Object.entries(dayCache.current).sort(([a],[b])=>a.localeCompare(b)).map(([date,d])=>({date,preferences:d.preferences,course:d.courses[0],error:d.error})):[]} routingBusy={!!routingStatus[selectedCourse.id]?.busy} routingError={routingStatus[selectedCourse.id]?.error||''} course={selectedCourse} onBack={()=>setSelectedCourse(null)} onEdit={(target)=>{const editing=target||selectedCourse;if(coursePrefs[editing.id]){setSelectedCourse(editing);setActivePrefs(coursePrefs[editing.id]!);setEditorOpen(true);}else void ask('코스 편집','여행 조건을 새로 선택한 후 편집해 주세요.')}} onConfirm={()=>void confirmTravel(selectedCourse)}/>}
+            {selectedCourse && editorOpen && <CourseEditor course={selectedCourse} pool={editorPool(selectedCourse)} onClose={() => setEditorOpen(false)} onSave={async updated => {
               if (!activePrefs) throw new Error('코스를 다시 추천받은 후 편집해 주세요.');
               const version=recommendationVersion.current;
               const result = await api.editCourse(activePrefs, updated.id, updated.places.filter(p => p.category !== 'transit').map(p => p.id));

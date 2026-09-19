@@ -7,17 +7,13 @@ export function Stars({score}:{score:number}) {
   const value=Math.max(0,Math.min(100,Number.isFinite(score)?score:0));
   return <span className="score-stars" role="img" aria-label={`${(value/20).toFixed(1)} / 5점`}><span aria-hidden="true">★★★★★</span><span aria-hidden="true" className="filled" style={{width:value+'%'}}>★★★★★</span></span>;
 }
-export function TransitLeg({segment,access=false}:{segment?:RouteSegment|null;access?:boolean}) {
-  return <div className={'transit-leg '+(access?'access-leg':'')}>
-    <div className="transit-leg-heading"><strong>{access?'도시 간 이동':'이동'} {segment?formatMinutes(segment.totalMinutes):'시간 미확인'}</strong><span>{access?'현지 코스 시간 별도':segment?.source==='kakao'?'경로 조회':'추정 구간'}</span></div>
-    {segment?.steps?.length ? segment.steps.map((s,i)=><div key={i} className={'transit-step mode-'+s.mode}>
-      <span className="step-symbol" aria-hidden="true">{s.mode==='walk'?'↗':s.mode==='other'?'·':'▣'}</span><div>
-        {s.fromStop&&<strong>{s.fromStop} {s.mode==='walk'?'출발':'승차'}</strong>}
-        <div className="step-route">{(s.routes?.length?s.routes:s.route?[s.route]:[]).map(route=><b key={route}>{route}</b>)}<span>{formatMinutes(s.minutes)}</span></div>
-        <p>{s.label}</p>{s.toStop&&<strong>{s.toStop} {s.mode==='walk'?'도착':'하차'}</strong>}
-        {(s.stops?.length||0)>2&&<details><summary>경유 정류장 보기</summary><p>{s.stops!.join(' → ')}</p></details>}
-      </div></div>) : segment?.instruction ? <p>{segment.instruction}</p> : <p>이 구간의 상세 경로를 확인하지 못했어요.</p>}
-  </div>;
+export function TransitLeg({segment,access=false}:{segment?:RouteSegment|null;access?:boolean}){
+ const groups:NonNullable<RouteSegment['steps']>[]= [];
+ for(const step of segment?.steps||[]){const previous=groups.at(-1);if(step.mode==='walk'&&previous?.[0]?.mode==='walk')previous.push(step);else groups.push([step]);}
+ return <div className={'transit-leg '+(access?'access-leg':'')}><div className="transit-leg-heading"><strong>{access?'도시 간 이동':'이동'} {segment?formatMinutes(segment.totalMinutes):'시간 미확인'}</strong><span>{access?'현지 코스 시간 별도':segment?.source==='kakao'?'조회 시점 기준':'추정 구간'}</span></div>
+ {!groups.length&&<p>{segment?.instruction||'상세 경로를 확인하지 못했어요.'}</p>}
+ {groups.map((steps,index)=><div key={index}>{index>0&&<div className="movement-arrow">↓</div>}{steps[0]?.mode==='walk'?<details className="transit-step mode-walk"><summary className="movement-summary">도보 · 약 {formatMinutes(steps.reduce((sum,s)=>sum+s.minutes,0))}</summary>{steps.map((s,i)=><p key={i}>{s.label}</p>)}</details>:steps.map((s,i)=><div key={i} className={'transit-step mode-'+s.mode}><div><span className="step-label-pill">{s.mode==='other'?'이동·대기':'승차'}</span>{s.fromStop&&<strong>{s.fromStop}</strong>}<div className="step-route">{(s.routes?.length?s.routes:s.route?[s.route]:[]).map(route=><b key={route}>{route}</b>)}<span>{formatMinutes(s.minutes)}</span></div><p>{s.label}</p>{s.toStop&&<strong>↓ 하차 · {s.toStop}</strong>}{(s.stops?.length||0)>2&&<details><summary>경유 정류장 보기</summary><p>{s.stops!.join(' → ')}</p></details>}</div></div>)}</div>)}
+ </div>;
 }
 export function JourneyTimeline({course,images=false,onPlace: _onPlace}:{course:RankedCourse;images?:boolean;onPlace?:(index:number)=>void}) {
   return <div className="journey-timeline">

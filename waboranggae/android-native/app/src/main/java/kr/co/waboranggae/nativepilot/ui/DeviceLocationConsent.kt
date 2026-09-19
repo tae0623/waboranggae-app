@@ -46,6 +46,6 @@ val LocalDeviceLocationConsent=staticCompositionLocalOf<DeviceLocationConsent?>{
 @Composable fun LocationPreferenceButton() {
     val settings=LocalDeviceLocationConsent.current?:return
     TextButton({if(settings.choice==LocationChoice.ALLOWED)settings.choose(LocationChoice.DECLINED) else settings.showNotice=true}){
-        Text(if(settings.choice==LocationChoice.ALLOWED)"가까운 순 검색 사용 해제" else "가까운 순 검색 설정")
+        Text(if(settings.choice==LocationChoice.ALLOWED)"위치 기반 서비스 해제" else "위치 기반 서비스 이용")
     }
 }

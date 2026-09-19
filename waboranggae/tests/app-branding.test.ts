@@ -14,12 +14,12 @@ function sourceFiles(directory: string): string[] {
 }
 
 describe('뚜버기 display name', () => {
-  it('updates installation, splash, home, login, exit and web labels', () => {
+  it('keeps installation, splash, login and exit labels while simplifying home', () => {
     const app = JSON.parse(read('app.json')).expo;
     expect(app.name).toBe('뚜버기');
     expect(app.web.name).toBe('뚜버기');
     expect(read('android-native/app/src/main/AndroidManifest.xml')).toContain('android:label="뚜버기"');
-    for (const file of ['AccountScreens.kt', 'TravelApp.kt', 'WebHome.kt', 'BrandIntro.kt']) {
+    for (const file of ['AccountScreens.kt', 'TravelApp.kt', 'BrandIntro.kt']) {
       expect(read(nativeUi + file), file).toContain('뚜버기');
     }
     expect(read('web/index.html')).toContain('<title>뚜버기</title>');

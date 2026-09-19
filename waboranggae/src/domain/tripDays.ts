@@ -53,7 +53,7 @@ export async function recommendTrip(
  request:(preferences:TravelPreferences)=>Promise<{courses:import('../types/travel').RankedCourse[];fallbackReason?:string|null}>,
  onProgress:(date:string,index:number)=>void=()=>{},cancelled:()=>boolean=()=>false,
 ) {
- const days:Array<{date:string;preferences:TravelPreferences;courses:import('../types/travel').RankedCourse[];error?:string}>=[];
+ const days:Array<{date:string;preferences:TravelPreferences;courses:import('../types/travel').RankedCourse[];candidates?:import('../types/travel').Place[];error?:string}>=[];
  let origin:RouteOrigin|undefined;
  const visited:NonNullable<TravelPreferences['visitedPlaces']>=[];
  for(const [index,date] of dates.entries()){
@@ -67,7 +67,7 @@ export async function recommendTrip(
      const courses=dates.length>1?eligible.slice(0,1):eligible;
      if(!courses.length)throw Error(response.fallbackReason||'이 날짜의 새 코스를 찾지 못했어요.');
      if(index===0)origin=courses[0]!.origin;
-     days.push({date,preferences,courses});
+     days.push({date,preferences,courses,candidates:[...new Map(eligible.flatMap(c=>c.places).map(p=>[p.id,p])).values()]});
      for(const place of courses[0]!.places)visited.push({id:place.id,name:place.name,latitude:place.latitude,longitude:place.longitude});
    }catch(error){days.push({date,preferences,courses:[],error:error instanceof Error?error.message:'코스를 불러오지 못했어요.'});}
  }

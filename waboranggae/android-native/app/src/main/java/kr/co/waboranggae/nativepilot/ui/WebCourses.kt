@@ -6,6 +6,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -23,6 +24,28 @@ import java.util.Locale
 
 @Composable fun WebCourses(state:TravelUiState,model:TravelViewModel) {
     val courses=state.courses
+    if(state.tripDays.size>1){
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).testTag("results"),verticalArrangement=Arrangement.spacedBy(18.dp)){
+            Row(verticalAlignment=Alignment.CenterVertically){Text("나의 여행 일정",fontSize=26.sp,fontWeight=FontWeight.Black,modifier=Modifier.weight(1f));TextButton({model.navigate(Page.CONDITIONS)}){Text("조건 수정")}}
+            Text("${state.form.city} · ${state.tripDays.size}일",color=Muted)
+            Surface(onClick={courses.firstOrNull()?.let{model.openDetails(it.id)}},shape=RoundedCornerShape(28.dp),color=Color.White,shadowElevation=2.dp,modifier=Modifier.fillMaxWidth().testTag("course-card")){
+                Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
+                    Text("${state.form.city} ${state.tripDays.size}일 여행",fontSize=22.sp,fontWeight=FontWeight.ExtraBold)
+                    Text("${state.tripDays.first().date} — ${state.tripDays.last().date}",fontSize=12.sp,color=Muted)
+                    state.tripDays.forEachIndexed{index,day->
+                        val daily=courses.find{it.id==day.courseId}
+                        Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
+                            Row(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically){Surface(color=Ink,shape=RoundedCornerShape(8.dp)){Text("DAY ${index+1}",Modifier.padding(8.dp),color=Color.White,fontSize=12.sp,fontWeight=FontWeight.Bold)};Text(day.date,color=Muted,fontSize=12.sp)}
+                            if(daily!=null){Text(daily.title,fontWeight=FontWeight.Bold);Text(daily.places.joinToString(" → "){it.name},fontSize=12.sp,color=Muted);DayScorePair(daily)}
+                            else Text(day.error?:"코스를 불러오지 못했어요.",color=MaterialTheme.colorScheme.error,fontSize=12.sp)
+                        }
+                        if(index<state.tripDays.lastIndex)HorizontalDivider(color=Soft)
+                    }
+                    Text("전체 일정 살펴보기  →",fontWeight=FontWeight.Bold,color=Purple)
+                }
+            }
+        };return
+    }
     Column(Modifier.fillMaxSize().testTag("results")) {
         Column(Modifier.fillMaxWidth().background(Color.White).padding(20.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {

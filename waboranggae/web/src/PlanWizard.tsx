@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Condition } from './App';
-import { api, type PlaceSuggestion } from './api';
+import { api, ApiError, type PlaceSuggestion } from './api';
 import { getWebRuntime } from './runtime';
 import { ExpandableMap } from './ExpandableMap';
 import { Modal } from './Dialogs';
 import { availableMeals, conditionError, conditionSchedule, normalizeMeals, withTripRange, PURPOSES, todayKorea } from './parity';
 
+import {useLocalDepartureOrder} from './LocationSettings';
 import { tripDates } from '../../src/domain/tripDays';
 const CITIES=['강진','고흥','곡성','광양','구례','나주','담양','목포','무안','보성','순천','신안','여수','영광','영암','완도','장성','장흥','진도','함평','해남','화순'];
 export function defaultCondition():Condition {return {
@@ -45,6 +46,8 @@ export function DateRangePicker({start,end,onChange}:{start:string;end:string;on
 }
 function DepartureSearch({condition,onChange}:{condition:Condition;onChange:(v:Partial<Condition>)=>void}){
   const [results,setResults]=useState<PlaceSuggestion[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[highlight,setHighlight]=useState(-1);
+  const [searchNotice,setSearchNotice]=useState('');
+  const searchCache=useRef(new Map<string,PlaceSuggestion[]>());
   const sequence=useRef(0);
   const frame=useRef<HTMLIFrameElement>(null),mapSequence=useRef(0);
   const [mapChoice,setMapChoice]=useState<PlaceSuggestion|null>(null),[mapBusy,setMapBusy]=useState(false);
@@ -59,23 +62,25 @@ function DepartureSearch({condition,onChange}:{condition:Condition;onChange:(v:P
   useEffect(()=>{
     const seq=++sequence.current;setResults([]);setHighlight(-1);setError('');
     const q=condition.departure.trim();
-    if(chosen||!q){setBusy(false);return;}
+    if(chosen||q.length<2){setBusy(false);return;}
+    if(searchCache.current.has(q)){setResults(searchCache.current.get(q)!);setBusy(false);return;}
     setBusy(true);
-    const timer=setTimeout(()=>{api.searchPlaces(q).then(({places})=>{if(seq===sequence.current)setResults(places.filter(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)));}).catch(e=>{if(seq===sequence.current)setError(e instanceof Error?e.message:'검색하지 못했어요.');}).finally(()=>{if(seq===sequence.current)setBusy(false);});},300);
+    const timer=setTimeout(()=>{api.searchPlaces(q).then(({places})=>{if(seq===sequence.current){const valid=places.filter(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude));searchCache.current.set(q,valid);if(searchCache.current.size>20)searchCache.current.delete(searchCache.current.keys().next().value!);setResults(valid);}}).catch(e=>{if(seq===sequence.current){setError(e instanceof Error?e.message:'검색하지 못했어요.');if(e instanceof ApiError&&[429,503].includes(e.status))setSearchNotice('지도 서비스의 호출 한도 또는 연결 문제로 검색이 중단됐어요. 잠시 후 다시 시도해 주세요. 일일 한도에 도달했다면 다음 날 이용할 수 있어요.');}}).finally(()=>{if(seq===sequence.current)setBusy(false);});},600);
     return()=>{++sequence.current;clearTimeout(timer);};
   },[condition.departure,chosen]);
+  const ordered=useLocalDepartureOrder(results,condition.departure);
   function select(p:PlaceSuggestion){++sequence.current;setResults([]);onChange({departure:p.name,departureAddress:p.address,departureLat:p.latitude,departureLng:p.longitude});}
   const preview=chosen?{name:condition.departure,address:condition.departureAddress,latitude:condition.departureLat,longitude:condition.departureLng}:results[0];
   // This map receives only the user's explicit search selection, never device location.
   const mapUrl=preview?(getWebRuntime().mapBaseUrl||window.location.origin)+'/maps/embed#'+encodeURIComponent(JSON.stringify({origin:preview,places:[],routeSegments:[],conveniences:[],selectDeparture:true,parentOrigin:window.location.origin})):null;
-  return <><label className="field-label" htmlFor="departure">출발지</label><div className="departure-field"><input id="departure" role="combobox" aria-controls="departure-results" aria-expanded={results.length>0} aria-autocomplete="list" aria-activedescendant={highlight>=0?'departure-option-'+highlight:undefined}
+  return <>{searchNotice&&<Modal title="장소 검색 안내" onClose={()=>setSearchNotice('')}><p>{searchNotice}</p><button className="primary" onClick={()=>setSearchNotice('')}>확인</button></Modal>}<label className="field-label" htmlFor="departure">출발지</label><div className="departure-field"><input id="departure" role="combobox" aria-controls="departure-results" aria-expanded={results.length>0} aria-autocomplete="list" aria-activedescendant={highlight>=0?'departure-option-'+highlight:undefined}
     autoComplete="off" placeholder="출발지를 검색하세요" value={condition.departure}
     onChange={e=>onChange({departure:e.target.value,departureAddress:undefined,departureLat:undefined,departureLng:undefined})}
-    onKeyDown={e=>{if(e.key==='ArrowDown'){e.preventDefault();setHighlight(v=>Math.min(v+1,results.length-1));}if(e.key==='ArrowUp'){e.preventDefault();setHighlight(v=>Math.max(v-1,0));}if(e.key==='Enter'&&highlight>=0&&results[highlight]){e.preventDefault();select(results[highlight]!);}if(e.key==='Escape'){setResults([]);}}}/>
+    onKeyDown={e=>{if(e.key==='ArrowDown'){e.preventDefault();setHighlight(v=>Math.min(v+1,results.length-1));}if(e.key==='ArrowUp'){e.preventDefault();setHighlight(v=>Math.max(v-1,0));}if(e.key==='Enter'&&highlight>=0&&results[highlight]){e.preventDefault();select(ordered[highlight]!);}if(e.key==='Escape'){setResults([]);}}}/>
     {condition.departure&&<button aria-label="출발지 지우기" onClick={()=>onChange({departure:'',departureAddress:undefined,departureLat:undefined,departureLng:undefined})}>×</button>}</div>
     {busy&&<p role="status" className="muted">검색 중…</p>}
     {error&&<p role="alert" className="field-error">{error}</p>}
-    <div id="departure-results" role="listbox" aria-label="출발지 검색 결과" className="search-results">{results.map((p,i)=><button key={p.id} id={'departure-option-'+i} role="option" aria-selected={highlight===i} onClick={()=>select(p)}><strong>{p.name}</strong><small>{p.address}</small></button>)}</div>
+    <div id="departure-results" role="listbox" aria-label="출발지 검색 결과" className="search-results">{ordered.map((p,i)=><button key={p.id} id={'departure-option-'+i} role="option" aria-selected={highlight===i} onClick={()=>select(p)}><strong>{p.name}</strong><small>{p.address}</small></button>)}</div>
     {!busy&&!error&&condition.departure.trim()&&!chosen&&!results.length&&<p className="muted">검색 결과가 없어요. 장소명이나 주소를 다시 확인해 주세요.</p>}
     {chosen&&<p className="muted">{condition.departureAddress}</p>}
     {mapUrl?<ExpandableMap frame={frame} title="출발지 지도" src={mapUrl} collapseKey={mapChoice}/>:<div className="departure-map placeholder">검색한 장소를 지도에서 확인하세요</div>}

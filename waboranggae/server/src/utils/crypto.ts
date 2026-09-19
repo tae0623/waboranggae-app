@@ -26,7 +26,6 @@ export function validatePasswordRequirements(password: string): string | null {
   const requirements = {
     minLength: 8,
     maxLength: 128,
-    uppercase: /[A-Z]/,
     lowercase: /[a-z]/,
     digit: /\d/,
     special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/,
@@ -38,10 +37,6 @@ export function validatePasswordRequirements(password: string): string | null {
 
   if (password.length > requirements.maxLength) {
     return `비밀번호는 최대 ${requirements.maxLength}자 이하여야 합니다`;
-  }
-
-  if (!requirements.uppercase.test(password)) {
-    return '비밀번호는 대문자를 포함해야 합니다';
   }
 
   if (!requirements.lowercase.test(password)) {

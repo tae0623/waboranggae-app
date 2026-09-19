@@ -1,0 +1,13 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import {parse} from 'dotenv';
+import assert from 'node:assert/strict';
+const file='.env.edge.local',env=parse(await readFile(file));
+assert.equal(env.PUBLIC_APP_URL,'https://drtxexwznmpmiclvrjji.supabase.co/functions/v1/waboranggae-api');
+assert.equal(env.API_RUNTIME,'supabase-edge');
+if(!process.argv.includes('--prepare-limits'))throw Error('EXPLICIT_FLAG_REQUIRED');
+const result=spawnSync('.tools/edge/supabase.exe',['secrets','set','EDGE_CLIENT_IP_HEADER=cf-connecting-ip','--project-ref','drtxexwznmpmiclvrjji'],{encoding:'utf8',windowsHide:true,timeout:60000});
+if(result.status!==0)throw Error('CONFIG_UPLOAD_FAILED');
+env.EDGE_CLIENT_IP_HEADER='cf-connecting-ip';
+await writeFile(file,Object.entries(env).map(([k,v])=>k+'='+JSON.stringify(v)).join('\n')+'\n');
+console.log(JSON.stringify({clientAddressHeaderConfigured:true,publicApiEnabled:false,secretValuesUploaded:false}));

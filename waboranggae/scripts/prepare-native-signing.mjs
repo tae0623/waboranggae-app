@@ -1,0 +1,30 @@
+// User-approved one-time release key creation. Never prints passwords or replaces an existing key.
+import {mkdir,readFile,writeFile,access} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import {randomBytes,X509Certificate,createHash} from 'node:crypto';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const folder=path.join(root,'.release-private'),file=path.join(folder,'ddubugi-release.p12');
+const keytool='C:/Program Files/Java/jdk-22/bin/keytool.exe';
+const exists=await access(file).then(()=>true,()=>false);
+if(exists)throw Error('EXISTING_SIGNING_KEY_WILL_NOT_BE_REPLACED');
+await mkdir(folder,{recursive:true});
+// Explicit current-user, administrator and SYSTEM ACL; no inherited ordinary-user access.
+const identity=spawnSync('whoami.exe',[],{encoding:'utf8',windowsHide:true}).stdout.trim();
+if(!/^[\w. -]+\\[\w. -]+$/.test(identity))throw Error('WINDOWS_IDENTITY_REQUIRED');
+const acl=spawnSync('icacls.exe',[folder,'/inheritance:r','/grant:r',identity+':(OI)(CI)F','taeng:(OI)(CI)F','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F'],{windowsHide:true,encoding:'utf8'});
+if(acl.status!==0)throw Error('PRIVATE_DIRECTORY_ACL_FAILED');
+const password=randomBytes(32).toString('hex');
+const result=spawnSync(keytool,['-genkeypair','-alias','ddubugi','-keyalg','RSA','-keysize','3072','-validity','10000','-storetype','PKCS12','-keystore',file,'-storepass:env','DDUBUGI_STORE_PASSWORD','-keypass:env','DDUBUGI_STORE_PASSWORD','-dname','CN=Taeyoung Ko, OU=Ddubugi Team, O=Ddubugi Team, C=KR','-noprompt'],{windowsHide:true,env:{...process.env,DDUBUGI_STORE_PASSWORD:password},encoding:'utf8'});
+if(result.status!==0)throw Error('KEY_GENERATION_FAILED');
+await writeFile(path.join(folder,'signing-recovery.json'),JSON.stringify({applicationId:'kr.co.ddubugi.app',alias:'ddubugi',storeType:'PKCS12',password,createdAt:new Date().toISOString()},null,2),{flag:'wx'});
+const props=['STORE_FILE='+file.replaceAll('\\','/'),'STORE_PASSWORD='+password,'KEY_ALIAS=ddubugi','KEY_PASSWORD='+password].join('\n')+'\n';
+await writeFile(path.join(root,'android-native/release.properties'),props,{flag:'wx'});
+const exported=spawnSync(keytool,['-exportcert','-alias','ddubugi','-keystore',file,'-storepass:env','DDUBUGI_STORE_PASSWORD'],{windowsHide:true,env:{...process.env,DDUBUGI_STORE_PASSWORD:password}});
+if(exported.status!==0)throw Error('PUBLIC_CERT_EXPORT_FAILED');
+const cert=new X509Certificate(exported.stdout);
+await writeFile(path.join(folder,'ddubugi-public-cert.pem'),cert.toString());
+const report={applicationId:'kr.co.ddubugi.app',keyAlias:'ddubugi',kakaoKeyHash:createHash('sha1').update(cert.raw).digest('base64'),sha256:cert.fingerprint256,privateBackupFolder:folder,passwordPrinted:false};
+await mkdir(path.join(root,'.runtime'),{recursive:true});await writeFile(path.join(root,'.runtime/release-signing-public.json'),JSON.stringify(report,null,2));
+console.log(JSON.stringify(report,null,2));

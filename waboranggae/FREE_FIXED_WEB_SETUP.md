@@ -1,18 +1,23 @@
 # 무료 고정 웹 주소로 팀 테스트 전환
 
-2026-09-16. **연결 코드의 로컬 수정·검증까지 완료. 새 웹 배포 완료 보고가 아닙니다.**
+> 2026-09-20 안내: 이 문서는 9월 16일 구축 기록입니다. 현재 앱 API는 공개 모드이고 팀 웹은 접속 인증을 유지합니다. 최신 협업 절차는 [TEAM_HANDOFF.md](TEAM_HANDOFF.md)를 따르세요. 아래의 임시 검증 키·비공개 API 상태는 당시 기록입니다.
+
+2026-09-16. **고정 팀 웹 배포·인증/API 검증 완료. 실계정 소셜 로그인·지도 실화면과 Free 요금제 확인은 남아 있습니다.**
 
 ## 현재 상태
 
-- GitHub `ver5`의 기준 커밋: `e942adf`.
+- 배포한 GitHub `ver5` 커밋: `0eeedff122d29451bae05422a11cd0bbcc12d026`.
 - PC의 팀 API(8788), Cloudflare Quick Tunnel, 팀 DB 컨테이너 운영 종료.
 - 팀 DB 볼륨 `waboranggae-team_team_pgdata`, 소스, 개인 설정은 보존.
 - 컨테이너 자동 재시작 해제. 이 PC는 `.runtime/team-retired.json`으로 기존 `team:setup/start/restart`도 차단.
-- 배포된 Supabase 서버/DB/비밀값/카카오 호출 한도는 변경하지 않음. 새 웹 중계 인증을 허용하는 서버 코드만 로컬에서 수정함.
-- Cloudflare는 계정만 준비된 상태. Pages 프로젝트, 고정 주소, 신규 접속 암호는 아직 만들지 않음.
+- 승인에 따라 Supabase에 중계 키의 해시·만료일을 등록하고 서버 코드를 재배포함. 비공개 모드와 카카오 한도는 유지함.
+- Pages 프로젝트 `waboranggae-app`: https://waboranggae-app.pages.dev/ . Production 전용 암호·쿠키 서명 키·API 키 등록 및 재배포 완료.
+- 팀 아이디는 `team`, 새 암호는 Git에서 제외된 `.runtime/PAGES_TEAM_ACCESS.md`에 있음. 팀원은 이 주소·팀 아이디·팀 암호만 받으면 되며 서버 `.env`는 공유하지 않음.
+- 연결 키는 **2026-10-16 19:30 KST**에 만료됨. 그 전에 갱신이 필요함. URL은 정상 재배포로 변경되지 않음.
 - 이 문서와 `pages:build` 명령이 포함된 최신 커밋을 사용해야 함. 이전 기준 커밋 `e942adf`에는 새 중계 기능이 없음.
 - `pages:build`는 웹과 인증 중계를 함께 생성함. `web:build`만 실행한 파일을 대신 올리지 말 것.
-- 로컬 테스트 50파일/463개, 루트·웹 타입 검사, Pages 빌드, 빌드 산출물 검사가 통과함. 실제 Cloudflare/Supabase 통신·소셜 로그인 성공은 아직 검증하지 않음.
+- 로컬 테스트 50파일/463개, 루트·웹 타입 검사, Pages 빌드 및 실서버 접속/API 33검사와 직접 우회 차단 3검사 통과. 상세 기록: `deployment/pages/VALIDATION.md`.
+- 웹 변경은 `ver5`에 push하면 Pages가 자동 빌드함. API 서버 코드·DB 마이그레이션은 별도 검토·배포가 필요하며 Pages가 자동 적용하지 않음.
 
 ## 목표 구조
 
@@ -28,21 +33,21 @@ PC는 꺼도 되며 개인 도메인을 구매할 필요는 없습니다. 단, �
 4. GitHub 연결 시 가능하면 **Only select repositories**로 `tae0623/waboranggae-app`만 허용합니다. 조직 전체 또는 불필요한 저장소 권한을 주지 않습니다.
 5. 아래 설정으로 프로젝트를 준비합니다. **운영 환경 비밀값·Fail closed·프리뷰 제한을 확인하기 전 팀원에게 주소를 공유하지 않습니다.**
 
-| 항목 | 이 저장소 기준 예정값 |
+| 항목 | 확인한 설정값 |
 |---|---|
 | 저장소 | `tae0623/waboranggae-app` |
 | 배포 브랜치 | `ver5` |
-| 프로젝트 이름 | `ddubugi-team` 등 사용 가능한 이름. 주소는 실제 발급 결과로 확정 |
+| 프로젝트 이름 | `waboranggae-app` |
 | 루트 디렉터리 | `waboranggae` |
 | 프레임워크 | React (Vite), 아래 명령/출력 폴더로 조정 |
 | 빌드 명령 | `pnpm pages:build && pnpm pages:verify` |
 | 빌드 출력 디렉터리 | `web/dist` |
 
-루트 pnpm workspace 의존성을 설치해야 합니다. 로컬 검증 버전은 Node 24.18.0 / pnpm 11.15.1입니다. Cloudflare의 `NODE_VERSION`, `PNPM_VERSION` 빌드 환경 설정으로 버전을 맞추고 설치 로그를 별도로 검증합니다. 기존 PC의 `.env`를 복사하거나 업로드하지 않습니다. 위 값은 클라우드 빌드 성공을 아직 검증하지 않은 준비값입니다.
+루트 pnpm workspace 의존성을 설치해야 합니다. Node 24.18.0 / pnpm 11.15.1 기준이며 Cloudflare의 `NODE_VERSION`, `PNPM_VERSION` 빌드 환경 설정이 적용되어 있습니다. 위 명령으로 클라우드 빌드 성공을 확인했습니다. 기존 PC의 `.env`를 복사하거나 업로드하지 않습니다.
 
-## 2. 구현 내용과 남은 서버 설정
+## 2. 구현 내용과 서버 설정
 
-아래 연결 코드는 로컬에서 구현·검증했습니다. 계정 설정·신규 비밀값 전송·배포는 아직 하지 않았습니다.
+아래 연결 코드와 승인한 Production 설정은 실제 배포까지 완료했습니다. 실제 계정 로그인과 지도 표시가 끝났다는 뜻은 아닙니다.
 
 - Pages의 `_worker.js` 중계가 모든 화면/정적 파일/API/지도/이미지 요청을 인증한 다음 전달합니다. API 목적지는 기존 Supabase 프로젝트로 고정하며 허용 경로만 전달합니다.
 - 팀 접속 아이디는 `team`. 새 무작위 암호로 인증하면 12시간짜리 Secure·HttpOnly 쿠키를 발급합니다. 앱 자체 회원 로그인/JWT/최초 개인정보 동의/사용자별 데이터 소유권 검사는 별도로 유지합니다.

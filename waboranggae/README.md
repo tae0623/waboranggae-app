@@ -1,10 +1,12 @@
-# 뚜버기 (ver4 새 디자인 공용 앱)
+# 뚜버기 — ver5 프로젝트
 
-현재 검토 내용은 [VER4_REVIEW.md](VER4_REVIEW.md), 무료 API 설정과 새 디자인 실행 방법은 [FREE_API_SETUP.md](FREE_API_SETUP.md)를 참고하세요.
-웹은 `pnpm web`, Android/iOS 공통 디자인 개발 앱은 `pnpm app:dev`로 실행합니다.
+현재 Android 앱은 Kotlin/Jetpack Compose의 android-native/, 팀 웹은 React/Vite의 web/입니다.
 
-이 폴더가 앱·서버 루트입니다. 실행·시연·배포 안내는 저장소 루트 [README.md](../README.md)를 보세요.
+- [팀원 시작·수정·검증 안내](TEAM_HANDOFF.md)
+- [Android 개발](android-native/README.md)
+- [일회용 이메일 차단 목록 관리](server/src/auth/disposable-email-data/README.md)
+- [Pages 배포 설정](FREE_FIXED_WEB_SETUP.md)
+- [보안 설계](docs/SECURITY.md)
 
-- [STORE.md](./STORE.md) — 스토어 제출
-- [PRIVACY_POLICY.md](./PRIVACY_POLICY.md) — 개인정보처리방침
-- [docs/SECURITY.md](./docs/SECURITY.md) — 보안 설계
+이 폴더에서 pnpm 명령을 실행합니다. 과거 날짜의 검증 문서는 해당 시점의 기록이며 현재 운영 상태와 다를 수 있습니다.
+운영자가 원스토어 출시 완료를 알려주었으며, 현재 소스에는 출시 후 후속 변경도 포함됩니다. 운영 배포·스토어 업데이트 여부는 커밋과 별도로 확인합니다.

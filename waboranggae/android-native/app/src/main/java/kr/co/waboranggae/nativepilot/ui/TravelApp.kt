@@ -101,6 +101,8 @@ private val cardShape=RoundedCornerShape(24.dp)
             }
         }
     }
+    state.searchNotice?.let{notice->AppDialog(onDismissRequest=model::dismissSearchNotice,title={Text("장소 검색 안내")},text={Text(notice)},confirmButton={TextButton(model::dismissSearchNotice){Text("확인")}})}
+    auth.notice?.let{notice->AppDialog(onDismissRequest=account::dismissNotice,title={Text("알림")},text={Text(notice)},confirmButton={TextButton(account::dismissNotice){Text("확인")}})}
     if(state.loading) {
         var seconds by remember { mutableIntStateOf(0) }
         LaunchedEffect(Unit) { while(true) { delay(1000); seconds++ } }

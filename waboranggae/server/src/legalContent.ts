@@ -1,24 +1,8 @@
-import { PRIVACY_NOTICE_VERSION } from './privacy';
+import { publicPrivacyHtml } from '../../src/domain/privacyPolicy';
 import { PRIVACY_OPERATOR_NAME, SUPPORT_EMAIL } from '../../src/domain/privacyNotice';
 export { SUPPORT_EMAIL } from '../../src/domain/privacyNotice';
 export const privacyOperatorName = () => process.env.PRIVACY_OPERATOR_NAME?.trim() || PRIVACY_OPERATOR_NAME;
-const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-export function privacyHtml() {
-  const operator=privacyOperatorName();
-  const cloudNotice=process.env.API_RUNTIME==='supabase-edge'?'<h2>현재 클라우드 검증 환경</h2><p>Supabase Edge Functions와 PostgreSQL DB에서 계정 정보·동의 기록·직접 저장한 여행 정보를 저장·처리합니다. DB 설정 리전은 ap-northeast-2입니다. API 실행·접속 로그 등 모든 처리가 같은 국가에서만 이루어진다는 보장은 아닙니다. 현재 검증 앱은 PC·Cloudflare 중계를 거치지 않으며 Ollama를 사용하지 않습니다. 외부 사업자의 로그·백업 보관 및 국외 처리 세부사항은 출시 전 확정 대상입니다.</p>':'';
-  return `<p>버전 ${PRIVACY_NOTICE_VERSION} · 개발 테스트용. 최종 운영 정책과 외부 처리 현황을 출시 전에 확정해야 합니다.</p>
-  <h2>운영자와 문의</h2><p>운영자: ${operator?escapeHtml(operator):'미확정 (실명 또는 실제 운영 단체를 확인 중)'}. 문의: <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
-  <h2>계정 정보 및 최초 동의</h2><p>운영자가 계정 관리 목적으로 이메일 가입 시 이메일·표시 이름·비밀번호 해시를, 소셜 로그인 시 공급자 식별자·표시 이름(내부 식별용 대체 이메일 포함)을 수집·이용합니다. 동의 버전과 시각도 저장합니다. 비밀번호 원문은 저장하지 않으며 보관 기간은 탈퇴 시까지입니다. 최초 가입·계정 이용 시 동의하며 같은 내용에 동의한 계정은 재로그인마다 다시 묻지 않습니다. 기록이 없거나 수집 목적·항목 등의 변경으로 새로운 동의가 필요한 경우 다시 안내합니다. 동의를 거부하면 신규 계정 등록·새로운 계정 저장 기능은 사용할 수 없지만 게스트 추천과 기존 정보 조회·삭제는 가능합니다.</p>
-  <p>소셜 로그인 버튼을 눌러 인증을 요청하면 공급자 식별자·표시 이름을 로그인 확인에 사용합니다. 신규 사용자 계정은 앱의 동의 전 생성하지 않습니다. 인증 정보는 암호화된 임시 DB 저장소에서 5분간 유효하며 만료 후 정기 정리 작업으로 삭제합니다. 서버 중단 시 정리는 서버 재개 후 수행됩니다. 기존 계정의 동의 기록은 로그인만으로 새로 만들거나 동의 시각을 덮어쓰지 않습니다.</p>
-  <h2>여행 조건·코스 저장 (선택)</h2><p>추천에는 입력한 지역·출발지·좌표·일시·취향·동행 조건이 필요합니다. 추천 요청만으로 계정 이력을 자동 저장하지 않습니다. 사용자가 저장에 동의하여 저장한 여행 조건과 북마크에는 출발 좌표 등 코스 정보가 포함됩니다. 항목 삭제 또는 탈퇴 시까지 보관하며, 저장 거부 시에도 추천은 이용할 수 있습니다.</p>
-  <h2>단말기 내부의 가까운 검색 정렬 (선택)</h2><p>첫 실행에서 선택적 위치 이용에 동의하고 단말기의 대략적 위치 권한을 허용하면 대략적인 현재 위치를 단말기 메모리에서만 사용해 검색된 후보의 직선거리를 계산합니다. 앱은 이 현재 위치를 운영자 서버·카카오 등 외부 시스템에 전송하지 않으며 계정·로그·파일·백업에 저장하지 않습니다. 검색 화면을 벗어나거나 앱이 백그라운드로 이동하면 사용을 종료합니다. 동의 여부만 기기에 저장하며 내 여행에서 변경할 수 있습니다. 거부해도 정확도순 검색을 이용할 수 있습니다. 현재 위치와 별개로 사용자가 직접 검색하여 선택한 출발 장소의 좌표는 아래 코스 계산에 사용합니다.</p>
-  <h2>통신·외부 서비스</h2><p>코스·지도·날씨·교통 조회에 필요한 사용자가 선택한 장소·좌표·조건은 API 서버와 한국관광공사·카카오·기상청 및 설정된 교통 API로 전달됩니다. 보조 AI는 서버의 Ollama를 사용합니다. 지도·관광 이미지·소셜 로그인 제공자와 개발용 Cloudflare 중계에 접속할 때 IP·접속 정보 등이 처리될 수 있습니다. 수탁자·국외 이전 여부/국가/항목/보관 기간과 법적 근거는 실제 배포 계약을 확인하여 출시 전 기재해야 합니다.</p>
-  ${cloudNotice}
-  <h2>보호 조치와 한계</h2><p>네이티브 앱의 지속 로그인 토큰은 Android Keystore 키로 암호화하여 백업 제외 저장소에 보관합니다. 비밀번호 원문과 액세스 토큰은 앱 파일에 저장하지 않습니다. HTTPS·접근 통제·요청 제한을 적용합니다. 개발 서버의 구성·백업·외부 사업자 기록까지 무유출을 보장하는 것은 아닙니다. 출시 전 별도 보안 검증이 필요합니다.</p>
-  <h2>열람·수정·삭제·동의 철회</h2><p>앱의 내 여행에서 표시 이름 수정, 저장 정보 조회·삭제, 로그아웃, 계정 삭제를 할 수 있습니다. 계정 삭제 시 앱 계정·북마크·여행 이력·앱 내 소셜 연결 정보를 삭제합니다. 카카오·구글 계정 자체를 삭제하지는 않습니다. 소셜 서비스의 연결 해제는 해당 계정 설정에서 별도로 할 수 있습니다. 추가 열람·처리 정지·삭제 요청은 문의 이메일로 보내 주세요.</p>
-  <p><a href="/legal/delete-account">앱 없이 계정 삭제하기</a> · <a href="/legal/attributions">데이터·오픈소스 출처</a></p>
-  <h2>출시 전 미확정 항목</h2><p>만 14세 미만 이용 정책, 법정 보관 사유가 있는 경우의 대상·기간, 백업 파기 주기, 외부 사업자 처리·이전, 침해 대응 절차를 확정해야 합니다. 운영자·문의 이메일 기입만으로 최종 방침이 완성되는 것은 아닙니다.</p>`;
-}
+export function privacyHtml() { return publicPrivacyHtml(privacyOperatorName()); }
 export const attributionHtml=`<p>출처: ⓒ한국관광공사(관광정보·관광사진, TourAPI 및 포토코리아). 장소 검색·추천 후보 보완: 카카오 로컬 API. 카카오 검색 결과는 맛집 인증이나 영업 여부 확인을 뜻하지 않습니다. 사진별 원 저작자와 이용조건을 확인해야 하며, 일괄 자유 이용으로 간주하지 않습니다.</p>
 <ul><li><a href="https://www.data.go.kr/data/15101578/openapi.do">한국관광공사 국문 관광정보 API</a>: 관광사진에 공공누리 제1유형 또는 제3유형 조건이 적용될 수 있습니다.</li>
 <li><a href="https://phoko.visitkorea.or.kr/">포토코리아 원 제공처</a> · <a href="https://www.kogl.or.kr/info/license.do">공공누리 유형 안내</a>. 제3유형은 변경 금지 조건입니다. 메타데이터가 없는 사진은 출시 전 권리 확인 대상입니다.</li>
@@ -26,4 +10,4 @@ export const attributionHtml=`<p>출처: ⓒ한국관광공사(관광정보·관
 <li><a href="https://developers.kakao.com/">카카오 지도·장소 검색</a>: 지도 SDK 로고·저작권 표시 유지. 길찾기는 실제 제공자 또는 추정 여부를 표시합니다.</li>
 <li><a href="https://github.com/googlefonts/noto-emoji">기존 보관 자산: Google Noto Emoji</a> SVG (Copyright Google, Apache License 2.0), 현재 네이티브 런처·홈 아이콘에는 사용하지 않습니다. <a href="https://www.apache.org/licenses/LICENSE-2.0">전체 라이선스</a>.</li>
 <li><a href="https://github.com/orioncactus/pretendard">Pretendard</a>: SIL Open Font License 1.1. 원 라이선스를 앱 자산에 동봉.</li></ul>
-<p>현재 앱 아이콘은 기존 로딩 지도 도형과 새 걷는 사람 실루엣을 조합했습니다. 지도·발자국 그림과 선형 UI 아이콘은 기존 웹 프로젝트에서 이전했습니다. 팀의 원저작물 또는 적법한 사용 허락 여부는 출시 전 확인해야 합니다. 출처 표기 자체가 저작권 허락을 대신하지 않습니다.</p>`;
+<p>현재 앱 아이콘은 기존 로딩 지도 도형과 발자국 도형을 조합했습니다. 지도·발자국 그림과 선형 UI 아이콘은 기존 웹 프로젝트에서 이전했습니다. 지도·발자국 및 홈·로그인 배경의 배포 권한은 운영팀이 확인했습니다. 출처 표기 자체가 저작권 허락을 대신하지 않습니다.</p>`;

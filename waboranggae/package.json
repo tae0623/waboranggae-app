@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo/AppEntry",
   "scripts": {
+    "email-domains:update": "node scripts/update-disposable-domains.mjs",
     "phone:check": "node scripts/verify-phone-readiness.mjs",
     "phone:qr": "node scripts/phone-qr.mjs",
     "start": "expo start",

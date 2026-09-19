@@ -15,11 +15,11 @@ import kotlinx.serialization.json.*
 enum class Page { HOME, CONDITIONS, RESULTS, MAP, HOT_PLACE, MY_TRAVEL, DETAIL, EDITOR }
 data class TripDay(val date:String,val preferences:Preferences,val courseId:String?=null,val error:String?=null)
 data class TravelUiState(
-    val tripDays:List<TripDay> = emptyList(),val generationProgress:String="",
+    val candidatePools:Map<String,List<Place>> = emptyMap(),val tripDays:List<TripDay> = emptyList(),val generationProgress:String="",
     val page: Page = Page.HOME, val form: TravelForm = TravelForm(),
     val cities: List<City> = emptyList(), val cityError: String? = null,
     val hero: HeroPhoto? = null, val searching: Boolean = false,
-    val suggestions: List<PlaceSuggestion> = emptyList(), val searchError: String? = null,
+    val suggestions: List<PlaceSuggestion> = emptyList(), val searchError: String? = null,val searchNotice:String?=null,
     val loading: Boolean = false, val error: String? = null,
     val courses: List<Course> = emptyList(), val selectedId: String? = null,
     val elapsedMs: Long = 0, val fetchedAt: String? = null,
@@ -140,6 +140,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         }catch(e:Exception){if(e is CancellationException)throw e;if(version==mapPointVersion)mutable.update{it.copy(searchError="선택한 장소를 확인하지 못했어요. 다시 선택해 주세요.")}}
         finally{if(version==mapPointVersion)mutable.update{it.copy(mapResolving=false)}}}
     }
+    fun dismissSearchNotice(){mutable.update{it.copy(searchNotice=null)}}
     fun search()=scheduleSearch(0)
     private fun scheduleSearch(debounceMs:Long) {
         val query = mutable.value.form.query.trim()
@@ -161,7 +162,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                 mutable.update { it.copy(searching=false,suggestions=result,searchError=if(result.isEmpty()) "검색 결과가 없습니다. 장소명이나 주소를 더 입력해 주세요." else null) }
             } catch(e: Exception) {
                 if(e is CancellationException) throw e
-                if(stillCurrent())mutable.update { it.copy(searching=false,searchError=if(e is ApiFailure && e.status==503)"장소 검색을 잠시 사용할 수 없습니다. 호출 한도 또는 제공처 연결 문제일 수 있어요." else "검색에 연결하지 못했습니다. 검색 버튼으로 다시 시도해 주세요.") }
+                if(stillCurrent())mutable.update { val limited=e is ApiFailure && e.status in listOf(429,503);it.copy(searching=false,searchError=if(limited)"장소 검색을 잠시 사용할 수 없어요." else "검색에 연결하지 못했습니다. 검색 버튼으로 다시 시도해 주세요.",searchNotice=if(limited)"지도 서비스의 호출 한도 또는 일시적인 연결 문제로 검색이 중단됐어요. 잠시 후 다시 이용해 주세요. 일일 한도에 도달했다면 다음 날 다시 이용할 수 있어요." else null) }
             }
         }
     }
@@ -175,7 +176,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         mutable.update{it.copy(loading=true,error=null,courses=emptyList(),tripDays=emptyList(),confirmedId=null)}
         recommendationJob=viewModelScope.launch{
             val started=System.nanoTime();val dates=form.tripDates()
-            val visited=mutableListOf<VisitedPlace>();val all=mutableListOf<Course>();val days=mutableListOf<TripDay>()
+            val visited=mutableListOf<VisitedPlace>();val all=mutableListOf<Course>();val days=mutableListOf<TripDay>();val pools=mutableMapOf<String,List<Place>>()
             try{
                 for((index,date) in dates.withIndex()){
                     mutable.update{it.copy(generationProgress="DAY ${index+1} / ${dates.size}")}
@@ -184,6 +185,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                         preferences=form.forDay(date,localDayOrigin).preferences().copy(visitedPlaces=visited.toList())
                         val response=repository.recommend(preferences)
                         val accepted=acceptedCourses(response).filter{c->preferences.requiredContentId==null||c.places.any{it.id.removePrefix("tour-")==preferences.requiredContentId}}
+                        pools[date]=accepted.flatMap{it.places}.distinctBy{it.id}
                         val courses=if(dates.size>1)accepted.take(1)else accepted
                         require(courses.isNotEmpty()){response.fallbackReason?:"이 날짜의 새 코스를 찾지 못했어요."}
                         if(index==0)localDayOrigin=courses.first().origin
@@ -192,7 +194,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
                         visited+=courses.first().places.map{VisitedPlace(it.id,it.name,it.latitude,it.longitude)}
                     }catch(e:Exception){if(e is CancellationException)throw e;days+=TripDay(date,preferences,error=e.message?:"코스를 불러오지 못했어요.")}
                 }
-                mutable.update{it.copy(loading=false,courses=all.toList(),tripDays=days.toList(),activeDay=form.date,
+                mutable.update{it.copy(loading=false,courses=all.toList(),candidatePools=pools.toMap(),tripDays=days.toList(),activeDay=form.date,
                     selectedId=all.firstOrNull()?.id,page=Page.RESULTS,preferences=days.firstOrNull{d->d.courseId!=null}?.preferences,
                     elapsedMs=(System.nanoTime()-started)/1_000_000,error=days.filter{d->d.error!=null}.joinToString("\n"){d->"${d.date}: ${d.error}"}.ifBlank{null},
                     weather=null,weatherLoading=false,routingBusyId=null,routingError=null,generationProgress="")}
@@ -205,7 +207,7 @@ class TravelViewModel(val repository: TravelRepository) : ViewModel() {
         val day=mutable.value.tripDays.find{it.date==date}?:return
         mutable.update{it.copy(activeDay=date,selectedId=day.courseId,preferences=day.preferences,page=Page.RESULTS)}
     }
-    fun clearPersonalTravel() { dismissMapChoice();multiDayForm=null;localDayOrigin=null;dayCache.clear();suggestionCache.clear();searchVersion++;recommendationJob?.cancel();searchJob?.cancel();routingJob?.cancel();weatherJob?.cancel();routedIds.clear();mutable.update{it.copy(tripDays=emptyList(),generationProgress="",form=TravelForm(),courses=emptyList(),selectedId=null,confirmedId=null,activeDay=null,preferences=null,page=Page.HOME,loading=false,error=null,detailError=null,weather=null,suggestions=emptyList(),routingBusyId=null,routingError=null)} }
+    fun clearPersonalTravel() { dismissMapChoice();multiDayForm=null;localDayOrigin=null;dayCache.clear();suggestionCache.clear();searchVersion++;recommendationJob?.cancel();searchJob?.cancel();routingJob?.cancel();weatherJob?.cancel();routedIds.clear();mutable.update{it.copy(candidatePools=emptyMap(),tripDays=emptyList(),generationProgress="",form=TravelForm(),courses=emptyList(),selectedId=null,confirmedId=null,activeDay=null,preferences=null,page=Page.HOME,loading=false,error=null,detailError=null,weather=null,suggestions=emptyList(),routingBusyId=null,routingError=null)} }
     private fun selectCourse(id: String) {
         if(mutable.value.courses.none { it.id==id }) return
         mutable.update { it.copy(selectedId=id,preferences=it.tripDays.find{d->d.courseId==id}?.preferences?:it.preferences,activeDay=it.tripDays.find{d->d.courseId==id}?.date?:it.activeDay) }

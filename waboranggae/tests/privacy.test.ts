@@ -16,16 +16,20 @@ describe('개인정보·저작자 메타데이터',()=>{
   it('동의 누락·거절·지난 버전은 명시적으로 거부한다',()=>{
     expect(consentSchema.safeParse({}).success).toBe(false);
     expect(consentSchema.safeParse({privacyConsent:false,consentVersion:PRIVACY_NOTICE_VERSION}).success).toBe(false);
-    expect(consentSchema.safeParse({privacyConsent:true,consentVersion:'old'}).success).toBe(false);
-    expect(consentSchema.safeParse({privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION}).success).toBe(true);
+    expect(consentSchema.safeParse({privacyConsent:true,ageConfirmed:true,consentVersion:'old'}).success).toBe(false);
+    expect(consentSchema.safeParse({privacyConsent:true,ageConfirmed:true,consentVersion:PRIVACY_NOTICE_VERSION}).success).toBe(true);
+    expect(consentSchema.safeParse({privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION}).success).toBe(false);
+    expect(consentSchema.safeParse({privacyConsent:true,ageConfirmed:false,consentVersion:PRIVACY_NOTICE_VERSION}).success).toBe(false);
+    expect(consentSchema.safeParse({privacyConsent:true,ageConfirmed:'true',consentVersion:PRIVACY_NOTICE_VERSION}).success).toBe(false);
   });
   it('사진 저작자를 버리지 않고 반환한다',()=>{
     const images=toPhotoImages([{galWebImageUrl:'https://tong.visitkorea.or.kr/example.jpg',galPhotographer:'공공데이터 사진가',galContentId:'123'}]);
     expect(images[0]?.photographer).toBe('공공데이터 사진가');expect(images[0]?.contentId).toBe('123');
   });
-  it('문의 주소와 출시 전 미확정 사항을 공개한다',()=>{
+  it('운영자와 승인된 보관·연령 정책을 공개한다',()=>{
     expect(SUPPORT_EMAIL).toBe('waboranggae.help@gmail.com');
-    expect(privacyHtml()).toContain(SUPPORT_EMAIL);expect(privacyHtml()).toContain('출시 전');
+    expect(privacyHtml()).toContain(SUPPORT_EMAIL);expect(privacyHtml()).toContain('만 14세 이상');
+    expect(privacyHtml()).toContain('90일 이내');expect(privacyHtml()).toContain('최대 7일');
     expect(privacyHtml()).toContain(PRIVACY_OPERATOR_NAME);
   });
 });

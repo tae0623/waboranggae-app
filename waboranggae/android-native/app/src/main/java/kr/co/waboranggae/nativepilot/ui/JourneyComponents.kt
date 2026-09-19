@@ -31,6 +31,12 @@ import kotlinx.serialization.json.*
         }}
     }
 }
+@Composable fun DayScorePair(course:Course){
+    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
+        Surface(color=Soft,shape=RoundedCornerShape(14.dp),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text("추천 점수",fontSize=11.sp,color=Muted);Text("${course.fitScore.toInt()}점",fontWeight=FontWeight.ExtraBold,fontSize=19.sp)}}
+        Surface(color=Color(0xFFECF7F0),shape=RoundedCornerShape(14.dp),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text("뚜벅이 적합도",fontSize=11.sp,color=Purple);Text("${course.walkingScore.toInt()}점",fontWeight=FontWeight.ExtraBold,fontSize=19.sp,color=Purple);FiveStars(course.walkingScore)}}
+    }
+}
 @Composable fun ScoreAnalysis(course:Course) {
     Surface(shape=RoundedCornerShape(24.dp),color=Color.White,shadowElevation=1.dp) { Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)){Text(course.fitScore.toInt().toString(),fontSize=46.sp,fontWeight=FontWeight.Black);Column{Text("추천 점수",fontWeight=FontWeight.Bold);Text("/ 100점",fontSize=11.sp,color=Muted)}}
@@ -62,19 +68,29 @@ import kotlinx.serialization.json.*
             if(access)Text("현지 코스 시간 별도",fontSize=10.sp,color=Muted)
             else if(segment?.source!="kakao")Text("추정 구간",fontSize=10.sp,color=Muted)
             if(segment?.steps.isNullOrEmpty())Text(segment?.instruction?.ifBlank{null}?:"이 구간의 상세 경로를 확인하지 못했어요.",fontSize=12.sp,color=Muted)
-            segment?.steps?.forEach{s->
-                Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Icon(if(s.mode=="walk")PilotIcons.Walk else if(s.mode=="other")PilotIcons.Schedule else PilotIcons.Bus,null,Modifier.size(20.dp),tint=if(s.mode=="walk")Muted else Purple)
-                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)){
-                        s.fromStop?.takeIf{it.isNotBlank()}?.let{Text(it+if(s.mode=="walk")" 출발" else " 승차",fontSize=13.sp,fontWeight=FontWeight.Bold)}
+            val groups=segment?.steps.orEmpty().fold(mutableListOf<MutableList<TransitStep>>()){groups,step->
+                if(step.mode=="walk"&&groups.lastOrNull()?.lastOrNull()?.mode=="walk")groups.last().add(step)else groups.add(mutableListOf(step));groups
+            }
+            groups.forEachIndexed{index,steps->
+                if(index>0)Text("↓",color=Muted,modifier=Modifier.align(Alignment.CenterHorizontally))
+                if(steps.first().mode=="walk"){
+                    var expanded by remember(segment,index){mutableStateOf(false)}
+                    Surface(shape=RoundedCornerShape(14.dp),color=Color.White){Column(Modifier.fillMaxWidth().padding(12.dp)){
+                        TextButton({expanded=!expanded},contentPadding=PaddingValues(0.dp)){Icon(PilotIcons.Walk,null,Modifier.size(18.dp));Text("  도보 · 약 ${formatMinutes(steps.sumOf{it.minutes})}  "+if(expanded)"⌃" else "⌄",fontWeight=FontWeight.Bold)}
+                        if(expanded)steps.forEach{Text(it.label,fontSize=12.sp,color=Muted,modifier=Modifier.padding(vertical=5.dp))}
+                    }}
+                } else steps.forEach{s->
+                    Surface(shape=RoundedCornerShape(14.dp),color=Color.White){Column(Modifier.fillMaxWidth().padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                        Text(if(s.mode=="other")"이동·대기" else "승차",fontSize=11.sp,color=Purple,fontWeight=FontWeight.Bold)
+                        s.fromStop?.takeIf{it.isNotBlank()}?.let{Text(it,fontSize=15.sp,fontWeight=FontWeight.Bold)}
                         FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
-                            (s.routes.ifEmpty{s.route?.let{listOf(it)}?:emptyList()}).forEach{route->Surface(color=Purple,shape=RoundedCornerShape(6.dp)){Text(route,Modifier.padding(horizontal=8.dp,vertical=3.dp),fontSize=12.sp,color=Color.White,fontWeight=FontWeight.Bold)}}
-                            Text(formatMinutes(s.minutes),fontSize=12.sp,fontWeight=FontWeight.Bold)
+                            (s.routes.ifEmpty{s.route?.let{listOf(it)}?:emptyList()}).forEach{route->Surface(color=Purple,shape=RoundedCornerShape(6.dp)){Text(route,Modifier.padding(horizontal=8.dp,vertical=4.dp),fontSize=13.sp,color=Color.White,fontWeight=FontWeight.Bold)}}
+                            Text(formatMinutes(s.minutes),fontSize=13.sp,fontWeight=FontWeight.Bold)
                         }
-                        Text(s.label,fontSize=11.sp,color=Muted,lineHeight=17.sp)
-                        s.toStop?.takeIf{it.isNotBlank()}?.let{Text(it+if(s.mode=="walk")" 도착" else " 하차",fontSize=13.sp,fontWeight=FontWeight.SemiBold)}
+                        Text(s.label,fontSize=12.sp,color=Muted,lineHeight=18.sp)
+                        s.toStop?.takeIf{it.isNotBlank()}?.let{HorizontalDivider(color=Soft);Text("↓ 하차 · "+it,fontSize=14.sp,fontWeight=FontWeight.Bold)}
                         if(s.stops.size>2){var expanded by remember{mutableStateOf(false)};TextButton({expanded=!expanded},contentPadding=PaddingValues(0.dp)){Text(if(expanded)"경유 정류장 접기" else "경유 정류장 보기",fontSize=11.sp)};if(expanded)Text(s.stops.joinToString(" → "),fontSize=11.sp,color=Muted)}
-                    }
+                    }}
                 }
             }
         }

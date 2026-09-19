@@ -12,7 +12,7 @@ export function PrivacyConsent({ onAgree, onDecline, onDelete }: { onAgree: () =
     <p>{ACCOUNT_CONSENT_TEXT}</p>
     <p>동의 전 신규 계정은 만들지 않습니다. 소셜 인증 정보는 임시 DB에 암호화하여 저장하고 5분 뒤 만료·정리합니다. 서버 중단 시 삭제는 재개 후 수행됩니다.</p>
     <p><a href="/legal/privacy" target="_blank" rel="noreferrer">전체 개인정보 수집·이용 안내</a></p>
-    <label><input type="checkbox" checked={checked} disabled={busy} onChange={e=>setChecked(e.target.checked)}/> 위 개인정보 수집·이용에 동의합니다.</label>
+    <label><input type="checkbox" checked={checked} disabled={busy} onChange={e=>setChecked(e.target.checked)}/> 만 14세 이상이며 위 개인정보 수집·이용에 동의합니다.</label>
     <p><button className="consent-primary" disabled={!checked||busy} onClick={()=>void act(onAgree)}>동의하고 계속하기</button></p>
     <p><button disabled={busy} onClick={onDecline}>동의하지 않고 게스트로 이용</button></p>
     {onDelete&&<><p>게스트 전환은 기존 계정 삭제가 아닙니다. 기존 계정 삭제는 새 동의 없이 가능합니다.</p><button disabled={busy} onClick={async()=>{if(await ask('계정 삭제','계정과 저장한 여행 정보를 영구 삭제할까요? 복구할 수 없습니다.','영구 삭제'))void act(onDelete);}}>기존 계정 삭제</button></>}

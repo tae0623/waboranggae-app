@@ -23,7 +23,9 @@ import kr.co.waboranggae.nativepilot.data.*
     val course=state.selectedCourse?:return
     var savePrompt by remember(course.id){mutableStateOf(false)}
     var scoreDetails by remember(course.id){mutableStateOf(false)}
+    LaunchedEffect(course.id){account.clearSaveError()}
     val tripDays=state.tripDays.takeIf{days->days.size>1 && days.any{it.courseId==course.id}}.orEmpty()
+    val dailyCourses=tripDays.mapNotNull{day->state.courses.find{it.id==day.courseId}}
     val photos=course.places.filter{!it.imageUrl.isNullOrBlank()}.distinctBy{it.imageUrl}.take(4)
     var photoIndex by remember(course.id){mutableIntStateOf(0)}
     Column(Modifier.fillMaxSize().background(Soft).testTag("course-detail")) {
@@ -41,12 +43,12 @@ import kr.co.waboranggae.nativepilot.data.*
                 }
                 Column(Modifier.align(Alignment.BottomStart).padding(start=20.dp,end=76.dp,bottom=22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Surface(color=Color(0xFFECFDF5),shape=RoundedCornerShape(6.dp)){Text("실제 관광정보",Modifier.padding(horizontal=8.dp,vertical=3.dp),fontSize=10.sp,color=Purple,fontWeight=FontWeight.Bold)}
-                    Text(course.title,fontSize=23.sp,lineHeight=29.sp,fontWeight=FontWeight.Black,color=Color.White)
+                    Text(if(tripDays.isEmpty())course.title else "${course.city} ${tripDays.size}일 여행",fontSize=23.sp,lineHeight=29.sp,fontWeight=FontWeight.Black,color=Color.White)
                     Text(course.city,fontSize=12.sp,color=Color.White.copy(alpha=.85f))
                 }
             }
             Row(Modifier.fillMaxWidth().background(Color.White).padding(vertical=18.dp),horizontalArrangement=Arrangement.SpaceEvenly) {
-                listOf("현지 예상시간" to formatMinutes(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt()),"걷기 부담" to if(course.walkingScore>=85)"낮음" else if(course.walkingScore>=70)"보통" else "높음","추천 점수" to course.fitScore.toInt().toString()).forEach{(label,value)->
+                (if(tripDays.isNotEmpty())listOf("여행 일정" to "${tripDays.size}일","현지 시간 합계" to formatMinutes(dailyCourses.sumOf{it.timeBreakdown?.totalMinutes?:(it.durationHours*60).toInt()}),"방문 장소" to "${dailyCourses.sumOf{it.places.size}}곳") else listOf("현지 예상시간" to formatMinutes(course.timeBreakdown?.totalMinutes ?: (course.durationHours*60).toInt()),"걷기 부담" to if(course.walkingScore>=85)"낮음" else if(course.walkingScore>=70)"보통" else "높음","추천 점수" to course.fitScore.toInt().toString())).forEach{(label,value)->
                     Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally){Text(label,fontSize=11.sp,color=Muted);Text(value,fontSize=16.sp,fontWeight=FontWeight.ExtraBold,modifier=Modifier.padding(top=5.dp))}
                 }
             }
@@ -54,7 +56,7 @@ import kr.co.waboranggae.nativepilot.data.*
                 if(state.routingBusyId==course.id)LinearProgressIndicator(Modifier.fillMaxWidth().testTag("routing-loading"))
                 state.routingError?.let{Text(it,fontSize=12.sp,color=Muted)}
                 if(!course.constraintPassed){Text(course.constraintViolations.firstOrNull()?:"설정한 조건을 벗어난 구간이 있어요.",fontSize=12.sp,color=MaterialTheme.colorScheme.error);TextButton(model::changeTripConditions){Text("시간·조건 변경")}}
-                Surface(shape=RoundedCornerShape(24.dp),color=Color.White,shadowElevation=1.dp){Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+                if(tripDays.isEmpty())Surface(shape=RoundedCornerShape(24.dp),color=Color.White,shadowElevation=1.dp){Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
                     Text("이 코스를 추천한 이유",fontSize=12.sp,fontWeight=FontWeight.Bold,color=Muted)
                     Text(course.reason.summary,fontSize=14.sp,lineHeight=22.sp)
                     HorizontalDivider(color=Soft)
@@ -65,8 +67,10 @@ import kr.co.waboranggae.nativepilot.data.*
                     listOf(false to "타임라인",true to "점수 분석").forEach{(value,label)->Surface(onClick={scoreDetails=value},shape=RoundedCornerShape(18.dp),color=if(scoreDetails==value)Ink else Color.White,modifier=Modifier.weight(1f)){Box(Modifier.padding(12.dp),contentAlignment=Alignment.Center){Text(label,fontSize=13.sp,color=if(scoreDetails==value)Color.White else Muted,fontWeight=FontWeight.Bold)}}}
                 }}
                 if(scoreDetails){
-                    if(tripDays.isNotEmpty())Text("${state.tripDays.find{it.courseId==course.id}?.date} 코스 점수",fontSize=13.sp,color=Muted)
-                    ScoreAnalysis(course)
+                    if(tripDays.isEmpty())ScoreAnalysis(course) else tripDays.forEachIndexed{index,day->
+                        Text("DAY ${index+1} · ${day.date}",fontSize=20.sp,fontWeight=FontWeight.Bold)
+                        state.courses.find{it.id==day.courseId}?.let{ScoreAnalysis(it)}?:Text(day.error?:"점수 미확인",color=Muted)
+                    }
                 } else if(tripDays.isEmpty())JourneyTimeline(course,model.repository) else {
                     tripDays.forEachIndexed{index,day->
                         Column(verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.testTag("detail-day-${index+1}")){
@@ -74,50 +78,27 @@ import kr.co.waboranggae.nativepilot.data.*
                             Text("${formatKoreanClock(day.preferences.startTime)} 시작"+(day.preferences.endTime?.let{" · ${formatKoreanClock(it)}까지"}?:""),fontSize=12.sp,color=Muted)
                             val dailyCourse=state.courses.find{it.id==day.courseId}
                             if(dailyCourse==null)Text(day.error?:"이 날짜의 코스를 찾지 못했어요.",color=MaterialTheme.colorScheme.error)
-                            else {Text(dailyCourse.title,fontWeight=FontWeight.Bold);JourneyTimeline(dailyCourse,model.repository)}
+                            else {Text(dailyCourse.title,fontWeight=FontWeight.Bold);DayScorePair(dailyCourse);TextButton({model.openDetails(dailyCourse.id);model.navigate(Page.EDITOR)}){Text("이 날짜 코스 편집")};JourneyTimeline(dailyCourse,model.repository)}
                         }
                         if(index<tripDays.lastIndex)HorizontalDivider(Modifier.padding(vertical=10.dp))
                     }
                 }
                 if(state.detailBusy||auth.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
                 state.detailError?.let{Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.error)}
-                auth.message?.let{Text(it,fontSize=12.sp,color=Muted)}
             }
         }
         Surface(color=Color.White,shadowElevation=6.dp){
             Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)){if(tripDays.isNotEmpty())Text("${tripDays.find{it.courseId==course.id}?.date} 기준",fontSize=9.sp,color=Muted);Text("추천 점수  ${course.fitScore.toInt()}점",fontSize=11.sp,fontWeight=FontWeight.Bold);Text("뚜벅이 적합도  ${course.walkingScore.toInt()}점",fontSize=11.sp,color=Purple,fontWeight=FontWeight.Bold)}
-                if(state.preferences!=null)OutlinedIconButton({model.navigate(Page.EDITOR)},enabled=!state.detailBusy&&!auth.busy,modifier=Modifier.size(42.dp).testTag("edit-course")){Icon(PilotIcons.Edit,"코스 편집",Modifier.size(18.dp))}
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)){if(tripDays.isNotEmpty()){Text("${tripDays.size}일 전체 일정",fontWeight=FontWeight.Bold);Text("날짜별 점수·동선",fontSize=11.sp,color=Muted)}else{Text("추천 점수  ${course.fitScore.toInt()}점",fontSize=11.sp,fontWeight=FontWeight.Bold);Text("뚜벅이 적합도  ${course.walkingScore.toInt()}점",fontSize=11.sp,color=Purple,fontWeight=FontWeight.Bold)}}
+                if(state.preferences!=null&&tripDays.isEmpty())OutlinedIconButton({model.navigate(Page.EDITOR)},enabled=!state.detailBusy&&!auth.busy,modifier=Modifier.size(42.dp).testTag("edit-course")){Icon(PilotIcons.Edit,"코스 편집",Modifier.size(18.dp))}
                 Button({
                     if(auth.user!=null && auth.bookmarks.none{it.text("courseId")==course.id})savePrompt=true else model.confirmTravel(course.id)
                 },enabled=course.canPreviewRoute()&&!auth.busy,shape=RoundedCornerShape(100.dp),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF16A34A)),contentPadding=PaddingValues(horizontal=15.dp),modifier=Modifier.heightIn(min=46.dp).testTag("confirm-course")){Text("이 코스로 여행하기",fontSize=13.sp,fontWeight=FontWeight.ExtraBold,maxLines=1)}
             }
         }
     }
-    if(savePrompt)AppDialog(onDismissRequest={savePrompt=false},title={Text("이 코스로 여행 확정")},text={Text((if(tripDays.isNotEmpty())"선택한 날짜의 코스를 저장할까요? " else "내 여행에도 코스를 저장할까요? ")+"출발 장소·좌표와 방문 일정이 계정에 연결되어 직접 삭제하거나 탈퇴할 때까지 보관됩니다.")},
-        confirmButton={TextButton({savePrompt=false;account.save(course){model.confirmTravel(course.id)}}){Text("코스 저장")}},
+    if(auth.saveError!=null&&!auth.busy)AppDialog(onDismissRequest=account::clearSaveError,title={Text("코스를 저장하지 못했어요")},text={Text(auth.saveError)},confirmButton={TextButton({if(auth.saveErrorStatus==401)account.loginScreen()else{account.clearSaveError();savePrompt=true}}){Text(if(auth.saveErrorStatus==401)"다시 로그인" else "다시 시도")}},dismissButton={TextButton({account.clearSaveError();model.confirmTravel(course.id)}){Text("저장 없이 여행하기")}})
+    if(savePrompt)AppDialog(onDismissRequest={savePrompt=false},title={Text("이 코스로 여행 확정")},text={Text((if(tripDays.isNotEmpty())"여러 날의 코스를 모두 저장할까요? " else "내 여행에도 코스를 저장할까요? ")+"출발 장소·좌표와 방문 일정이 계정에 연결되어 직접 삭제하거나 탈퇴할 때까지 보관됩니다.")},
+        confirmButton={TextButton({savePrompt=false;account.saveTrip(if(tripDays.isEmpty())listOf(course) else tripDays.mapNotNull{day->state.courses.find{it.id==day.courseId}}){model.confirmTravel(course.id)}}){Text("코스 저장")}},
         dismissButton={TextButton({savePrompt=false;model.confirmTravel(course.id)}){Text("저장 없이 여행하기")}})
-}
-@Composable fun CourseEditor(state:TravelUiState,model:TravelViewModel) {
-    val course=state.selectedCourse?:return
-    var ids by remember(course){mutableStateOf(course.places.map{it.id})}
-    val pool=state.courses.flatMap{it.places}.associateBy{it.id}
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        TextButton(model::back,enabled=!state.detailBusy){Text("‹ 변경 취소")}
-        Text("코스 편집",fontSize=26.sp,fontWeight=FontWeight.Black)
-        Text("순서를 바꾸고 일정을 다시 계산하세요.",fontSize=13.sp,color=Muted)
-        ids.forEachIndexed{index,id->Surface(shape=RoundedCornerShape(18.dp)){Column(Modifier.fillMaxWidth().padding(12.dp)){
-            Text("${index+1}. ${pool[id]?.name}",fontWeight=FontWeight.Bold)
-            Row{
-                TextButton({ids=ids.toMutableList().apply{add(index-1,removeAt(index))}},enabled=index>0 && !state.detailBusy){Text("위로")}
-                TextButton({ids=ids.toMutableList().apply{add(index+1,removeAt(index))}},enabled=index<ids.lastIndex && !state.detailBusy){Text("아래로")}
-                TextButton({ids=ids.filter{it!=id}},enabled=ids.size>1 && !state.detailBusy,modifier=Modifier.testTag("remove-course-place")){Text("제외")}
-            }
-        }}}
-        Text("추천 장소 추가",fontWeight=FontWeight.Bold)
-        pool.values.filter{it.id !in ids}.forEach{p->OutlinedButton({ids=ids+p.id},enabled=ids.size<40 && !state.detailBusy){Text("+ ${p.name}")}}
-        state.detailError?.let{Text(it,color=MaterialTheme.colorScheme.error)}
-        if(state.detailBusy)LinearProgressIndicator(Modifier.fillMaxWidth())
-        WebAction("동선 다시 계산",{model.edit(ids)},enabled=!state.detailBusy && ids.isNotEmpty(),modifier=Modifier.testTag("apply-course-edit"))
-    }
 }

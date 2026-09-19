@@ -54,16 +54,16 @@ describe('이메일·소셜 최초 동의 API 계약',()=>{
   it('기존 이메일 계정은 인증만으로 동의 기록을 만들지 않는다',async()=>{const r=await send('/auth/login',{email:state.user.email,password:'correct'});expect(r.status).toBe(200);expect(r.body.user.consentVersion).toBeNull();expect(r.body.user.password).toBeUndefined();expect(state.updates).toBe(0);});
   it('명시적 동의를 저장하고 같은 버전은 다음 로그인/재동의에서 유지한다',async()=>{
     expect((await send('/auth/consent',{privacyConsent:false,consentVersion:PRIVACY_NOTICE_VERSION},true)).status).toBe(400);expect(state.updates).toBe(0);
-    const accepted=await send('/auth/consent',{privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION},true);expect(accepted.status).toBe(200);expect(state.updates).toBe(1);
+    const accepted=await send('/auth/consent',{privacyConsent:true,ageConfirmed:true,consentVersion:PRIVACY_NOTICE_VERSION},true);expect(accepted.status).toBe(200);expect(state.updates).toBe(1);
     const login=await send('/auth/login',{email:state.user.email,password:'correct'});expect(login.body.user.consentedAt).toBe(accepted.body.consentedAt);
-    const again=await send('/auth/consent',{privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION},true);expect(again.body.consentedAt).toBe(accepted.body.consentedAt);expect(state.updates).toBe(1);
+    const again=await send('/auth/consent',{privacyConsent:true,ageConfirmed:true,consentVersion:PRIVACY_NOTICE_VERSION},true);expect(again.body.consentedAt).toBe(accepted.body.consentedAt);expect(state.updates).toBe(1);
   });
   it('신규 소셜 계정은 동의 전 DB 등록/토큰 발급이 없고 동의 후 한 번만 결과를 받는다',async()=>{
     const flow=await createSocialFlow('google');expect((await socialCallback(flow.flowId)).status).toBe(303);
     const identity={flowId:flow.flowId,pollSecret:flow.pollSecret};const pending=await send('/auth/social/result',identity);expect(pending.body.status).toBe('consent_required');expect(pending.body.accessToken).toBeUndefined();expect(state.creates).toBe(0);
     expect((await send('/auth/social/consent',identity)).status).toBe(400);expect(state.creates).toBe(0);
-    expect((await send('/auth/social/consent',{...identity,pollSecret:'x'.repeat(64),privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION})).status).toBe(400);
-    expect((await send('/auth/social/consent',{...identity,privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION})).status).toBe(200);
+    expect((await send('/auth/social/consent',{...identity,pollSecret:'x'.repeat(64),privacyConsent:true,ageConfirmed:true,consentVersion:PRIVACY_NOTICE_VERSION})).status).toBe(400);
+    expect((await send('/auth/social/consent',{...identity,privacyConsent:true,ageConfirmed:true,consentVersion:PRIVACY_NOTICE_VERSION})).status).toBe(200);
     const claimed=await send('/auth/social/result',identity);expect(claimed.body.status).toBe('complete');expect(claimed.body.user.consentVersion).toBe(PRIVACY_NOTICE_VERSION);expect(state.creates).toBe(1);
     expect((await send('/auth/social/result',identity)).status).toBe(400);
   });
@@ -79,7 +79,7 @@ describe('이메일·소셜 최초 동의 API 계약',()=>{
   });
   it('동시 신규 가입 동의가 들어와도 사용자 계정은 한 번만 만든다',async()=>{
     const flow=await createSocialFlow('google'); await socialCallback(flow.flowId);
-    const body={flowId:flow.flowId,pollSecret:flow.pollSecret,privacyConsent:true,consentVersion:PRIVACY_NOTICE_VERSION};
+    const body={flowId:flow.flowId,pollSecret:flow.pollSecret,privacyConsent:true,ageConfirmed:true,consentVersion:PRIVACY_NOTICE_VERSION};
     const requests=await Promise.all([send('/auth/social/consent',body),send('/auth/social/consent',body)]);
     expect(requests.filter(r=>r.status===200).length).toBe(1);expect(state.creates).toBe(1);
   });

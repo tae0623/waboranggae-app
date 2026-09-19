@@ -28,7 +28,7 @@ userRouter.patch('/user/profile', async (request: Request, response: Response, n
   try {
     const userId = extractUserId(request);
     const body = z.object({
-      displayName: z.string().min(2).max(50),
+      displayName: z.string().trim().min(2).max(50),
     }).parse(request.body);
 
     const user = await UserQueries.updateDisplayName(userId, body.displayName);

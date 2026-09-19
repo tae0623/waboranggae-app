@@ -7,20 +7,24 @@ import { authenticateToken } from '../middleware/auth';
 import { loginLimiter, signupLimiter } from '../middleware/rateLimiter';
 import { consentSchema, needsPrivacyConsent } from '../privacy';
 import { isSessionRevoked, revokeSession } from './session-revocations';
+import {SignupBotError,signupBotConfig,verifySignupBot} from './signup-bot';
+import { DISPOSABLE_EMAIL_MESSAGE, isDisposableEmail } from './disposable-email';
 
 const router = Router();
 
 // 스키마 정의
 const signupSchema = z.object({
-  email: z.string().email('올바른 이메일 주소를 입력하세요'),
+  email: z.string().trim().max(254).email('올바른 이메일 주소를 입력하세요'),
   displayName: z.string().min(2, '이름은 2자 이상이어야 합니다').max(50, '이름은 50자 이하여야 합니다'),
   password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다').max(128),
+  botToken: z.string().max(2048).optional(),
 }).merge(consentSchema);
 
 const loginSchema = z.object({
-  email: z.string().email('올바른 이메일 주소를 입력하세요'),
+  email: z.string().trim().max(254).refine(value=>z.string().email().safeParse(value).success||/^[a-z][a-z0-9_-]{2,31}$/.test(value),'이메일 또는 아이디를 확인해 주세요'),
   password: z.string().min(1, '비밀번호를 입력하세요').max(128),
   privacyConsent: z.boolean().optional(),
+  ageConfirmed: z.boolean().optional(),
   consentVersion: z.string().optional(),
 });
 
@@ -29,9 +33,16 @@ const refreshSchema = z.object({
 });
 
 // 회원가입
+router.get('/signup-config',(_req,res)=>res.set('Cache-Control','no-store').json(signupBotConfig()));
 router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, displayName, password, consentVersion } = signupSchema.parse(req.body);
+    const { email, displayName, password, consentVersion,botToken } = signupSchema.parse(req.body);
+    // Check before bot-provider calls, password hashing and database operations.
+    if (isDisposableEmail(email)) {
+      res.status(400).json({ error: DISPOSABLE_EMAIL_MESSAGE, code: 'DISPOSABLE_EMAIL_DOMAIN' });
+      return;
+    }
+    await verifySignupBot(botToken);
 
     // 비밀번호 요구사항 검증
     const passwordError = validatePasswordRequirements(password);
@@ -80,6 +91,7 @@ router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
       refreshToken,
     });
   } catch (error: any) {
+    if(error instanceof SignupBotError){res.status(error.status).json({error:error.message,code:'SIGNUP_BOT_CHECK'});return;}
     if (error.issues) {
       // Zod 검증 에러
       res.status(400).json({
@@ -98,16 +110,15 @@ router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
 // 로그인
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, password, privacyConsent, consentVersion } = loginSchema.parse(req.body);
+    const { email, password, privacyConsent, consentVersion, ageConfirmed } = loginSchema.parse(req.body);
     // Authentication without consent remains available for privacy rights/deletion.
     // It never records consent implicitly; account writes are separately gated.
-    const consent = privacyConsent !== undefined || consentVersion !== undefined
-      ? consentSchema.parse({ privacyConsent, consentVersion }) : null;
+    const consent = privacyConsent !== undefined || consentVersion !== undefined || ageConfirmed !== undefined
+      ? consentSchema.parse({ privacyConsent, consentVersion, ageConfirmed }) : null;
 
     // 사용자 조회
-    let user = await prisma.user.findUnique({
-      where: { email },
-    });
+    // A provisioned alias still requires the account's normal bcrypt password.
+    let user = await prisma.user.findUnique({where:email.includes('@')?{email}:{loginAlias:email}});
 
     if (!user || !user.password) {
       // 보안: 이메일 존재 여부를 숨김
