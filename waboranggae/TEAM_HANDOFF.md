@@ -62,7 +62,7 @@ pnpm server
 3. Pull Request에 변경 화면과 확인 방법을 기록하고 검토 후 `ver5`에 합칩니다.
 4. `ver5` push는 연결된 Pages 웹의 자동 빌드를 유발할 수 있습니다. Pages용 검증은 `pnpm pages:build`, `pnpm pages:verify`입니다.
 5. API는 별도 Supabase 배포가 필요합니다. `scripts/build-edge.mjs`는 빌드만 수행하며 무시된 번들을 다시 생성합니다. 저장소의 Edge 진입점만 올려서는 서버가 바뀌지 않습니다.
-6. 기존 `scripts/deploy-edge.mjs --deploy-validation`은 비공개 검증 서버용입니다. 현재 공개 앱 서버에 적용하려고 검증 모드를 다시 켜지 마세요. 운영 배포는 운영자가 현재 환경을 유지하며 별도 수행합니다.
+6. `scripts/deploy-edge.mjs --deploy-validation`은 비공개 검증 서버용입니다. 공개 서버 코드 갱신은 운영자가 `node scripts/deploy-edge.mjs --check-public --code-only`로 사전 확인 후 `node scripts/deploy-edge.mjs --deploy-public --code-only`로 수행합니다. 공개 설정은 이미 켜져 있어야 하며 이 명령은 비밀값을 업로드하지 않습니다.
 7. Android 새 버전은 정식 키로 서명하고 `versionCode`를 증가시킨 후 스토어에 제출합니다. 정식 키는 운영자만 보관합니다.
 
-이번 GitHub 정리는 소스 공유 작업입니다. API 재배포, 새 APK 설치, 원스토어 후속 버전 제출과는 별개입니다.
+GitHub push 자체는 API 배포나 원스토어 업데이트가 아닙니다. **2026-09-20 01:35 KST에는 운영자의 추가 요청으로 일회용 이메일 차단 API 배포 및 실검증을 별도 완료했습니다.** [운영 반영 결과](DISPOSABLE_EMAIL_DEPLOY_2026-09-20.md)를 참고하세요. 새 Android 안내 문구의 스토어 업데이트는 별도입니다.
